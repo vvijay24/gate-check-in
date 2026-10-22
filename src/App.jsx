@@ -2,11 +2,13 @@ import { useEffect, useState } from 'react'
 import GuardForm from './components/GuardForm'
 import EntryLog from './components/EntryLog'
 import LogTab from './components/LogTab'
+import ShippingDashboard from './components/ShippingDashboard'
 
 const STORAGE_KEY = 'guard-load-log'
 
 const TABS = [
   { id: 'gate', label: 'Gate' },
+  { id: 'shipping', label: 'Shipping' },
   { id: 'log', label: 'Log' },
 ]
 
@@ -66,6 +68,12 @@ export default function App() {
     setEditing(entry)
     setTab('gate')
     window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  const handleAssignDock = (id, dockDoor) => {
+    setEntries((list) => list.map((e) => (e.id === id ? { ...e, dockDoor, dockAssignedAt: Date.now() } : e)))
+    const entry = entries.find((e) => e.id === id)
+    setNotice(`Trailer ${entry?.trailerNumber ?? ''} assigned to dock ${dockDoor}`)
   }
 
   const handleDelete = (id) => {
@@ -134,6 +142,10 @@ export default function App() {
             <div className="lg:sticky lg:top-[140px] lg:max-h-[calc(100vh-160px)] lg:overflow-y-auto lg:rounded-[10px]">
               <EntryLog entries={entries} onEdit={handleEdit} onDelete={handleDelete} />
             </div>
+          </div>
+        ) : tab === 'shipping' ? (
+          <div role="tabpanel" id="panel-shipping" aria-labelledby="tab-shipping">
+            <ShippingDashboard entries={entries} onAssignDock={handleAssignDock} onOpen={handleEdit} />
           </div>
         ) : (
           <div role="tabpanel" id="panel-log" aria-labelledby="tab-log">
