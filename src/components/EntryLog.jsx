@@ -2,7 +2,7 @@ import * as ui from '../ui'
 
 const fmt = (date, time) => (date ? `${date} ${time || ''}`.trim() : '')
 
-function EntryCard({ e, onEdit, onDelete }) {
+function EntryCard({ e, onEdit, onCheckOut, onDelete }) {
   const purposes = e.visitPurpose ?? []
   const meta = [
     purposes.length > 0 && <b key="t" className="font-semibold text-ink">{purposes.join(' + ')}</b>,
@@ -41,8 +41,11 @@ function EntryCard({ e, onEdit, onDelete }) {
             {e.timeOut && <> · Out {fmt(e.dateOut, e.timeOut)}</>}
           </div>
           <div className="mt-2 flex flex-wrap items-center gap-3">
-            <button onClick={() => onEdit(e)} className={e.timeOut ? ui.btnSmall : ui.btnSmallPrimary}>
-              {e.timeOut ? 'Edit' : 'Check out'}
+            <button onClick={() => onCheckOut(e)} className={e.timeOut ? ui.btnSmall : ui.btnSmallPrimary}>
+              {e.timeOut ? 'Edit check-out' : 'Check out'}
+            </button>
+            <button onClick={() => onEdit(e)} className="cursor-pointer py-1 text-sm underline">
+              Edit check-in
             </button>
             <button
               onClick={() => window.confirm(`Delete entry for ${e.truckName}?`) && onDelete(e.id)}
@@ -64,7 +67,7 @@ function EntryCard({ e, onEdit, onDelete }) {
   )
 }
 
-export default function EntryLog({ entries, onEdit, onDelete }) {
+export default function EntryLog({ entries, onEdit, onCheckOut, onDelete }) {
   // Trucks still on site first; each group keeps newest-first order.
   const sorted = [...entries.filter((e) => !e.timeOut), ...entries.filter((e) => e.timeOut)]
   const onSite = entries.length - entries.filter((e) => e.timeOut).length
@@ -86,9 +89,9 @@ export default function EntryLog({ entries, onEdit, onDelete }) {
       {entries.length === 0 ? (
         <p className="py-5 text-muted">No entries yet. Logged trucks will appear here.</p>
       ) : (
-        <div className="mt-4 grid gap-2.5">
+        <div className="mt-4 grid gap-2.5 md:grid-cols-2 xl:grid-cols-3">
           {sorted.map((e) => (
-            <EntryCard key={e.id} e={e} onEdit={onEdit} onDelete={onDelete} />
+            <EntryCard key={e.id} e={e} onEdit={onEdit} onCheckOut={onCheckOut} onDelete={onDelete} />
           ))}
         </div>
       )}

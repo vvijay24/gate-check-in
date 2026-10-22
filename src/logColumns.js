@@ -2,12 +2,15 @@
 // `get` returns the cell value; `number` marks numeric columns so Excel can sum/sort them.
 const num = (v) => (v === '' || v == null || isNaN(v) ? '' : Number(v))
 
+// Order No, Date In and Time In lead; the rest follow in form order.
 export const LOG_COLUMNS = [
-  { header: 'Status', get: (e) => (e.timeOut ? 'Departed' : 'On site'), width: 10 },
-  { header: 'Guard on Duty', get: (e) => e.guardOnDuty, width: 18 },
-  { header: 'Purpose of Visit', get: (e) => (e.visitPurpose ?? []).join(', '), width: 22 },
+  { header: 'Order No', get: (e) => e.pickupNumber, width: 12 },
   { header: 'Date In', get: (e) => e.dateIn, width: 12 },
   { header: 'Time In', get: (e) => e.timeIn, width: 9 },
+  { header: 'Status', get: (e) => (e.timeOut ? 'Departed' : 'On site'), width: 10 },
+  { header: 'Guard on Duty (Check-In)', get: (e) => e.guardOnDuty, width: 18 },
+  { header: 'Guard on Duty (Check-Out)', get: (e) => e.guardOut, width: 18 },
+  { header: 'Purpose of Visit', get: (e) => (e.visitPurpose ?? []).join(', '), width: 22 },
   { header: 'Date Out', get: (e) => e.dateOut, width: 12 },
   { header: 'Time Out', get: (e) => e.timeOut, width: 9 },
   { header: 'Dock #', get: (e) => e.dockDoor, width: 8 },
@@ -20,7 +23,6 @@ export const LOG_COLUMNS = [
   { header: 'Trucker Name Going Out', get: (e) => e.truckerNameOut, width: 20 },
   { header: 'Driver Phone # (Out)', get: (e) => e.driverPhoneOut, width: 16 },
   { header: 'Waiting Location', get: (e) => e.waitingLocation, width: 16 },
-  { header: 'Order No', get: (e) => e.pickupNumber, width: 12 },
   { header: 'Customer Pick Up For', get: (e) => e.customerPickupFor, width: 22 },
   { header: 'Reefer?', get: (e) => e.reefer, width: 8 },
   { header: 'Temp Set (°F)', get: (e) => num(e.tempSet), number: true, width: 11 },

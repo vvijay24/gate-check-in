@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import GuardForm from './components/GuardForm'
+import CheckOutPicker from './components/CheckOutPicker'
 import EntryLog from './components/EntryLog'
 import LogTab from './components/LogTab'
 import ShippingDashboard from './components/ShippingDashboard'
@@ -9,7 +10,11 @@ const STORAGE_KEY = 'guard-load-log'
 const TABS = [
   { id: 'gate', label: 'Gate' },
   { id: 'shipping', label: 'Shipping' },
-  { id: 'log', label: 'Log' },
+]
+
+const GATE_MODES = [
+  { id: 'in', label: 'Check In' },
+  { id: 'out', label: 'Check Out' },
 ]
 
 const timeNow = () => new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
@@ -31,6 +36,8 @@ export default function App() {
   const [storageError, setStorageError] = useState(false)
   const [clock, setClock] = useState(timeNow)
   const [tab, setTab] = useState('gate')
+  // Gate sub-tab; `editing` is the entry open in that form (none = new check-in / truck picker).
+  const [gateMode, setGateMode] = useState('in')
 
   useEffect(() => {
     const t = setInterval(() => setClock(timeNow()), 15000)
@@ -56,19 +63,23 @@ export default function App() {
   const handleSave = (form) => {
     if (form.id) {
       setEntries((list) => list.map((e) => (e.id === form.id ? { ...form, updatedAt: Date.now() } : e)))
+      const checkedOut = gateMode === 'out' && !editing?.timeOut
       setEditing(null)
-      setNotice(`Updated entry for ${form.truckName}`)
+      setNotice(checkedOut ? `Checked out ${form.truckName} — trailer ${form.trailerNumber}` : `Updated entry for ${form.truckName}`)
     } else {
       setEntries((list) => [{ ...form, id: crypto.randomUUID(), createdAt: Date.now() }, ...list])
       setNotice(`Logged ${form.truckName} — trailer ${form.trailerNumber}`)
     }
   }
 
-  const handleEdit = (entry) => {
+  const openGate = (mode, entry) => {
+    setGateMode(mode)
     setEditing(entry)
     setTab('gate')
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
+  const handleEdit = (entry) => openGate('in', entry)
+  const handleCheckOut = (entry) => openGate('out', entry)
 
   const handleAssignDock = (id, dockDoor) => {
     setEntries((list) => list.map((e) => (e.id === id ? { ...e, dockDoor, dockAssignedAt: Date.now() } : e)))
@@ -85,8 +96,9 @@ export default function App() {
     <>
       <header className="sticky top-0 z-10 border-b-[6px] border-signal bg-chrome text-white">
         <div className="mx-auto flex max-w-[1400px] flex-wrap items-center gap-4 px-5 py-3">
-          <h1 className="mr-auto font-display text-[28px] leading-none font-bold">Gate Check In</h1>
-          <span className="font-display text-2xl font-semibold text-signal">{clock}</span>
+          {tab === 'gate' && <h1 className="font-display text-[28px] leading-none font-bold">Gate Check In</h1>}
+          {/* ml-auto keeps the clock on the right when there's no title. */}
+          <span className="ml-auto font-display text-2xl font-semibold text-signal">{clock}</span>
         </div>
         <nav role="tablist" className="no-print mx-auto flex max-w-[1400px] gap-1.5 px-5">
           {TABS.map((t) => (
@@ -127,29 +139,52 @@ export default function App() {
             role="tabpanel"
             id="panel-gate"
             aria-labelledby="tab-gate"
-            className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[minmax(0,620px)_minmax(0,1fr)]"
+            className="mx-auto max-w-[620px]"
           >
-            {/* Narrow form on the left, log fills the right from lg up; stacked below. */}
-            <GuardForm
-              key={editing?.id ?? 'new'}
-              initial={editing}
-              defaultGuard={entries[0]?.guardOnDuty ?? ''}
-              onSave={handleSave}
-              onCancel={editing ? () => setEditing(null) : undefined}
-            />
+            {/* The Check In / Check Out form, kept narrow and centered. */}
+            <div className="min-w-0 space-y-3">
+              <div role="tablist" aria-label="Gate form" className="no-print grid grid-cols-2 gap-2">
+                {GATE_MODES.map((m) => (
+                  <button
+                    key={m.id}
+                    role="tab"
+                    aria-selected={gateMode === m.id}
+                    onClick={() => openGate(m.id, null)}
+                    className={
+                      'min-h-14 cursor-pointer rounded-[10px] border-2 font-display text-[22px] font-bold ' +
+                      (gateMode === m.id ? 'border-signal bg-signal text-signal-ink' : 'border-line bg-panel text-ink')
+                    }
+                  >
+                    {m.label}
+                  </button>
+                ))}
+              </div>
 
-            {/* Stays in view while scrolling the long form. */}
-            <div className="lg:sticky lg:top-[140px] lg:max-h-[calc(100vh-160px)] lg:overflow-y-auto lg:rounded-[10px]">
-              <EntryLog entries={entries} onEdit={handleEdit} onDelete={handleDelete} />
+              {gateMode === 'out' && !editing ? (
+                <CheckOutPicker entries={entries} onPick={handleCheckOut} />
+              ) : (
+                <GuardForm
+                  key={`${gateMode}-${editing?.id ?? 'new'}`}
+                  mode={gateMode}
+                  initial={editing}
+                  defaultGuard={entries[0]?.guardOnDuty ?? ''}
+                  onSave={handleSave}
+                  onCancel={editing ? () => setEditing(null) : undefined}
+                />
+              )}
             </div>
           </div>
-        ) : tab === 'shipping' ? (
-          <div role="tabpanel" id="panel-shipping" aria-labelledby="tab-shipping">
-            <ShippingDashboard entries={entries} onAssignDock={handleAssignDock} onOpen={handleEdit} />
-          </div>
         ) : (
-          <div role="tabpanel" id="panel-log" aria-labelledby="tab-log">
-            <LogTab entries={entries} onEdit={handleEdit} onDelete={handleDelete} />
+          <div role="tabpanel" id="panel-shipping" aria-labelledby="tab-shipping">
+            <ShippingDashboard
+              entries={entries}
+              onAssignDock={handleAssignDock}
+              onEdit={handleEdit}
+              onCheckOut={handleCheckOut}
+              top={<LogTab entries={entries} />}
+            >
+              <EntryLog entries={entries} onEdit={handleEdit} onCheckOut={handleCheckOut} onDelete={handleDelete} />
+            </ShippingDashboard>
           </div>
         )}
       </main>

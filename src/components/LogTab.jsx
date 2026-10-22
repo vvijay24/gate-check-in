@@ -5,7 +5,7 @@ import * as ui from '../ui'
 
 const STATUS_OPTIONS = ['On site', 'Departed']
 
-export default function LogTab({ entries, onEdit, onDelete }) {
+export default function LogTab({ entries }) {
   const [search, setSearch] = useState('')
   const [dateIn, setDateIn] = useState('')
   const [purpose, setPurpose] = useState('')
@@ -41,6 +41,7 @@ export default function LogTab({ entries, onEdit, onDelete }) {
 
   return (
     <section className="space-y-4">
+      <h2 className="font-display text-[26px] leading-tight font-bold">Gate Log</h2>
       <div className="flex flex-wrap items-end gap-3 rounded-[10px] border border-line bg-panel p-5">
         <div className="min-w-56 flex-1">
           <label htmlFor="log-search" className={ui.label + ' mb-1'}>Search</label>
@@ -88,9 +89,6 @@ export default function LogTab({ entries, onEdit, onDelete }) {
             Clear Filters
           </button>
         )}
-        <button type="button" onClick={handleExport} disabled={!rows.length || exporting} className={ui.btnPrimary + ' min-h-[52px]'}>
-          {exporting ? 'Exporting…' : 'Export to Excel'}
-        </button>
       </div>
 
       <p className="text-muted" role="status">
@@ -103,7 +101,6 @@ export default function LogTab({ entries, onEdit, onDelete }) {
         <table className="w-full border-collapse text-left text-[14px]">
           <thead className="text-[13px] font-semibold text-muted">
             <tr className="border-b border-line">
-              <th className="sticky left-0 bg-panel px-3 py-2.5">Actions</th>
               {LOG_COLUMNS.map((c) => (
                 <th key={c.header} className="whitespace-nowrap px-3 py-2.5">
                   {c.header}
@@ -114,24 +111,13 @@ export default function LogTab({ entries, onEdit, onDelete }) {
           <tbody className="divide-y divide-line">
             {rows.length === 0 ? (
               <tr>
-                <td colSpan={LOG_COLUMNS.length + 1} className="px-3 py-6 text-muted">
+                <td colSpan={LOG_COLUMNS.length} className="px-3 py-6 text-muted">
                   {filtered ? 'No entries match these filters.' : 'No entries yet. Entries logged on the Gate tab appear here.'}
                 </td>
               </tr>
             ) : (
               rows.map((e) => (
                 <tr key={e.id} className="align-top">
-                  <td className="sticky left-0 whitespace-nowrap bg-panel px-3 py-2">
-                    <button onClick={() => onEdit(e)} className="mr-3 cursor-pointer font-semibold underline">
-                      {e.timeOut ? 'Edit' : 'Check out'}
-                    </button>
-                    <button
-                      onClick={() => window.confirm(`Delete entry for ${e.truckName}?`) && onDelete(e.id)}
-                      className="cursor-pointer text-danger underline"
-                    >
-                      Delete
-                    </button>
-                  </td>
                   {LOG_COLUMNS.map((c) => {
                     const value = c.get(e)
                     if (c.header === 'Status') {
@@ -163,6 +149,13 @@ export default function LogTab({ entries, onEdit, onDelete }) {
             )}
           </tbody>
         </table>
+      </div>
+
+      {/* Export sits below the table, after the rows it exports. */}
+      <div className="flex justify-end">
+        <button type="button" onClick={handleExport} disabled={!rows.length || exporting} className={ui.btnSmallPrimary}>
+          {exporting ? 'Exporting…' : 'Export'}
+        </button>
       </div>
     </section>
   )

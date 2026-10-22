@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import * as ui from '../ui'
 import { arrivalMs, clockTime, dayKey, departureMs, duration } from '../time'
-import Dashboard, { StatTile } from './Dashboard'
+import Dashboard from './Dashboard'
 
 // Shipping tab: the yard dock board on top, then the outbound (Pickup) shipments table.
 const STATUSES = ['Waiting', 'Loading', 'Shipped']
@@ -27,7 +27,8 @@ const Sub = ({ children }) => <span className="block text-[13px] text-muted">{ch
 const Warn = ({ children }) => <span className="block text-[13px] font-semibold text-danger">⚠ {children}</span>
 const Dash = () => <span className="text-muted">—</span>
 
-export default function ShippingDashboard({ entries, onAssignDock, onOpen }) {
+// `top` renders above the outbound table (the Gate Log); `children` render below it.
+export default function ShippingDashboard({ entries, onAssignDock, onEdit, onCheckOut, top, children }) {
   const [now, setNow] = useState(Date.now)
   const [date, setDate] = useState(() => dayKey(new Date()))
   const [status, setStatus] = useState('')
@@ -40,12 +41,6 @@ export default function ShippingDashboard({ entries, onAssignDock, onOpen }) {
 
   const today = dayKey(new Date(now))
   const pickups = useMemo(() => entries.filter((e) => (e.visitPurpose ?? []).includes('Pickup')), [entries])
-
-  // Counts are always for today, whatever date the table is filtered to.
-  const shippedToday = pickups.filter((e) => e.timeOut && (e.dateOut || e.dateIn) === today)
-  const arrivedToday = pickups.filter((e) => e.dateIn === today)
-  const turns = shippedToday.map((e) => departureMs(e) - arrivalMs(e)).filter(Number.isFinite)
-  const avgTurn = turns.length ? duration(turns.reduce((s, t) => s + t, 0) / turns.length) : null
 
   const rows = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -66,19 +61,13 @@ export default function ShippingDashboard({ entries, onAssignDock, onOpen }) {
   }, [pickups, date, today, status, search])
 
   return (
-    <div className="space-y-5">
-      <Dashboard
-        entries={entries}
-        onAssignDock={onAssignDock}
-        onOpen={onOpen}
-        extraTiles={
-          <>
-            <StatTile label="Pickups today" value={arrivedToday.length} detail="Arrived at the gate today" />
-            <StatTile label="Shipped today" value={shippedToday.length} detail={avgTurn ? `Average turn time ${avgTurn}` : 'No pickups shipped yet today'} />
-          </>
-        }
-      />
-
+    <Dashboard
+      entries={entries}
+      onAssignDock={onAssignDock}
+      onEdit={onEdit}
+      onCheckOut={onCheckOut}
+    >
+      {top}
       <div className="flex flex-wrap items-end gap-3 rounded-[10px] border border-line bg-panel p-5">
         <div className="min-w-56 flex-1">
           <label htmlFor="ship-search" className={ui.label + ' mb-1'}>Search</label>
@@ -193,8 +182,8 @@ export default function ShippingDashboard({ entries, onAssignDock, onOpen }) {
                         {e.emptyPallets !== '' && e.emptyPallets != null && <Sub>Empty pallets {e.emptyPallets}</Sub>}
                       </td>
                       <td className="whitespace-nowrap px-3 py-2.5">
-                        <button onClick={() => onOpen(e)} className="cursor-pointer font-semibold underline">
-                          {e.timeOut ? 'Edit' : 'Open'}
+                        <button onClick={() => onCheckOut(e)} className="cursor-pointer font-semibold underline">
+                          {e.timeOut ? 'Edit check-out' : 'Check out'}
                         </button>
                       </td>
                     </tr>
@@ -205,6 +194,7 @@ export default function ShippingDashboard({ entries, onAssignDock, onOpen }) {
           </table>
         </div>
       </section>
-    </div>
+      {children}
+    </Dashboard>
   )
 }
