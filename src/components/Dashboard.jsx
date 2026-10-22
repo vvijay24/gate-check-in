@@ -109,6 +109,50 @@ function DockCard({ e, now, onCheckOut }) {
   )
 }
 
+// The yard's docks, shown as tiles in Dock Status. Docks assigned outside this list still
+// appear under At the Docks.
+const DOCKS = ['1', '2', '3', '4', '5', '6']
+
+// At-a-glance board of which docks are free. Status is written out, not shown by color alone.
+function DockStatus({ occupied, now }) {
+  const free = DOCKS.filter((d) => !occupied.has(dockKey(d))).length
+  return (
+    <section className="rounded-[10px] border border-line bg-panel p-4">
+      <h2 className="font-display text-[21px] leading-tight font-bold">
+        Dock Status <span className="text-muted">({free} free)</span>
+      </h2>
+      <ul className="mt-3 grid grid-cols-3 gap-2">
+        {DOCKS.map((d) => {
+          const truck = occupied.get(dockKey(d))
+          return (
+            <li
+              key={d}
+              className={
+                'flex min-h-[92px] flex-col rounded-lg border-2 px-2 py-1.5 ' +
+                (truck ? 'border-ink bg-ink text-panel' : 'border-ok bg-ok-soft text-ink')
+              }
+            >
+              <span className="text-[12px] font-semibold opacity-80">Dock</span>
+              <span className="font-display text-[28px] leading-none font-bold">{d}</span>
+              {truck ? (
+                <span className="mt-auto text-[12px] leading-tight">
+                  <b className="block">In use</b>
+                  <span className="block truncate" title={`Trailer ${truck.trailerNumber}`}>
+                    {truck.trailerNumber}
+                  </span>
+                  {truck.dockAssignedAt && <span className="block opacity-80">{duration(now - truck.dockAssignedAt)}</span>}
+                </span>
+              ) : (
+                <b className="mt-auto text-[13px] text-ok">✓ Free</b>
+              )}
+            </li>
+          )
+        })}
+      </ul>
+    </section>
+  )
+}
+
 function Panel({ title, count, empty, children }) {
   return (
     <section className="rounded-[10px] border border-line bg-panel p-4">
@@ -141,6 +185,7 @@ export default function Dashboard({ entries, onAssignDock, onEdit, onCheckOut, c
   return (
     <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
       <aside className="grid gap-4 sm:grid-cols-2 lg:sticky lg:top-[140px] lg:order-2 lg:max-h-[calc(100vh-160px)] lg:grid-cols-1 lg:overflow-y-auto">
+        <DockStatus occupied={occupied} now={now} />
         <Panel title="Trucks Waiting" count={waiting.length} empty="No trucks waiting. Trucks logged on the Gate tab appear here.">
           {waiting.map((e) => (
             <WaitingCard key={e.id} e={e} now={now} occupied={occupied} onAssignDock={onAssignDock} onEdit={onEdit} />
