@@ -1,0 +1,85 @@
+@import "tailwindcss";
+
+/* Palette and type from guard-shack-log.html. Utilities read these variables,
+   so the dark-mode overrides below restyle everything automatically. */
+@theme {
+  --font-body: "Barlow", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-display: "Barlow Condensed", "Arial Narrow", "Roboto Condensed", sans-serif;
+
+  --color-page: #eceeef;
+  --color-panel: #ffffff;
+  --color-ink: #1b1e21;
+  --color-muted: #5e666d;
+  --color-line: #d3d7da;
+  --color-field: #f5f6f7;
+  --color-chrome: #1b1e21;
+  --color-signal: #f2b705;
+  --color-signal-ink: #1b1e21;
+
+  --color-delivery: #1f6fb2;
+  --color-delivery-soft: #e3eef8;
+  --color-pickup: #2b7d52;
+  --color-pickup-soft: #e2f2e9;
+  --color-drop: #7a4fa0;
+  --color-drop-soft: #efe7f6;
+  --color-ok: #2b7d52;
+  --color-ok-soft: #e2f2e9;
+  --color-danger: #b3261e;
+  --color-danger-soft: #fbe9e7;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --color-page: #16191c;
+    --color-panel: #20252a;
+    --color-ink: #eceff1;
+    --color-muted: #9aa3aa;
+    --color-line: #343b42;
+    --color-field: #181c20;
+    --color-delivery: #5ca4e3;
+    --color-delivery-soft: #1c2c3b;
+    --color-pickup: #5bbf86;
+    --color-pickup-soft: #1b3127;
+    --color-drop: #b48fd8;
+    --color-drop-soft: #2c2238;
+    --color-ok: #5bbf86;
+    --color-ok-soft: #1b3127;
+    --color-danger: #f08080;
+    --color-danger-soft: #3a1f1f;
+  }
+}
+:root[data-theme="dark"] {
+  --color-page: #16191c;
+  --color-panel: #20252a;
+  --color-ink: #eceff1;
+  --color-muted: #9aa3aa;
+  --color-line: #343b42;
+  --color-field: #181c20;
+  --color-delivery: #5ca4e3;
+  --color-delivery-soft: #1c2c3b;
+  --color-pickup: #5bbf86;
+  --color-pickup-soft: #1b3127;
+  --color-drop: #b48fd8;
+  --color-drop-soft: #2c2238;
+  --color-ok: #5bbf86;
+  --color-ok-soft: #1b3127;
+  --color-danger: #f08080;
+  --color-danger-soft: #3a1f1f;
+}
+
+body {
+  background: var(--color-page);
+  color: var(--color-ink);
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.45;
+}
+
+:focus-visible {
+  outline: 3px solid var(--color-signal);
+  outline-offset: 2px;
+}
+
+@media print {
+  .no-print { display: none !important; }
+}
