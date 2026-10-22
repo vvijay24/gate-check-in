@@ -1,11 +1,10 @@
 import { useEffect, useState } from 'react'
 import * as ui from '../ui'
 import { arrivalMs, clockTime, duration } from '../time'
+import AssignDock, { dockKey } from './AssignDock'
 
 // Waits longer than this are flagged (with text, not just color).
 const LONG_WAIT_MS = 2 * 60 * 60 * 1000
-
-const dockKey = (dock) => String(dock ?? '').trim().toUpperCase()
 
 function Stripe({ purposes }) {
   return (
@@ -26,21 +25,9 @@ function Meta({ items }) {
 }
 
 function WaitingCard({ e, now, occupied, onAssignDock, onEdit }) {
-  const [assigning, setAssigning] = useState(false)
-  const [dock, setDock] = useState('')
-  const [error, setError] = useState('')
   const waited = now - arrivalMs(e)
   const long = waited > LONG_WAIT_MS
   const purposes = e.visitPurpose ?? []
-
-  const save = (ev) => {
-    ev.preventDefault()
-    const key = dockKey(dock)
-    if (!key) return setError('Enter a dock #')
-    const busy = occupied.get(key)
-    if (busy) return setError(`Dock ${dock.trim()} is in use by trailer ${busy.trailerNumber}. Check it out first.`)
-    onAssignDock(e.id, dock.trim())
-  }
 
   return (
     <div className="grid grid-cols-[8px_1fr] overflow-hidden rounded-lg bg-page">
@@ -72,51 +59,16 @@ function WaitingCard({ e, now, occupied, onAssignDock, onEdit }) {
             e.waitingLocation && <span key="w">Waiting at {e.waitingLocation}</span>,
           ]}
         />
-
-        {assigning ? (
-          <form onSubmit={save} className="mt-2 flex flex-wrap items-end gap-2" noValidate>
-            <div className="w-32">
-              <label htmlFor={`dock-${e.id}`} className={ui.label + ' mb-1'}>
-                Dock #
-              </label>
-              <input
-                id={`dock-${e.id}`}
-                value={dock}
-                onChange={(ev) => {
-                  setDock(ev.target.value)
-                  setError('')
-                }}
-                inputMode="numeric"
-                autoFocus
-                className={ui.input + (error ? ui.inputError : '')}
-              />
-            </div>
-            <button type="submit" className={ui.btnSmallPrimary + ' min-h-[52px]'}>
-              Save
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setAssigning(false)
-                setDock('')
-                setError('')
-              }}
-              className={ui.btnSmall + ' min-h-[52px]'}
-            >
-              Cancel
-            </button>
-            {error && <p className={ui.errorText + ' w-full'}>{error}</p>}
-          </form>
-        ) : (
-          <div className="mt-2 flex flex-wrap items-center gap-3">
-            <button onClick={() => setAssigning(true)} className={ui.btnSmallPrimary}>
-              Assign Dock
-            </button>
+        <AssignDock
+          entry={e}
+          occupied={occupied}
+          onAssignDock={onAssignDock}
+          extra={
             <button onClick={() => onEdit(e)} className="cursor-pointer py-1 text-sm underline">
               View entry
             </button>
-          </div>
-        )}
+          }
+        />
       </div>
     </div>
   )

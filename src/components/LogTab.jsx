@@ -1,37 +1,19 @@
-import { useMemo, useState } from 'react'
-import { VISIT_PURPOSES } from '../formConfig'
+import { useState } from 'react'
 import { LOG_COLUMNS, exportToExcel } from '../logColumns'
 import * as ui from '../ui'
 
-const STATUS_OPTIONS = ['On site', 'Departed']
-
+// Gate Log: every entry, one column per field, with Excel export of all rows.
 export default function LogTab({ entries }) {
-  const [search, setSearch] = useState('')
-  const [dateIn, setDateIn] = useState('')
-  const [purpose, setPurpose] = useState('')
-  const [status, setStatus] = useState('')
   const [exportError, setExportError] = useState('')
   const [exporting, setExporting] = useState(false)
-
-  const rows = useMemo(() => {
-    const q = search.trim().toLowerCase()
-    return entries.filter(
-      (e) =>
-        (!dateIn || e.dateIn === dateIn) &&
-        (!purpose || (e.visitPurpose ?? []).includes(purpose)) &&
-        (!status || (e.timeOut ? 'Departed' : 'On site') === status) &&
-        (!q || LOG_COLUMNS.some((c) => String(c.get(e) ?? '').toLowerCase().includes(q))),
-    )
-  }, [entries, search, dateIn, purpose, status])
-
-  const filtered = Boolean(search || dateIn || purpose || status)
+  const rows = entries
 
   const handleExport = async () => {
     setExportError('')
     setExporting(true)
     try {
       const stamp = new Date().toISOString().slice(0, 10)
-      await exportToExcel(rows, `gate-log-${dateIn || stamp}.xlsx`)
+      await exportToExcel(rows, `gate-log-${stamp}.xlsx`)
     } catch {
       setExportError('Export failed. Try again.')
     } finally {
@@ -42,58 +24,9 @@ export default function LogTab({ entries }) {
   return (
     <section className="space-y-4">
       <h2 className="font-display text-[26px] leading-tight font-bold">Gate Log</h2>
-      <div className="flex flex-wrap items-end gap-3 rounded-[10px] border border-line bg-panel p-5">
-        <div className="min-w-56 flex-1">
-          <label htmlFor="log-search" className={ui.label + ' mb-1'}>Search</label>
-          <input
-            id="log-search"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Truck, trailer, seal, driver, guard, order no…"
-            className={ui.input}
-          />
-        </div>
-        <div>
-          <label htmlFor="log-date" className={ui.label + ' mb-1'}>Date In</label>
-          <input id="log-date" type="date" value={dateIn} onChange={(e) => setDateIn(e.target.value)} className={ui.input} />
-        </div>
-        <div>
-          <label htmlFor="log-purpose" className={ui.label + ' mb-1'}>Purpose</label>
-          <select id="log-purpose" value={purpose} onChange={(e) => setPurpose(e.target.value)} className={ui.input}>
-            <option value="">All</option>
-            {VISIT_PURPOSES.map((p) => (
-              <option key={p}>{p}</option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label htmlFor="log-status" className={ui.label + ' mb-1'}>Status</label>
-          <select id="log-status" value={status} onChange={(e) => setStatus(e.target.value)} className={ui.input}>
-            <option value="">All</option>
-            {STATUS_OPTIONS.map((s) => (
-              <option key={s}>{s}</option>
-            ))}
-          </select>
-        </div>
-        {filtered && (
-          <button
-            type="button"
-            onClick={() => {
-              setSearch('')
-              setDateIn('')
-              setPurpose('')
-              setStatus('')
-            }}
-            className={ui.btnSmall + ' min-h-[52px]'}
-          >
-            Clear Filters
-          </button>
-        )}
-      </div>
 
       <p className="text-muted" role="status">
-        Showing {rows.length} of {entries.length} {entries.length === 1 ? 'entry' : 'entries'}
-        {rows.length > 0 && ' · Export includes the rows shown'}
+        {entries.length} {entries.length === 1 ? 'entry' : 'entries'}
         {exportError && <span className="ml-2 font-semibold text-danger">{exportError}</span>}
       </p>
 
@@ -112,7 +45,7 @@ export default function LogTab({ entries }) {
             {rows.length === 0 ? (
               <tr>
                 <td colSpan={LOG_COLUMNS.length} className="px-3 py-6 text-muted">
-                  {filtered ? 'No entries match these filters.' : 'No entries yet. Entries logged on the Gate tab appear here.'}
+                  No entries yet. Entries logged on the Gate tab appear here.
                 </td>
               </tr>
             ) : (

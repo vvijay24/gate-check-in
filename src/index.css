@@ -82,4 +82,12 @@ body {
 
 @media print {
   .no-print { display: none !important; }
+
+  /* Entry Log "Print": show only that section, full width, without the sideways-scroll limits. */
+  body[data-print="entry-log"] * { visibility: hidden; }
+  body[data-print="entry-log"] #entry-log,
+  body[data-print="entry-log"] #entry-log * { visibility: visible; }
+  body[data-print="entry-log"] #entry-log { position: absolute; inset: 0 0 auto 0; border: 0; }
+  body[data-print="entry-log"] #entry-log .overflow-x-auto { overflow: visible; }
+  body[data-print="entry-log"] #entry-log table { min-width: 0; }
 }

@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import GuardForm from './components/GuardForm'
 import CheckOutPicker from './components/CheckOutPicker'
 import EntryLog from './components/EntryLog'
-import LogTab from './components/LogTab'
 import ShippingDashboard from './components/ShippingDashboard'
 
 const STORAGE_KEY = 'guard-load-log'
@@ -181,10 +180,10 @@ export default function App() {
               onAssignDock={handleAssignDock}
               onEdit={handleEdit}
               onCheckOut={handleCheckOut}
-              top={<LogTab entries={entries} />}
-            >
-              <EntryLog entries={entries} onEdit={handleEdit} onCheckOut={handleCheckOut} onDelete={handleDelete} />
-            </ShippingDashboard>
+              top={
+                <EntryLog entries={entries} onEdit={handleEdit} onCheckOut={handleCheckOut} onDelete={handleDelete} onAssignDock={handleAssignDock} />
+              }
+            />
           </div>
         )}
       </main>
