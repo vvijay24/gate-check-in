@@ -3,12 +3,14 @@ import GuardForm from './components/GuardForm'
 import CheckOutPicker from './components/CheckOutPicker'
 import EntryLog from './components/EntryLog'
 import ShippingDashboard from './components/ShippingDashboard'
+import { DockBoard } from './components/Dashboard'
 
 const STORAGE_KEY = 'guard-load-log'
 
 const TABS = [
   { id: 'gate', label: 'Gate' },
   { id: 'shipping', label: 'Shipping' },
+  { id: 'docks', label: 'Dock & Loading' },
 ]
 
 const GATE_MODES = [
@@ -84,6 +86,17 @@ export default function App() {
     setEntries((list) => list.map((e) => (e.id === id ? { ...e, dockDoor, dockAssignedAt: Date.now() } : e)))
     const entry = entries.find((e) => e.id === id)
     setNotice(`Trailer ${entry?.trailerNumber ?? ''} assigned to dock ${dockDoor}`)
+  }
+
+  // Saves the Loading Inspection on the entry; the applied seal fills Outgoing Seals # if it's still empty.
+  const handleSaveInspection = (id, loadingInspection) => {
+    setEntries((list) =>
+      list.map((e) =>
+        e.id === id ? { ...e, loadingInspection, outgoingSeals: e.outgoingSeals || loadingInspection.sealApplied } : e,
+      ),
+    )
+    const entry = entries.find((e) => e.id === id)
+    setNotice(`Loading inspection ${loadingInspection.result === 'Pass' ? 'passed' : 'failed'} for trailer ${entry?.trailerNumber ?? ''}`)
   }
 
   const handleDelete = (id) => {
@@ -172,6 +185,17 @@ export default function App() {
                 />
               )}
             </div>
+          </div>
+        ) : tab === 'docks' ? (
+          <div role="tabpanel" id="panel-docks" aria-labelledby="tab-docks">
+            <DockBoard
+              entries={entries}
+              onAssignDock={handleAssignDock}
+              onEdit={handleEdit}
+              onCheckOut={handleCheckOut}
+              onSaveInspection={handleSaveInspection}
+              wide
+            />
           </div>
         ) : (
           <div role="tabpanel" id="panel-shipping" aria-labelledby="tab-shipping">

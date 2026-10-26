@@ -38,6 +38,22 @@ export const LOG_COLUMNS = [
   { header: 'Outgoing Seals #', get: (e) => e.outgoingSeals, width: 16 },
   { header: 'Green Seal #', get: (e) => e.greenSeal, width: 14 },
   { header: 'Odometer Photo', get: (e) => (e.odometerPhoto ? 'Yes' : 'No'), width: 10 },
+  // Loading Inspection (Dock & Loading tab)
+  { header: 'Loading Inspection', get: (e) => e.loadingInspection?.result ?? '', width: 12 },
+  { header: 'Product Type', get: (e) => e.loadingInspection?.productType ?? '', width: 16 },
+  { header: 'Lot / Production Codes', get: (e) => e.loadingInspection?.lotCodes ?? '', width: 22 },
+  { header: 'BOL #', get: (e) => e.loadingInspection?.bolNumber ?? '', width: 12 },
+  { header: 'Pre-Cool Temp (°F)', get: (e) => num(e.loadingInspection?.precoolTemp), number: true, width: 12 },
+  { header: 'Product Temp Front (°F)', get: (e) => num(e.loadingInspection?.tempFront), number: true, width: 13 },
+  { header: 'Product Temp Middle (°F)', get: (e) => num(e.loadingInspection?.tempMiddle), number: true, width: 13 },
+  { header: 'Product Temp Rear (°F)', get: (e) => num(e.loadingInspection?.tempRear), number: true, width: 13 },
+  { header: 'Pallets Loaded', get: (e) => num(e.loadingInspection?.palletsLoaded), number: true, width: 10 },
+  { header: 'Case Count', get: (e) => num(e.loadingInspection?.caseCount), number: true, width: 10 },
+  { header: 'Total Weight (lbs)', get: (e) => num(e.loadingInspection?.totalWeight), number: true, width: 12 },
+  { header: 'Inspection Issues', get: (e) => (e.loadingInspection?.issues ?? []).join('; '), width: 40 },
+  { header: 'Corrective Action', get: (e) => e.loadingInspection?.correctiveAction ?? '', width: 40 },
+  { header: 'Technician Name', get: (e) => e.loadingInspection?.technician ?? '', width: 16 },
+  { header: 'Inspected By', get: (e) => e.loadingInspection?.inspector ?? '', width: 16 },
 ]
 
 export async function exportToExcel(entries, filename) {
