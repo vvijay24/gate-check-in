@@ -26,6 +26,12 @@
   --color-ok-soft: #e2f2e9;
   --color-danger: #b3261e;
   --color-danger-soft: #fbe9e7;
+
+  /* Overview yard map and meter tracks */
+  --color-asphalt: #dde1e4;
+  --color-bay: #f5f6f7;
+  --color-building: #c9ced2;
+  --color-track: #e3e6e8;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -46,6 +52,10 @@
     --color-ok-soft: #1b3127;
     --color-danger: #f08080;
     --color-danger-soft: #3a1f1f;
+    --color-asphalt: #2a3036;
+    --color-bay: #1d2226;
+    --color-building: #3a4148;
+    --color-track: #2c3238;
   }
 }
 :root[data-theme="dark"] {
@@ -65,6 +75,10 @@
   --color-ok-soft: #1b3127;
   --color-danger: #f08080;
   --color-danger-soft: #3a1f1f;
+  --color-asphalt: #2a3036;
+  --color-bay: #1d2226;
+  --color-building: #3a4148;
+  --color-track: #2c3238;
 }
 
 body {
@@ -79,6 +93,10 @@ body {
   outline: 3px solid var(--color-signal);
   outline-offset: 2px;
 }
+
+/* Overview map icons: SVG groups don't draw an outline, so the hit area shows focus instead. */
+.yard-unit:focus-visible { outline: none; }
+.yard-unit:focus-visible .hit { stroke: var(--color-signal); }
 
 @media print {
   .no-print { display: none !important; }

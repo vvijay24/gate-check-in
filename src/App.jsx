@@ -4,6 +4,9 @@ import CheckOutPicker from './components/CheckOutPicker'
 import EntryLog from './components/EntryLog'
 import ShippingDashboard from './components/ShippingDashboard'
 import { DockBoard } from './components/Dashboard'
+import Messages from './components/Messages'
+import Overview from './components/Overview'
+import { makeSampleEntries } from './sampleData'
 
 const STORAGE_KEY = 'guard-load-log'
 
@@ -11,6 +14,7 @@ const TABS = [
   { id: 'gate', label: 'Gate' },
   { id: 'shipping', label: 'Shipping' },
   { id: 'docks', label: 'Dock & Loading' },
+  { id: 'overview', label: 'Overview' },
 ]
 
 const GATE_MODES = [
@@ -24,7 +28,13 @@ function loadEntries() {
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY)) ?? []
     // Older entries stored a single `loadType`; convert to the `visitPurpose` list.
-    return saved.map(({ loadType, ...e }) => ({ ...e, visitPurpose: e.visitPurpose ?? (loadType ? [loadType] : []) }))
+    // Entries from before gates were recorded came in Gate 1 and, if departed, left through Gate 2.
+    return saved.map(({ loadType, ...e }) => ({
+      ...e,
+      visitPurpose: e.visitPurpose ?? (loadType ? [loadType] : []),
+      gateIn: e.gateIn || 'Gate 1',
+      gateOut: e.gateOut || (e.timeOut ? 'Gate 2' : ''),
+    }))
   } catch {
     return []
   }
@@ -68,8 +78,8 @@ export default function App() {
       setEditing(null)
       setNotice(checkedOut ? `Checked out ${form.truckName} — trailer ${form.trailerNumber}` : `Updated entry for ${form.truckName}`)
     } else {
+      // The form shows its own "Check In Confirmed" banner, so no page notice here.
       setEntries((list) => [{ ...form, id: crypto.randomUUID(), createdAt: Date.now() }, ...list])
-      setNotice(`Logged ${form.truckName} — trailer ${form.trailerNumber}`)
     }
   }
 
@@ -98,6 +108,19 @@ export default function App() {
     const entry = entries.find((e) => e.id === id)
     setNotice(`Loading inspection ${loadingInspection.result === 'Pass' ? 'passed' : 'failed'} for trailer ${entry?.trailerNumber ?? ''}`)
   }
+
+  // Sample visits are marked `sample: true` and go in by arrival time among the real entries;
+  // loading again replaces the old samples.
+  const handleLoadSample = () => {
+    const samples = makeSampleEntries()
+    setEntries((list) => [...samples, ...list.filter((e) => !e.sample)].sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0)))
+    setNotice(`Loaded ${samples.length} sample visits from the last two weeks`)
+  }
+  const handleRemoveSample = () => {
+    setEntries((list) => list.filter((e) => !e.sample))
+    setNotice('Removed the sample visits')
+  }
+  const sampleCount = entries.filter((e) => e.sample).length
 
   const handleDelete = (id) => {
     setEntries((list) => list.filter((e) => e.id !== id))
@@ -197,6 +220,17 @@ export default function App() {
               wide
             />
           </div>
+        ) : tab === 'overview' ? (
+          <div role="tabpanel" id="panel-overview" aria-labelledby="tab-overview">
+            <Overview
+              entries={entries}
+              onEdit={handleEdit}
+              onCheckOut={handleCheckOut}
+              sampleCount={sampleCount}
+              onLoadSample={handleLoadSample}
+              onRemoveSample={handleRemoveSample}
+            />
+          </div>
         ) : (
           <div role="tabpanel" id="panel-shipping" aria-labelledby="tab-shipping">
             <ShippingDashboard
@@ -210,6 +244,7 @@ export default function App() {
             />
           </div>
         )}
+        {(tab === 'gate' || tab === 'shipping') && <Messages />}
       </main>
     </>
   )

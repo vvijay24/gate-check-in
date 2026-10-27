@@ -5,6 +5,8 @@ export const EMPTY_FORM = {
   visitPurpose: [],
   timeIn: '',
   timeOut: '',
+  gateIn: 'Gate 1',
+  gateOut: '',
   reefer: '',
   tempSet: '',
   tempActual: '',
@@ -37,6 +39,7 @@ export const EMPTY_FORM = {
 export const REQUIRED_IN = [
   'dateIn',
   'timeIn',
+  'gateIn',
   'visitPurpose',
   'truckName',
   'trailerNumber',
@@ -53,7 +56,7 @@ export const REQUIRED_IN = [
 ]
 
 // Required to check a truck out, in on-screen order.
-export const REQUIRED_OUT = ['dateOut', 'timeOut', 'truckerNameOut', 'outgoingSeals', 'fuelOut', 'guardOut']
+export const REQUIRED_OUT = ['dateOut', 'timeOut', 'gateOut', 'truckerNameOut', 'outgoingSeals', 'fuelOut', 'guardOut']
 
 // Only required when the visit includes a pickup (a loaded trailer leaves sealed).
 const PICKUP_ONLY = ['pickupNumber', 'customerPickupFor', 'outgoingSeals']
@@ -70,14 +73,15 @@ export const isRequired = (name, form, mode = 'in') =>
 const FUEL_LEVELS = ['Empty', '1/4', '1/2', '3/4', 'Full']
 
 // Form sections, grouped like guard-shack-log.html. `wide` fields span the full row;
-// `newRow` fields start a new row, leaving the rest of the row above empty.
+// `newRow` fields start a new row, leaving the rest of the row above empty;
+// `pickupOnly` fields are disabled (and saved empty) unless Pickup is ticked.
 export const SECTIONS_IN = [
   {
     title: 'Truck and Driver',
     purpose: true,
     fields: [
-      { name: 'appointmentTime', label: 'Appointment Time', type: 'time' },
-      { name: 'truckName', label: 'Truck Name', newRow: true },
+      { name: 'appointmentTime', label: 'Appointment Time', type: 'time', pickupOnly: true },
+      { name: 'truckName', label: 'Carrier', newRow: true },
       { name: 'trailerNumber', label: 'Trailer #' },
       { name: 'truckerNameIn', label: 'Trucker Name Coming In' },
       { name: 'driverPhone', label: 'Driver Phone # (In)', type: 'tel' },
@@ -89,7 +93,7 @@ export const SECTIONS_IN = [
     title: 'Load',
     fields: [
       { name: 'pickupNumber', label: 'Order No' },
-      { name: 'customerPickupFor', label: 'Customer Pick Up For' },
+      { name: 'customerPickupFor', label: 'Customer' },
       { name: 'emptyPallets', label: 'How Many Empty Pallets', type: 'number', min: 0 },
       { name: 'incomingSeals', label: 'Incoming Seals #', newRow: true },
       { name: 'sealIntact', label: 'Seal Intact?', type: 'choice', options: ['Yes', 'No'] },
@@ -136,3 +140,6 @@ export const SECTIONS_OUT = [
 ]
 
 export const VISIT_PURPOSES = ['Delivery', 'Pickup', 'Drop Trailer']
+
+// Trucks normally enter through Gate 1 and leave through Gate 2; the form pre-selects those.
+export const GATES = ['Gate 1', 'Gate 2']

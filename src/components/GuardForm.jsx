@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Field from './Field'
 import OdometerPhoto from './OdometerPhoto'
 import {
   EMPTY_FORM,
+  GATES,
   REEFER_ONLY,
   REQUIRED_IN,
   REQUIRED_OUT,
@@ -82,6 +83,7 @@ const checkOutForm = (entry, guard) =>
         ...entry,
         dateOut: entry.dateOut || today(),
         timeOut: nowTime(),
+        gateOut: entry.gateOut || 'Gate 2',
         guardOut: entry.guardOut || guard,
         truckerNameOut: entry.truckerNameOut || (entry.visitPurpose?.includes('Drop Trailer') ? '' : entry.truckerNameIn),
         driverPhoneOut: entry.driverPhoneOut || (entry.visitPurpose?.includes('Drop Trailer') ? '' : entry.driverPhone),
@@ -99,6 +101,7 @@ function ArrivalSummary({ e }) {
   const rows = [
     ['Purpose', (e.visitPurpose ?? []).join(' + ')],
     ['Arrived', [e.dateIn, e.timeIn].filter(Boolean).join(' ')],
+    ['Gate In', e.gateIn],
     ['Trucker In', e.truckerNameIn],
     ['Dock', e.dockDoor],
     ['Order No', e.pickupNumber],
@@ -128,18 +131,48 @@ export default function GuardForm({ mode = 'in', initial, defaultGuard, onSave, 
   const start = () => (mode === 'out' ? checkOutForm(initial, defaultGuard) : (initial ?? freshForm(defaultGuard)))
   const [form, setForm] = useState(start)
   const [errors, setErrors] = useState({})
+  // A new check-out asks "Confirm Check Out?" before saving.
+  const [confirming, setConfirming] = useState(false)
+  // Shown after a new check-in is saved, e.g. "Trailer T123 · Acme". Cleared when the next entry starts.
+  const [checkedIn, setCheckedIn] = useState(null)
+  const formRef = useRef(null)
+
+  useEffect(() => {
+    if (!checkedIn) return
+    const t = setTimeout(() => setCheckedIn(null), 8000)
+    return () => clearTimeout(t)
+  }, [checkedIn])
   const isEdit = Boolean(initial?.id)
   const isOut = mode === 'out'
   // Re-opening a truck that already left edits its departure rather than checking it out again.
   const editingDeparture = isOut && Boolean(initial?.timeOut)
   const sections = isOut ? SECTIONS_OUT : SECTIONS_IN
+  const hasPickup = (form.visitPurpose ?? []).includes('Pickup')
 
   const handleChange = (e) => {
     const { name, value } = e.target
     setForm((f) => ({ ...f, [name]: value }))
     if (errors[name]) setErrors(({ [name]: _, ...rest }) => rest)
+    setCheckedIn(null)
   }
   const set = (patch) => setForm((f) => ({ ...f, ...patch }))
+
+  const save = () => {
+    let data = form
+    // A dry van shouldn't keep reefer readings typed before the answer changed to No.
+    if (form.reefer !== 'Yes') data = { ...data, ...Object.fromEntries(REEFER_ONLY.map((k) => [k, ''])) }
+    // Likewise, Pickup-only fields (Appointment Time) are cleared when Pickup isn't ticked.
+    if (!isOut && !hasPickup) {
+      const pickupOnly = SECTIONS_IN.flatMap((s) => s.fields).filter((f) => f.pickupOnly)
+      data = { ...data, ...Object.fromEntries(pickupOnly.map((f) => [f.name, ''])) }
+    }
+    onSave(data)
+    if (!isEdit) {
+      setForm(freshForm(form.guardOnDuty))
+      setCheckedIn(`Trailer ${form.trailerNumber} · ${form.truckName}`)
+      formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+  }
 
   const handleSubmit = (e) => {
     e.preventDefault()
@@ -149,9 +182,11 @@ export default function GuardForm({ mode = 'in', initial, defaultGuard, onSave, 
       document.getElementById(`field-${Object.keys(errs)[0]}`)?.focus()
       return
     }
-    // A dry van shouldn't keep reefer readings typed before the answer changed to No.
-    onSave(form.reefer === 'Yes' ? form : { ...form, ...Object.fromEntries(REEFER_ONLY.map((k) => [k, ''])) })
-    if (!isEdit) setForm(freshForm(form.guardOnDuty))
+    if (isOut && !editingDeparture) {
+      setConfirming(true)
+      return
+    }
+    save()
   }
 
   const handleClear = () => {
@@ -163,6 +198,20 @@ export default function GuardForm({ mode = 'in', initial, defaultGuard, onSave, 
   const header = (props) => (
     <HeaderInput {...props} value={form[props.name]} onChange={handleChange} error={errors[props.name]} required={required(props.name)} />
   )
+  // Trucks come in through Gate 1 and leave through Gate 2, so the other gate can't be picked.
+  const gate = (name, label, closedGate) => (
+    <Field
+      name={name}
+      label={label}
+      type="choice"
+      options={GATES}
+      disabledOptions={[closedGate]}
+      value={form[name] ?? ''}
+      onChange={handleChange}
+      required={required(name)}
+      error={errors[name]}
+    />
+  )
 
   const title = isOut
     ? `${editingDeparture ? 'Edit Check-Out' : 'Check Out'} · Trailer ${initial.trailerNumber}`
@@ -172,7 +221,7 @@ export default function GuardForm({ mode = 'in', initial, defaultGuard, onSave, 
   const submitLabel = isOut ? (editingDeparture ? 'Save Changes' : 'Check Out') : isEdit ? 'Save Changes' : 'Check In'
 
   return (
-    <form onSubmit={handleSubmit} noValidate className="overflow-hidden rounded-[10px] border border-line bg-panel">
+    <form ref={formRef} onSubmit={handleSubmit} noValidate className="scroll-mt-[140px] overflow-hidden rounded-[10px] border border-line bg-panel">
       <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-line px-5 pt-5 pb-3">
         <h2 className="font-display text-[26px] leading-tight font-bold">{title}</h2>
         <span className="text-sm text-muted">
@@ -181,6 +230,12 @@ export default function GuardForm({ mode = 'in', initial, defaultGuard, onSave, 
       </div>
 
       <div className="p-5">
+        {checkedIn && (
+          <div role="status" className="mb-5 rounded-lg border-l-[6px] border-ok bg-ok-soft px-4 py-3">
+            <p className="font-display text-[23px] leading-tight font-bold text-ok">✓ Check In Confirmed</p>
+            <p className="text-[15px]">{checkedIn} is checked in. The form is ready for the next truck.</p>
+          </div>
+        )}
         {isOut && <ArrivalSummary e={initial} />}
 
         {!isOut && (
@@ -191,6 +246,7 @@ export default function GuardForm({ mode = 'in', initial, defaultGuard, onSave, 
               {header({ label: 'Date In', name: 'dateIn', type: 'date', onNow: () => set({ dateIn: today() }) })}
               {header({ label: 'Time In', name: 'timeIn', type: 'time', onNow: () => set({ timeIn: nowTime() }) })}
             </div>
+            <div className="mt-3.5">{gate('gateIn', 'Gate In', 'Gate 2')}</div>
           </section>
         )}
 
@@ -211,6 +267,7 @@ export default function GuardForm({ mode = 'in', initial, defaultGuard, onSave, 
                   })}
                 </div>
               )}
+              {section.times && <div className="mb-3.5">{gate('gateOut', 'Gate Out', 'Gate 1')}</div>}
               {!fields.length && <p className="text-muted">{section.emptyNote}</p>}
               {section.purpose && (
                 <fieldset className="mb-3.5">
@@ -250,16 +307,21 @@ export default function GuardForm({ mode = 'in', initial, defaultGuard, onSave, 
                 </fieldset>
               )}
               <div className={grid}>
-                {fields.map((f) => (
-                  <Field
-                    key={f.name}
-                    {...f}
-                    value={form[f.name] ?? ''}
-                    onChange={handleChange}
-                    required={required(f.name)}
-                    error={errors[f.name]}
-                  />
-                ))}
+                {fields.map((f) => {
+                  const locked = f.pickupOnly && !hasPickup
+                  return (
+                    <Field
+                      key={f.name}
+                      {...f}
+                      value={form[f.name] ?? ''}
+                      onChange={handleChange}
+                      required={required(f.name)}
+                      error={errors[f.name]}
+                      disabled={locked}
+                      hint={locked ? 'Tick Pickup above to enter this.' : undefined}
+                    />
+                  )
+                })}
               </div>
               {section.odometer && (
                 <div className="mt-3.5">
@@ -290,22 +352,41 @@ export default function GuardForm({ mode = 'in', initial, defaultGuard, onSave, 
         )}
       </div>
 
-      <div className="no-print flex flex-wrap justify-end gap-3 border-t border-line p-5">
-        {onCancel && (
-          <button type="button" onClick={onCancel} className={ui.btn}>
-            Cancel
+      {confirming ? (
+        <div role="alertdialog" aria-labelledby="confirm-checkout-title" className="no-print border-t border-line bg-page p-5">
+          <p id="confirm-checkout-title" className="font-display text-[23px] leading-tight font-bold">
+            Confirm Check Out?
+          </p>
+          <p className="mt-1 text-muted">
+            Trailer {initial.trailerNumber} · {initial.truckName} leaving at {form.timeOut} on {form.dateOut}.
+          </p>
+          <div className="mt-4 flex flex-wrap gap-3">
+            <button type="button" onClick={save} autoFocus className={ui.btnPrimary}>
+              Yes
+            </button>
+            <button type="button" onClick={() => setConfirming(false)} className={ui.btn}>
+              No
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="no-print flex flex-wrap justify-end gap-3 border-t border-line p-5">
+          {onCancel && (
+            <button type="button" onClick={onCancel} className={ui.btn}>
+              Cancel
+            </button>
+          )}
+          <button type="button" onClick={handleClear} className={ui.btn}>
+            {isEdit ? 'Revert' : 'Clear'}
           </button>
-        )}
-        <button type="button" onClick={handleClear} className={ui.btn}>
-          {isEdit ? 'Revert' : 'Clear'}
-        </button>
-        <button type="button" onClick={() => window.print()} className={ui.btn}>
-          Print
-        </button>
-        <button type="submit" className={ui.btnPrimary}>
-          {submitLabel}
-        </button>
-      </div>
+          <button type="button" onClick={() => window.print()} className={ui.btn}>
+            Print
+          </button>
+          <button type="submit" className={ui.btnPrimary}>
+            {submitLabel}
+          </button>
+        </div>
+      )}
     </form>
   )
 }

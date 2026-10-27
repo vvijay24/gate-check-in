@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import * as ui from '../ui'
-import { arrivalMs, clockTime, dayKey, departureMs, duration } from '../time'
+import { LATE_GRACE_MIN, arrivalMs, clockTime, dayKey, departureMs, duration, minutesLate } from '../time'
 import Dashboard from './Dashboard'
 
 // Shipping tab: the yard dock board on top, then the outbound (Pickup) shipments table.
@@ -10,18 +10,8 @@ const STATUS_TAG = {
   Loading: 'bg-ink text-panel',
   Shipped: 'bg-ok-soft text-ok',
 }
-// Arriving more than this after the appointment counts as late.
-const LATE_GRACE_MIN = 15
 
 const statusOf = (e) => (e.timeOut ? 'Shipped' : e.dockDoor ? 'Loading' : 'Waiting')
-
-// Minutes late against the appointment on the arrival day (negative = early).
-const minutesLate = (e) => {
-  if (!e.appointmentTime || !e.dateIn) return null
-  const appt = new Date(`${e.dateIn}T${e.appointmentTime}`).getTime()
-  const diff = Math.round((arrivalMs(e) - appt) / 60000)
-  return Number.isFinite(diff) ? diff : null
-}
 
 const Sub = ({ children }) => <span className="block text-[13px] text-muted">{children}</span>
 const Warn = ({ children }) => <span className="block text-[13px] font-semibold text-danger">⚠ {children}</span>

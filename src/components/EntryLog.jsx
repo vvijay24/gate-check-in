@@ -112,7 +112,7 @@ export default function EntryLog({ entries, onEdit, onCheckOut, onDelete, onAssi
               <th className="px-3 py-2.5">Date In</th>
               <th className="px-3 py-2.5">Time In</th>
               <th className="px-3 py-2.5">Status</th>
-              <th className="px-3 py-2.5">Trailer / Truck</th>
+              <th className="px-3 py-2.5">Trailer / Carrier</th>
               <th className="px-3 py-2.5">Purpose</th>
               <th className="px-3 py-2.5">Trucker</th>
               <th className="px-3 py-2.5">Out</th>
