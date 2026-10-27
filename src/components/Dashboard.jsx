@@ -3,6 +3,8 @@ import * as ui from '../ui'
 import { arrivalMs, clockTime, duration } from '../time'
 import AssignDock, { dockKey } from './AssignDock'
 import LoadingInspection from './LoadingInspection'
+import { DOCKS } from '../yard'
+import { isDrop, stagingBays } from '../metrics'
 
 // Waits longer than this are flagged (with text, not just color).
 const LONG_WAIT_MS = 2 * 60 * 60 * 1000
@@ -130,10 +132,7 @@ function DockCard({ e, now, onCheckOut, onInspect }) {
   )
 }
 
-// The yard's docks, shown as tiles in Dock Status. Docks assigned outside this list still
-// appear under At the Docks.
-const DOCKS = ['1', '2', '3', '4', '5', '6']
-
+// Docks assigned outside DOCKS still appear under At the Docks.
 // At-a-glance board of which docks are free. Status is written out, not shown by color alone.
 function DockStatus({ occupied, now, wide }) {
   const free = DOCKS.filter((d) => !occupied.has(dockKey(d))).length
@@ -170,6 +169,49 @@ function DockStatus({ occupied, now, wide }) {
           )
         })}
       </ul>
+    </section>
+  )
+}
+
+// Trucks without a dock, filled into the staging bays in arrival order (longest wait in Bay 1).
+function StagingBays({ entries, now, wide }) {
+  const { bays, overflow } = stagingBays(entries)
+  const open = bays.filter((e) => !e).length
+  return (
+    <section className="rounded-[10px] border border-line bg-panel p-4">
+      <h2 className="font-display text-[21px] leading-tight font-bold">
+        Staging Bays <span className="text-muted">({open} open)</span>
+      </h2>
+      <ul className={'mt-3 grid grid-cols-3 gap-2' + (wide ? ' md:grid-cols-6' : '')}>
+        {bays.map((e, i) => (
+          <li
+            key={i}
+            className={
+              'flex min-h-[92px] flex-col rounded-lg border-2 px-2 py-1.5 ' +
+              (!e ? 'border-ok bg-ok-soft text-ink' : isDrop(e) ? 'border-drop bg-drop-soft text-ink' : 'border-signal bg-signal text-signal-ink')
+            }
+          >
+            <span className="text-[12px] font-semibold opacity-80">Bay</span>
+            <span className="font-display text-[28px] leading-none font-bold">{i + 1}</span>
+            {e ? (
+              <span className="mt-auto text-[12px] leading-tight">
+                <b className="block">{isDrop(e) ? 'Dropped' : 'Waiting'}</b>
+                <span className="block truncate" title={`Trailer ${e.trailerNumber}`}>
+                  {e.trailerNumber}
+                </span>
+                <span className="block opacity-80">{duration(now - arrivalMs(e))}</span>
+              </span>
+            ) : (
+              <b className="mt-auto text-[13px] text-ok">✓ Open</b>
+            )}
+          </li>
+        ))}
+      </ul>
+      {overflow.length > 0 && (
+        <p className="mt-2 text-sm font-semibold text-danger">
+          ⚠ {overflow.length} more without a bay: {overflow.map((e) => e.trailerNumber).join(', ')}
+        </p>
+      )}
     </section>
   )
 }
@@ -237,6 +279,7 @@ export function DockBoard({ entries, onAssignDock, onEdit, onCheckOut, onSaveIns
     return (
       <div className="space-y-5">
         <DockStatus occupied={occupied} now={now} wide />
+        <StagingBays entries={entries} now={now} wide />
         <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-2">{panels}</div>
         <LoadingInspection
           atDock={atDock}
@@ -253,6 +296,7 @@ export function DockBoard({ entries, onAssignDock, onEdit, onCheckOut, onSaveIns
   return (
     <>
       <DockStatus occupied={occupied} now={now} />
+      <StagingBays entries={entries} now={now} />
       {panels}
     </>
   )

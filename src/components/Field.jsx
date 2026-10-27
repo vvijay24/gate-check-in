@@ -1,6 +1,7 @@
 import * as ui from '../ui'
 
-export default function Field({ name, label, type = 'text', value, onChange, required, error, min, step, wide, newRow, options }) {
+// `disabledOptions` greys out individual choice buttons so they can't be picked.
+export default function Field({ name, label, type = 'text', value, onChange, required, error, min, step, wide, newRow, options, disabledOptions = [], disabled, hint }) {
   const id = `field-${name}`
   const cls = ui.input + (error ? ui.inputError : '')
 
@@ -11,7 +12,13 @@ export default function Field({ name, label, type = 'text', value, onChange, req
     control = (
       <div className="flex flex-wrap gap-2" role="radiogroup" aria-labelledby={`${id}-label`}>
         {options.map((lvl, i) => (
-          <label key={lvl} className={ui.seg(value === lvl, Boolean(error)) + ' has-[:focus-visible]:outline-3 has-[:focus-visible]:outline-signal'}>
+          <label
+            key={lvl}
+            className={
+              ui.seg(value === lvl, Boolean(error)) +
+              ' has-[:focus-visible]:outline-3 has-[:focus-visible]:outline-signal has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-40'
+            }
+          >
             <input
               id={i === 0 ? id : undefined}
               type="radio"
@@ -19,6 +26,7 @@ export default function Field({ name, label, type = 'text', value, onChange, req
               value={lvl}
               checked={value === lvl}
               onChange={onChange}
+              disabled={disabledOptions.includes(lvl)}
               className="sr-only"
             />
             {lvl}
@@ -27,7 +35,20 @@ export default function Field({ name, label, type = 'text', value, onChange, req
       </div>
     )
   } else {
-    control = <input id={id} name={name} type={type} min={min} step={step} value={value} onChange={onChange} className={cls} />
+    control = (
+      <input
+        id={id}
+        name={name}
+        type={type}
+        min={min}
+        step={step}
+        value={value}
+        onChange={onChange}
+        disabled={disabled}
+        aria-describedby={hint ? `${id}-hint` : undefined}
+        className={cls + ' disabled:cursor-not-allowed disabled:opacity-50'}
+      />
+    )
   }
 
   return (
@@ -37,6 +58,11 @@ export default function Field({ name, label, type = 'text', value, onChange, req
         {required && <span className={ui.required}>*</span>}
       </label>
       {control}
+      {hint && (
+        <p id={`${id}-hint`} className="text-[13px] text-muted">
+          {hint}
+        </p>
+      )}
       {error && <p className={ui.errorText}>{error}</p>}
     </div>
   )

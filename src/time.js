@@ -15,4 +15,16 @@ export const duration = (ms) => {
   return h ? `${h}h ${m % 60}m` : `${m}m`
 }
 
+// Arriving more than LATE_GRACE_MIN after the appointment counts as late; more than EARLY_GRACE_MIN before, early.
+export const LATE_GRACE_MIN = 15
+export const EARLY_GRACE_MIN = 15
+
+// Minutes late against the appointment on the arrival day (negative = early).
+export const minutesLate = (e) => {
+  if (!e.appointmentTime || !e.dateIn) return null
+  const appt = new Date(`${e.dateIn}T${e.appointmentTime}`).getTime()
+  const diff = Math.round((arrivalMs(e) - appt) / 60000)
+  return Number.isFinite(diff) ? diff : null
+}
+
 export const clockTime = (ms) => new Date(ms).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
