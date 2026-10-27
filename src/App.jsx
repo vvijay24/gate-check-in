@@ -7,6 +7,7 @@ import { DockBoard } from './components/Dashboard'
 import Messages from './components/Messages'
 import Overview from './components/Overview'
 import { makeSampleEntries } from './sampleData'
+import { takenBays } from './metrics'
 
 const STORAGE_KEY = 'guard-load-log'
 
@@ -203,6 +204,7 @@ export default function App() {
                   mode={gateMode}
                   initial={editing}
                   defaultGuard={entries[0]?.guardOnDuty ?? ''}
+                  takenBays={takenBays(entries)}
                   onSave={handleSave}
                   onCancel={editing ? () => setEditing(null) : undefined}
                 />

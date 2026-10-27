@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import * as ui from '../ui'
-import { arrivalMs, clockTime, duration } from '../time'
+import { arrivalMs, clockTime, dayKey, duration } from '../time'
 import AssignDock, { dockKey } from './AssignDock'
 import LoadingInspection from './LoadingInspection'
+import YardMap from './YardMap'
 import { DOCKS } from '../yard'
-import { isDrop, stagingBays } from '../metrics'
+import { dayMetrics, isDrop, stagingBays, yardMetrics } from '../metrics'
 
 // Waits longer than this are flagged (with text, not just color).
 const LONG_WAIT_MS = 2 * 60 * 60 * 1000
@@ -173,7 +174,7 @@ function DockStatus({ occupied, now, wide }) {
   )
 }
 
-// Trucks without a dock, filled into the staging bays in arrival order (longest wait in Bay 1).
+// Trucks without a dock, in the staging bay picked at check-in (or the next free bay if none was picked).
 function StagingBays({ entries, now, wide }) {
   const { bays, overflow } = stagingBays(entries)
   const open = bays.filter((e) => !e).length
@@ -302,12 +303,73 @@ export function DockBoard({ entries, onAssignDock, onEdit, onCheckOut, onSaveIns
   )
 }
 
-// Lays out the Shipping page: `children` on the left, the dock boxes in a sticky right column
-// (stacked above the content below lg).
+// Small live copy of the Overview yard map, refreshed every 30 seconds. Clicking it (or Enlarge)
+// opens the full-size map in a pop-up; Esc, Close or a click on the dimmed background closes it.
+function LiveYard({ entries, onEdit, onCheckOut }) {
+  const [now, setNow] = useState(Date.now)
+  const dialog = useRef(null)
+
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 30000)
+    return () => clearInterval(t)
+  }, [])
+
+  const yard = useMemo(() => yardMetrics(entries, Infinity, now), [entries, now])
+  const gateCounts = useMemo(() => dayMetrics(entries, dayKey(new Date(now)), now).gateCounts, [entries, now])
+  const open = () => dialog.current?.showModal()
+  const close = () => dialog.current?.close()
+  // Check out / View entry leave the Shipping tab, so close the pop-up first.
+  const closeThen = (fn) => (e) => {
+    close()
+    fn(e)
+  }
+
+  return (
+    <section className="rounded-[10px] border border-line bg-panel p-4 sm:col-span-2 lg:col-span-1">
+      <div className="flex items-center justify-between gap-2">
+        <h2 className="font-display text-[21px] leading-tight font-bold">Live Yard Map</h2>
+        <button type="button" onClick={open} className="cursor-pointer font-semibold underline">
+          ⤢ Enlarge
+        </button>
+      </div>
+      <YardMap yard={yard} gateCounts={gateCounts} at={Infinity} clock={now} live compact onExpand={open} />
+
+      <dialog
+        ref={dialog}
+        aria-label="Live yard map"
+        onClick={(ev) => ev.target === dialog.current && close()}
+        className="m-auto w-[95vw] max-w-[1300px] rounded-[10px] border border-line bg-panel p-0 text-ink backdrop:bg-black/60"
+      >
+        {/* Padding sits on this wrapper so a click inside the pop-up never reaches the dialog itself. */}
+        <div className="p-5">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="font-display text-[26px] leading-tight font-bold">Live Yard Map</h2>
+            <button type="button" onClick={close} className={ui.btnSmall}>
+              ✕ Close
+            </button>
+          </div>
+          <YardMap
+            yard={yard}
+            gateCounts={gateCounts}
+            at={Infinity}
+            clock={now}
+            live
+            onEdit={closeThen(onEdit)}
+            onCheckOut={closeThen(onCheckOut)}
+          />
+        </div>
+      </dialog>
+    </section>
+  )
+}
+
+// Lays out the Shipping page: `children` on the left; the live yard map and dock boxes in a sticky
+// right column (stacked above the content below lg).
 export default function Dashboard({ entries, onAssignDock, onEdit, onCheckOut, children }) {
   return (
-    <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
+    <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[minmax(0,1fr)_420px]">
       <aside className="grid gap-4 sm:grid-cols-2 lg:sticky lg:top-[140px] lg:order-2 lg:max-h-[calc(100vh-160px)] lg:grid-cols-1 lg:overflow-y-auto">
+        <LiveYard entries={entries} onEdit={onEdit} onCheckOut={onCheckOut} />
         <DockBoard entries={entries} onAssignDock={onAssignDock} onEdit={onEdit} onCheckOut={onCheckOut} />
       </aside>
       <div className="min-w-0 space-y-5 lg:order-1">{children}</div>

@@ -55,24 +55,28 @@ function TruckIcon({ status, drop }) {
   )
 }
 
+// `onSelect` is left out on the compact map, where the whole map is one button instead.
 function Unit({ e, x, y, at, clock, selected, onSelect }) {
   const status = yardStatus(e, at)
   const alert = attention(e, clock)
   const label = `Trailer ${e.trailerNumber}, ${e.truckName}, ${STATUS[status].label}${alert ? `, ${alert}` : ''}`
+  const select = onSelect && {
+    role: 'button',
+    tabIndex: 0,
+    'aria-label': label,
+    'aria-pressed': selected,
+    onClick: () => onSelect(e.id),
+    onKeyDown: (ev) => {
+      if (ev.key === 'Enter' || ev.key === ' ') {
+        ev.preventDefault()
+        onSelect(e.id)
+      }
+    },
+  }
   return (
     <g
-      role="button"
-      tabIndex={0}
-      aria-label={label}
-      aria-pressed={selected}
-      onClick={() => onSelect(e.id)}
-      onKeyDown={(ev) => {
-        if (ev.key === 'Enter' || ev.key === ' ') {
-          ev.preventDefault()
-          onSelect(e.id)
-        }
-      }}
-      className="yard-unit cursor-pointer"
+      {...select}
+      className={'yard-unit' + (onSelect ? ' cursor-pointer' : '')}
       style={{ transform: `translate(${x}px, ${y}px)`, transition: 'transform 1.2s ease' }}
     >
       <title>{label}</title>
@@ -245,9 +249,28 @@ function Detail({ e, place, at, clock, live, onEdit, onCheckOut }) {
   )
 }
 
+// One-line legend for the compact map: status color and name only.
+function MiniLegend() {
+  return (
+    <ul className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[12px]">
+      {['waiting', 'dock', 'ready', 'drop'].map((s) => (
+        <li key={s} className="flex items-center gap-1">
+          <i className={'inline-block h-2.5 w-2.5 rounded-[3px] ' + STATUS[s].dot} />
+          {STATUS[s].label}
+        </li>
+      ))}
+      <li className="flex items-center gap-1">
+        <i className="inline-block h-2.5 w-2.5 rounded-full bg-danger" />
+        Needs attention
+      </li>
+    </ul>
+  )
+}
+
 // Schematic of the grounds with every truck and trailer on site at its door or bay, at moment `at`
-// (Infinity = live). `clock` is the time durations are measured to.
-export default function YardMap({ yard, gateCounts, at, clock, live, onEdit, onCheckOut }) {
+// (Infinity = live). `clock` is the time durations are measured to. `compact` draws a small map to fit
+// a narrow column, with a short legend; the whole map is one button that calls `onExpand`.
+export default function YardMap({ yard, gateCounts, at, clock, live, onEdit, onCheckOut, compact, onExpand }) {
   const [selectedId, setSelectedId] = useState(null)
 
   const units = []
@@ -261,31 +284,68 @@ export default function YardMap({ yard, gateCounts, at, clock, live, onEdit, onC
   const selected = units.find((u) => u.e.id === selectedId) ??
     [...yard.overflow, ...yard.otherDocks].map((e) => ({ e, place: e.dockDoor ? `Dock ${e.dockDoor}` : 'No bay free' })).find((u) => u.e.id === selectedId)
 
+  const map = (
+    <svg
+      viewBox="0 0 1000 660"
+      role={compact ? undefined : 'group'}
+      aria-label={compact ? undefined : 'Yard map: dock doors, staging bays and gates'}
+      aria-hidden={compact || undefined}
+      className={'block h-auto w-full' + (compact ? '' : ' min-w-[700px]')}
+    >
+      <Grounds gateCounts={gateCounts} />
+      {DOCKS.map((d, i) =>
+        yard.atDock.has(d) ? null : (
+          <text key={d} x={colX(i)} y={182} textAnchor="middle" fontSize={14} fontWeight={700} fill="var(--color-ok)">
+            ✓ Free
+          </text>
+        ),
+      )}
+      {yard.bays.map((e, i) =>
+        e ? null : (
+          <text key={i} x={colX(i)} y={410} textAnchor="middle" fontSize={14} fontWeight={700} fill="var(--color-ok)">
+            ✓ Open
+          </text>
+        ),
+      )}
+      {units.map((u) => (
+        <Unit
+          key={u.e.id}
+          e={u.e}
+          x={u.x}
+          y={u.y}
+          at={at}
+          clock={clock}
+          selected={u.e.id === selectedId}
+          onSelect={compact ? undefined : setSelectedId}
+        />
+      ))}
+    </svg>
+  )
+
+  if (compact) {
+    return (
+      <div className="mt-3">
+        <button
+          type="button"
+          onClick={onExpand}
+          aria-label={`Enlarge the yard map: ${yard.atDock.size} at docks, ${yard.bays.filter(Boolean).length} in staging bays`}
+          className="block w-full cursor-zoom-in overflow-hidden rounded-lg focus-visible:outline-3 focus-visible:outline-signal"
+        >
+          {map}
+        </button>
+        <MiniLegend />
+        {yard.overflow.length > 0 && (
+          <p className="mt-2 text-[13px] font-semibold text-danger">⚠ {yard.overflow.length} more without a bay</p>
+        )}
+        <p className="mt-2 text-[12px] text-muted">Tap the map to enlarge it. Updated {clockTime(clock)}.</p>
+      </div>
+    )
+  }
+
   return (
     <div className="mt-3.5 grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_260px]">
       <div>
-        <div className="overflow-x-auto rounded-lg">
-          <svg viewBox="0 0 1000 660" role="group" aria-label="Yard map: dock doors, staging bays and gates" className="block h-auto w-full min-w-[700px]">
-            <Grounds gateCounts={gateCounts} />
-            {DOCKS.map((d, i) =>
-              yard.atDock.has(d) ? null : (
-                <text key={d} x={colX(i)} y={182} textAnchor="middle" fontSize={14} fontWeight={700} fill="var(--color-ok)">
-                  ✓ Free
-                </text>
-              ),
-            )}
-            {yard.bays.map((e, i) =>
-              e ? null : (
-                <text key={i} x={colX(i)} y={410} textAnchor="middle" fontSize={14} fontWeight={700} fill="var(--color-ok)">
-                  ✓ Open
-                </text>
-              ),
-            )}
-            {units.map((u) => (
-              <Unit key={u.e.id} e={u.e} x={u.x} y={u.y} at={at} clock={clock} selected={u.e.id === selectedId} onSelect={setSelectedId} />
-            ))}
-          </svg>
-        </div>
+        <div className="overflow-x-auto rounded-lg">{map}</div>
         {yard.overflow.length > 0 && (
           <p className="mt-2 text-sm font-semibold text-danger">
             ⚠ {yard.overflow.length} more without a bay:{' '}
@@ -311,7 +371,7 @@ export default function YardMap({ yard, gateCounts, at, clock, live, onEdit, onC
           <Detail e={selected?.e} place={selected?.place} at={at} clock={clock} live={live} onEdit={onEdit} onCheckOut={onCheckOut} />
         </div>
         <p className="mt-2 text-[12px] text-muted">
-          {live ? `Updated ${clockTime(clock)}.` : `Yard as it was at ${clockTime(clock)}.`} Bays fill in arrival order, longest wait in Bay 1.
+          {live ? `Updated ${clockTime(clock)}.` : `Yard as it was at ${clockTime(clock)}.`} Trucks sit in the bay picked at check-in; any without one fill free bays in arrival order.
         </p>
       </aside>
     </div>

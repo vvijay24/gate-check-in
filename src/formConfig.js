@@ -1,3 +1,5 @@
+import { BAY_NAMES } from './yard'
+
 // Field layout mirrors the paper guard sheet: left column / right column, row by row.
 export const EMPTY_FORM = {
   guardOnDuty: '',
@@ -44,6 +46,7 @@ export const REQUIRED_IN = [
   'truckName',
   'trailerNumber',
   'truckerNameIn',
+  'waitingLocation',
   'pickupNumber',
   'customerPickupFor',
   'incomingSeals',
@@ -85,7 +88,7 @@ export const SECTIONS_IN = [
       { name: 'trailerNumber', label: 'Trailer #' },
       { name: 'truckerNameIn', label: 'Trucker Name Coming In' },
       { name: 'driverPhone', label: 'Driver Phone # (In)', type: 'tel' },
-      { name: 'waitingLocation', label: 'Waiting Location', type: 'textarea', wide: true },
+      { name: 'waitingLocation', label: 'Waiting Location (Staging Bay)', type: 'select', options: BAY_NAMES, placeholder: 'Select a free bay' },
     ],
     odometer: true,
   },

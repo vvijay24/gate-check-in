@@ -5,6 +5,8 @@ export const DOCKS = ['1', '2', '3', '4', '5', '6']
 
 // Staging bays for trucks waiting for a door and dropped trailers.
 export const STAGING_BAYS = 6
+// Bay names as guards pick them on the Check In form.
+export const BAY_NAMES = Array.from({ length: STAGING_BAYS }, (_, i) => `Bay ${i + 1}`)
 // Yard capacity turns red above this percentage.
 export const YARD_ALERT_PCT = 85
 

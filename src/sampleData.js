@@ -2,7 +2,7 @@
 // so it can be removed later without touching real entries. Same seed = same visits every time.
 import { EMPTY_FORM } from './formConfig'
 import { dayKey } from './time'
-import { DOCKS } from './yard'
+import { BAY_NAMES, DOCKS } from './yard'
 
 const DAYS = 14
 const CARRIERS = ['KLLM', 'Brannon Golden', 'Penske', 'Syfan', 'U S Citylink', 'Pickup']
@@ -44,11 +44,12 @@ export function makeSampleEntries(now = Date.now()) {
 
   const entries = []
   const doorFree = DOCKS.map(() => 0)
+  const bayFree = BAY_NAMES.map(() => 0)
   let n = 0
   for (let d = 0; d < DAYS; d++) {
     const dayStart = new Date(firstDay)
     dayStart.setDate(dayStart.getDate() + d)
-    const times = Array.from({ length: 30 + Math.floor(random() * 10) }, arrivalMinute).sort((a, b) => a - b)
+    const times = Array.from({ length: 26 + Math.floor(random() * 8) }, arrivalMinute).sort((a, b) => a - b)
 
     for (const minute of times) {
       const arrive = dayStart.getTime() + minute * MIN
@@ -87,9 +88,12 @@ export function makeSampleEntries(now = Date.now()) {
       }
 
       let depart
+      // When the visit stops needing a staging bay: docked, or (for a drop) collected.
+      let leavesBay
       if (purpose === 'Drop Trailer') {
         // Most dropped trailers are collected within a day; a few sit long enough to go stale.
-        depart = arrive + Math.round((random() < 0.12 ? between(30, 60) : between(2, 22)) * 60) * MIN
+        depart = arrive + Math.round((random() < 0.06 ? between(26, 52) : between(1, 8)) * 60) * MIN
+        leavesBay = depart
       } else {
         // Trucks queue for the door that frees up first, then load or unload.
         let door = 0
@@ -100,6 +104,7 @@ export function makeSampleEntries(now = Date.now()) {
         const dwell = (purpose === 'Pickup' ? between(50, 135) : between(35, 85)) * MIN
         depart = Math.round(dockAt + dwell + between(4, 12) * MIN)
         doorFree[door] = depart
+        leavesBay = dockAt
         if (dockAt <= now) {
           e.dockDoor = DOCKS[door]
           e.dockAssignedAt = Math.round(dockAt)
@@ -116,6 +121,13 @@ export function makeSampleEntries(now = Date.now()) {
             sealApplied: String(700000 + Math.floor(random() * 99999)),
           }
         }
+      }
+
+      // The guard picks the first bay free on arrival; with every bay full, none.
+      const bay = bayFree.findIndex((free) => free <= arrive)
+      if (bay >= 0) {
+        e.waitingLocation = BAY_NAMES[bay]
+        bayFree[bay] = leavesBay
       }
 
       if (depart <= now) {

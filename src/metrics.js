@@ -1,7 +1,7 @@
 // Numbers for the Overview tab and the staging-bay boards, worked out from the gate entries.
 import { EARLY_GRACE_MIN, LATE_GRACE_MIN, arrivalMs, dayKey, departureMs, minutesLate } from './time'
 import { dockKey } from './components/AssignDock'
-import { DETENTION_FREE_MIN, DOCKS, STAGING_BAYS } from './yard'
+import { BAY_NAMES, DETENTION_FREE_MIN, DOCKS, STAGING_BAYS } from './yard'
 import { GATES } from './formConfig'
 
 const MIN = 60000
@@ -39,17 +39,33 @@ function groupBy(items, nameOf) {
   return [...groups.values()]
 }
 
-// Trucks and dropped trailers on site without a dock fill the bays in arrival order
-// (longest wait in Bay 1); any beyond the last bay are overflow.
+// Trucks and dropped trailers on site without a dock sit in the bay picked at check-in. Those without
+// one (older entries, or a bay someone else already holds) fill the free bays in arrival order;
+// any left over are overflow.
 export function stagingBays(entries, at = Infinity) {
   const staging = entries
     .filter((e) => onSiteAt(e, at) && ['waiting', 'drop'].includes(yardStatus(e, at)))
     .sort((a, b) => arrivalMs(a) - arrivalMs(b))
-  return {
-    bays: Array.from({ length: STAGING_BAYS }, (_, i) => staging[i] ?? null),
-    overflow: staging.slice(STAGING_BAYS),
-    used: staging.length,
+  const bays = Array(STAGING_BAYS).fill(null)
+  const unplaced = []
+  for (const e of staging) {
+    const i = BAY_NAMES.indexOf(e.waitingLocation)
+    if (i >= 0 && !bays[i]) bays[i] = e
+    else unplaced.push(e)
   }
+  const overflow = []
+  for (const e of unplaced) {
+    const i = bays.indexOf(null)
+    if (i >= 0) bays[i] = e
+    else overflow.push(e)
+  }
+  return { bays, overflow, used: staging.length }
+}
+
+// Bays in use right now, keyed by bay name ("Bay 2") → the truck in it. The Check In form
+// can't pick these.
+export function takenBays(entries) {
+  return new Map(stagingBays(entries).bays.map((e, i) => e && [BAY_NAMES[i], e]).filter(Boolean))
 }
 
 // Yard state at `at` (ms): everything on site at that moment. Waits and detention are measured to
