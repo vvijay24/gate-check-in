@@ -108,4 +108,12 @@ body {
   body[data-print="entry-log"] #entry-log { position: absolute; inset: 0 0 auto 0; border: 0; }
   body[data-print="entry-log"] #entry-log .overflow-x-auto { overflow: visible; }
   body[data-print="entry-log"] #entry-log table { min-width: 0; }
+
+  /* Outbound Shipments "Print": the same, for that table. */
+  body[data-print="outbound"] * { visibility: hidden; }
+  body[data-print="outbound"] #outbound,
+  body[data-print="outbound"] #outbound * { visibility: visible; }
+  body[data-print="outbound"] #outbound { position: absolute; inset: 0 0 auto 0; border: 0; }
+  body[data-print="outbound"] #outbound .overflow-x-auto { overflow: visible; }
+  body[data-print="outbound"] #outbound table { min-width: 0; }
 }

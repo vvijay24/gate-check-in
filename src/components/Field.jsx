@@ -1,13 +1,44 @@
 import * as ui from '../ui'
 
-// `disabledOptions` greys out individual choice buttons so they can't be picked.
-export default function Field({ name, label, type = 'text', value, onChange, required, error, min, step, wide, newRow, options, disabledOptions = [], disabled, hint }) {
+// `disabledOptions` greys out individual choices (buttons or dropdown options) so they can't be picked;
+// `optionNotes` adds a note to a choice, e.g. { 'Bay 2': 'In use · 12345' }.
+export default function Field({
+  name,
+  label,
+  type = 'text',
+  value,
+  onChange,
+  required,
+  error,
+  min,
+  step,
+  wide,
+  newRow,
+  options,
+  disabledOptions = [],
+  optionNotes = {},
+  placeholder,
+  disabled,
+  hint,
+}) {
   const id = `field-${name}`
   const cls = ui.input + (error ? ui.inputError : '')
 
   let control
   if (type === 'textarea') {
     control = <textarea id={id} name={name} rows={3} value={value} onChange={onChange} className={cls + ' min-h-[72px] resize-y'} />
+  } else if (type === 'select') {
+    const allTaken = options.every((o) => disabledOptions.includes(o))
+    control = (
+      <select id={id} name={name} value={value} onChange={onChange} disabled={disabled} className={cls + ' cursor-pointer disabled:cursor-not-allowed disabled:opacity-50'}>
+        <option value="">{allTaken ? 'None free' : placeholder ?? 'Select…'}</option>
+        {options.map((o) => (
+          <option key={o} value={o} disabled={disabledOptions.includes(o)}>
+            {optionNotes[o] ? `${o} — ${optionNotes[o]}` : o}
+          </option>
+        ))}
+      </select>
+    )
   } else if (type === 'choice') {
     control = (
       <div className="flex flex-wrap gap-2" role="radiogroup" aria-labelledby={`${id}-label`}>
@@ -29,7 +60,10 @@ export default function Field({ name, label, type = 'text', value, onChange, req
               disabled={disabledOptions.includes(lvl)}
               className="sr-only"
             />
-            {lvl}
+            <span>
+              {lvl}
+              {optionNotes[lvl] && <span className="block text-[12px] font-normal">{optionNotes[lvl]}</span>}
+            </span>
           </label>
         ))}
       </div>

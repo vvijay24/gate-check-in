@@ -13,6 +13,7 @@ import {
   isRequired,
   isShown,
 } from '../formConfig'
+import { BAY_NAMES } from '../yard'
 import * as ui from '../ui'
 
 const pad = (n) => String(n).padStart(2, '0')
@@ -25,16 +26,18 @@ const nowTime = () => {
   return `${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
-function validate(form, mode) {
+// `optional` lists required fields to skip this time (e.g. the bay when every bay is full).
+function validate(form, mode, optional = []) {
   const errors = {}
   const required = mode === 'out' ? REQUIRED_OUT : REQUIRED_IN
-  for (const key of required.filter((k) => isRequired(k, form, mode))) {
+  for (const key of required.filter((k) => isRequired(k, form, mode) && !optional.includes(k))) {
     const value = form[key]
     const empty = Array.isArray(value) ? value.length === 0 : !String(value ?? '').trim()
     if (empty) errors[key] = 'Required'
   }
   if (errors.visitPurpose) errors.visitPurpose = 'Select at least one purpose'
   if (errors.odometerPhoto) errors.odometerPhoto = 'Take or upload a photo of the odometer'
+  if (errors.waitingLocation) errors.waitingLocation = 'Pick a free staging bay'
   if (mode === 'out' && form.dateIn && form.dateOut && form.timeIn && form.timeOut) {
     if (`${form.dateOut}T${form.timeOut}` < `${form.dateIn}T${form.timeIn}`) {
       errors.timeOut = 'Out must be after in'
@@ -102,6 +105,7 @@ function ArrivalSummary({ e }) {
     ['Purpose', (e.visitPurpose ?? []).join(' + ')],
     ['Arrived', [e.dateIn, e.timeIn].filter(Boolean).join(' ')],
     ['Gate In', e.gateIn],
+    ['Waiting at', e.waitingLocation],
     ['Trucker In', e.truckerNameIn],
     ['Dock', e.dockDoor],
     ['Order No', e.pickupNumber],
@@ -127,7 +131,8 @@ function ArrivalSummary({ e }) {
   )
 }
 
-export default function GuardForm({ mode = 'in', initial, defaultGuard, onSave, onCancel }) {
+// `takenBays` maps bay name → the truck holding it, so those bays can't be picked.
+export default function GuardForm({ mode = 'in', initial, defaultGuard, takenBays = new Map(), onSave, onCancel }) {
   const start = () => (mode === 'out' ? checkOutForm(initial, defaultGuard) : (initial ?? freshForm(defaultGuard)))
   const [form, setForm] = useState(start)
   const [errors, setErrors] = useState({})
@@ -148,6 +153,15 @@ export default function GuardForm({ mode = 'in', initial, defaultGuard, onSave, 
   const editingDeparture = isOut && Boolean(initial?.timeOut)
   const sections = isOut ? SECTIONS_OUT : SECTIONS_IN
   const hasPickup = (form.visitPurpose ?? []).includes('Pickup')
+  // Bays held by other trucks; when editing, this truck's own bay stays pickable.
+  const taken = new Map([...takenBays].filter(([, e]) => e.id !== initial?.id))
+  const allBaysFull = BAY_NAMES.every((b) => taken.has(b))
+  const optional = allBaysFull ? ['waitingLocation'] : []
+  const bayProps = {
+    disabledOptions: [...taken.keys()],
+    optionNotes: Object.fromEntries([...taken].map(([bay, e]) => [bay, `In use · ${e.trailerNumber}`])),
+    hint: allBaysFull ? 'All staging bays are full, so this can be left blank.' : undefined,
+  }
 
   const handleChange = (e) => {
     const { name, value } = e.target
@@ -176,7 +190,7 @@ export default function GuardForm({ mode = 'in', initial, defaultGuard, onSave, 
 
   const handleSubmit = (e) => {
     e.preventDefault()
-    const errs = validate(form, mode)
+    const errs = validate(form, mode, optional)
     setErrors(errs)
     if (Object.keys(errs).length) {
       document.getElementById(`field-${Object.keys(errs)[0]}`)?.focus()
@@ -194,7 +208,7 @@ export default function GuardForm({ mode = 'in', initial, defaultGuard, onSave, 
     setErrors({})
   }
 
-  const required = (name) => isRequired(name, form, mode)
+  const required = (name) => isRequired(name, form, mode) && !optional.includes(name)
   const header = (props) => (
     <HeaderInput {...props} value={form[props.name]} onChange={handleChange} error={errors[props.name]} required={required(props.name)} />
   )
@@ -319,6 +333,7 @@ export default function GuardForm({ mode = 'in', initial, defaultGuard, onSave, 
                       error={errors[f.name]}
                       disabled={locked}
                       hint={locked ? 'Tick Pickup above to enter this.' : undefined}
+                      {...(f.name === 'waitingLocation' ? bayProps : {})}
                     />
                   )
                 })}
