@@ -1,6 +1,6 @@
 // Yard layout and alert thresholds shared by the dashboards.
 
-// The yard's dock doors, shown as tiles in Dock Status and on the Overview map.
+// The yard's dock doors, shown as tiles in Dock Status and on the yard map.
 export const DOCKS = ['1', '2', '3', '4', '5', '6']
 
 // Staging bays for trucks waiting for a door and dropped trailers.

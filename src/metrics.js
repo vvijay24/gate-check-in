@@ -1,5 +1,5 @@
-// Numbers for the Overview tab and the staging-bay boards, worked out from the gate entries.
-import { EARLY_GRACE_MIN, LATE_GRACE_MIN, arrivalMs, dayKey, departureMs, minutesLate } from './time'
+// Numbers for the Overview tab, the yard map and the staging-bay boards, worked out from the gate entries.
+import { EARLY_GRACE_MIN, LATE_GRACE_MIN, arrivalMs, departureMs, minutesLate } from './time'
 import { dockKey } from './components/AssignDock'
 import { BAY_NAMES, DETENTION_FREE_MIN, DOCKS, STAGING_BAYS } from './yard'
 import { GATES } from './formConfig'
@@ -242,41 +242,4 @@ export function dayMetrics(entries, date, now) {
       ]),
     ),
   }
-}
-
-// Averages of the headline day figures over the `days` days before `date`, counting only days
-// that had visits. When `date` is today, each earlier day is measured up to the same time of day.
-export function dayBaseline(entries, date, now, today, days = 7) {
-  const past = []
-  for (let k = 1; k <= days; k++) {
-    const d = new Date(`${date}T00:00`)
-    d.setDate(d.getDate() - k)
-    const m = dayMetrics(entries, dayKey(d), date === today ? now - k * 86400000 : now)
-    if (m.visits) past.push(m)
-  }
-  const avgOf = (pick) => average(past.map(pick).filter((v) => v !== null))
-  return {
-    days: past.length,
-    avgGateDwellMs: avgOf((m) => m.avgGateDwellMs),
-    otaPct: avgOf((m) => m.otaPct),
-    dockUtilization: avgOf((m) => m.dockUtilization),
-  }
-}
-
-// Gate transactions up to `at`, newest first: an Entry per check-in and an Exit per check-out.
-export function gateLog(entries, at = Infinity) {
-  return entries
-    .flatMap((e) => [
-      { key: `${e.id}-in`, at: arrivalMs(e), type: 'Entry', gate: e.gateIn, entry: e },
-      ...(e.timeOut ? [{ key: `${e.id}-out`, at: departureMs(e), type: 'Exit', gate: e.gateOut, entry: e }] : []),
-    ])
-    .filter((t) => Number.isFinite(t.at) && t.at <= at)
-    .sort((a, b) => b.at - a.at)
-}
-
-// Number of visits checked in on each date, keyed "YYYY-MM-DD".
-export function visitsByDate(entries) {
-  const counts = new Map()
-  for (const e of entries) counts.set(e.dateIn, (counts.get(e.dateIn) ?? 0) + 1)
-  return counts
 }

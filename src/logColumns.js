@@ -42,9 +42,8 @@ export const LOG_COLUMNS = [
   { header: 'Odometer Photo', get: (e) => (e.odometerPhoto ? 'Yes' : 'No'), width: 10 },
   // Loading Inspection (Dock & Loading tab)
   { header: 'Loading Inspection', get: (e) => e.loadingInspection?.result ?? '', width: 12 },
-  { header: 'Product Type', get: (e) => e.loadingInspection?.productType ?? '', width: 16 },
-  { header: 'Lot / Production Codes', get: (e) => e.loadingInspection?.lotCodes ?? '', width: 22 },
-  { header: 'BOL #', get: (e) => e.loadingInspection?.bolNumber ?? '', width: 12 },
+  { header: 'Inspection Date', get: (e) => e.loadingInspection?.inspectionDate ?? '', width: 12 },
+  { header: 'Inspection Time', get: (e) => e.loadingInspection?.inspectionTime ?? '', width: 10 },
   { header: 'Pre-Cool Temp (°F)', get: (e) => num(e.loadingInspection?.precoolTemp), number: true, width: 12 },
   { header: 'Product Temp Front (°F)', get: (e) => num(e.loadingInspection?.tempFront), number: true, width: 13 },
   { header: 'Product Temp Middle (°F)', get: (e) => num(e.loadingInspection?.tempMiddle), number: true, width: 13 },
@@ -56,6 +55,12 @@ export const LOG_COLUMNS = [
   { header: 'Corrective Action', get: (e) => e.loadingInspection?.correctiveAction ?? '', width: 40 },
   { header: 'Technician Name', get: (e) => e.loadingInspection?.technician ?? '', width: 16 },
   { header: 'Inspected By', get: (e) => e.loadingInspection?.inspector ?? '', width: 16 },
+  // Shipping release (Shipping tab) and the Gate's seal check at check-out
+  { header: 'Released At', get: (e) => (e.release?.releasedAt ? new Date(e.release.releasedAt).toLocaleString() : ''), width: 20 },
+  { header: 'Released By', get: (e) => e.release?.releasedBy ?? '', width: 16 },
+  { header: 'Gate Note', get: (e) => e.release?.note ?? '', width: 30 },
+  { header: 'Seal Confirmed at Gate', get: (e) => e.sealConfirmed ?? '', width: 12 },
+  { header: 'Seal Note', get: (e) => e.sealNote ?? '', width: 30 },
 ]
 
 export async function exportToExcel(entries, filename) {

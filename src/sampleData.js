@@ -9,6 +9,8 @@ const CARRIERS = ['KLLM', 'Brannon Golden', 'Penske', 'Syfan', 'U S Citylink', '
 const CUSTOMERS = ['US Foods', 'Vertical Cold', 'Decatur West', 'Green Valley', 'Gold Creek', 'Brakebush Bros','Pacific-Agri']
 const DRIVERS = ['D. Brooks', 'L. Nguyen', 'C. Ramirez', 'T. Walker', 'A. Patel', 'K. Johnson', 'S. Miller', 'J. Lopez', 'M. Davis', 'R. Wilson']
 const FUEL = ['1/4', '1/2', '3/4', 'Full']
+// Shipping staff who release trucks to the gate.
+const SHIPPERS = ['M. Ortiz', 'K. Chen', 'D. Patel']
 // Check-ins by hour from 5 AM to 7 PM, busiest mid-morning.
 const HOUR_WEIGHTS = [1, 2, 3, 4, 5, 5, 4, 4, 4, 4, 3, 3, 2, 1, 1]
 
@@ -109,16 +111,28 @@ export function makeSampleEntries(now = Date.now()) {
           e.dockDoor = DOCKS[door]
           e.dockAssignedAt = Math.round(dockAt)
         }
+        // Everything at a dock is inspected; Shipping then releases it to the gate partway through
+        // the time left before it departs.
         const inspectedAt = Math.round(dockAt + dwell * 0.75)
-        if (purpose === 'Pickup' && inspectedAt <= now) {
+        if (inspectedAt <= now) {
           e.loadingInspection = {
             result: 'Pass',
             issues: [],
             inspectedAt,
-            productType: 'Fresh poultry',
             palletsLoaded: String(18 + Math.floor(random() * 8)),
             inspector: guardAt(inspectedAt),
             sealApplied: String(700000 + Math.floor(random() * 99999)),
+          }
+          const releasedAt = Math.round(inspectedAt + (depart - inspectedAt) * (0.35 + random() * 0.4))
+          if (releasedAt <= now) {
+            e.release = {
+              releasedAt,
+              releasedBy: pick(SHIPPERS),
+              paperwork: true,
+              orderNo: e.pickupNumber ?? '',
+              seal: e.loadingInspection.sealApplied,
+              note: '',
+            }
           }
         }
       }

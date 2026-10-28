@@ -15,6 +15,8 @@ import {
 } from '../formConfig'
 import { BAY_NAMES } from '../yard'
 import * as ui from '../ui'
+import { clockTime } from '../time'
+import { checkOutBlock, expectedSeal } from '../handoff'
 
 const pad = (n) => String(n).padStart(2, '0')
 const today = () => {
@@ -46,30 +48,29 @@ function validate(form, mode, optional = []) {
   return errors
 }
 
-function HeaderInput({ label, name, type, value, onChange, onNow, error, required }) {
+// Date and time inputs; they start filled with today / now when the form opens.
+function HeaderInput({ label, name, type, value, onChange, error, required }) {
   return (
     <div className="flex min-w-0 flex-col gap-1">
-      {/* Now sits beside the label so the input keeps the same width as every other field. */}
-      <div className="flex items-end justify-between gap-2">
-        <label htmlFor={`field-${name}`} className={ui.label}>
-          {label}
-          {required && <span className={ui.required}>*</span>}
-        </label>
-        {onNow && (
-          <button type="button" onClick={onNow} className="no-print cursor-pointer text-[15px] font-semibold underline">
-            Now
-          </button>
-        )}
-      </div>
+      <label htmlFor={`field-${name}`} className={ui.label}>
+        {label}
+        {required && <span className={ui.required}>*</span>}
+      </label>
       <input
         id={`field-${name}`}
         name={name}
         type={type}
         value={value ?? ''}
         onChange={onChange}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={error ? `field-${name}-error` : undefined}
         className={ui.input + (error ? ui.inputError : '')}
       />
-      {error && <p className={ui.errorText + ' mt-1'}>{error}</p>}
+      {error && (
+        <p id={`field-${name}-error`} className={ui.errorText + ' mt-1'}>
+          {error}
+        </p>
+      )}
     </div>
   )
 }
@@ -98,6 +99,55 @@ const sectionTitle =
 const firstSectionTitle = 'mb-2.5 font-display text-[20px] leading-tight font-bold text-muted'
 // Fixed two columns (one on phones) so paired fields like name + phone stay side by side.
 const grid = 'grid grid-cols-1 gap-3.5 sm:grid-cols-2'
+// Save / confirm bar, pinned to the bottom of the screen while the form scrolls.
+const actionBar =
+  'no-print sticky bottom-0 z-10 rounded-b-[10px] border-t border-line p-4 shadow-[0_-6px_16px_rgb(0_0_0/0.08)] sm:p-5'
+
+// Names for the error summary, by field name: the configured fields plus those the form adds itself.
+const FIELD_LABELS = {
+  ...Object.fromEntries([...SECTIONS_IN, ...SECTIONS_OUT].flatMap((s) => s.fields).map((f) => [f.name, f.label])),
+  dateIn: 'Date In',
+  timeIn: 'Time In',
+  gateIn: 'Gate In',
+  dateOut: 'Date Out',
+  timeOut: 'Time Out',
+  gateOut: 'Gate Out',
+  visitPurpose: 'Purpose of Visit',
+  odometerPhoto: 'Odometer photo',
+  guardOnDuty: 'Guard on Duty',
+  guardOut: 'Guard Checking Out',
+  sealConfirmed: 'Seal matches',
+  sealNote: 'Seal note',
+}
+
+// Lists every field that stopped the save, each a link that jumps to (and focuses) the field.
+// `labels` names the fields (the Loading Inspection passes its own).
+export function ErrorSummary({ errors, action, summaryRef, labels = FIELD_LABELS }) {
+  const names = Object.keys(errors)
+  if (!names.length) return null
+  const jump = (ev, name) => {
+    ev.preventDefault()
+    const el = document.getElementById(`field-${name}`)
+    el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    el?.focus({ preventScroll: true })
+  }
+  return (
+    <div ref={summaryRef} tabIndex={-1} role="alert" className="mb-5 rounded-lg border-l-[6px] border-danger bg-danger-soft px-4 py-3">
+      <p className="font-display text-[21px] leading-tight font-bold text-danger">
+        {names.length === 1 ? '1 thing needs' : `${names.length} things need`} fixing before {action}
+      </p>
+      <ul className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1">
+        {names.map((name) => (
+          <li key={name}>
+            <a href={`#field-${name}`} onClick={(ev) => jump(ev, name)} className="inline-block py-1 font-semibold text-danger underline">
+              {labels[name] ?? name}
+            </a>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
 
 // Read-only arrival details shown at the top of the Check Out form.
 function ArrivalSummary({ e }) {
@@ -113,6 +163,9 @@ function ArrivalSummary({ e }) {
     ['Incoming Seals #', e.incomingSeals && `${e.incomingSeals}${e.sealIntact ? ` (intact: ${e.sealIntact})` : ''}`],
     ['Reefer', e.reefer === 'Yes' ? `${e.tempActual || '—'}°F, set ${e.tempSet || '—'}°F, fuel in ${e.fuelIn || '—'}` : e.reefer],
     ['Checked in by', e.guardOnDuty],
+    ['Inspection', e.loadingInspection?.result],
+    ['Released', e.release?.releasedAt && `${clockTime(e.release.releasedAt)} by ${e.release.releasedBy}`],
+    ['Gate note', e.release?.note],
   ].filter(([, v]) => v)
   return (
     <section className="rounded-lg bg-page p-4">
@@ -134,7 +187,10 @@ function ArrivalSummary({ e }) {
 // `takenBays` maps bay name → the truck holding it, so those bays can't be picked.
 export default function GuardForm({ mode = 'in', initial, defaultGuard, takenBays = new Map(), onSave, onCancel }) {
   const start = () => (mode === 'out' ? checkOutForm(initial, defaultGuard) : (initial ?? freshForm(defaultGuard)))
-  const [form, setForm] = useState(start)
+  // The form as it was last started, saved or cleared; Clear only asks first when something differs.
+  const baseline = useRef(null)
+  const [form, setForm] = useState(() => (baseline.current = start()))
+  const summaryRef = useRef(null)
   const [errors, setErrors] = useState({})
   // A new check-out asks "Confirm Check Out?" before saving.
   const [confirming, setConfirming] = useState(false)
@@ -151,6 +207,11 @@ export default function GuardForm({ mode = 'in', initial, defaultGuard, takenBay
   const isOut = mode === 'out'
   // Re-opening a truck that already left edits its departure rather than checking it out again.
   const editingDeparture = isOut && Boolean(initial?.timeOut)
+  // A truck that was at a dock can only leave once its inspection passed and Shipping released it.
+  const blocked = isOut && !editingDeparture ? checkOutBlock(initial) : ''
+  // The seal the guard should find on the trailer (from the release or the inspection). Asked on a
+  // new check-out only, so editing an older departure doesn't demand it.
+  const sealToCheck = isOut && !editingDeparture ? expectedSeal(initial) : ''
   const sections = isOut ? SECTIONS_OUT : SECTIONS_IN
   const hasPickup = (form.visitPurpose ?? []).includes('Pickup')
   // Bays held by other trucks; when editing, this truck's own bay stays pickable.
@@ -182,7 +243,7 @@ export default function GuardForm({ mode = 'in', initial, defaultGuard, takenBay
     }
     onSave(data)
     if (!isEdit) {
-      setForm(freshForm(form.guardOnDuty))
+      setForm((baseline.current = freshForm(form.guardOnDuty)))
       setCheckedIn(`Trailer ${form.trailerNumber} · ${form.truckName}`)
       formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
     }
@@ -190,10 +251,18 @@ export default function GuardForm({ mode = 'in', initial, defaultGuard, takenBay
 
   const handleSubmit = (e) => {
     e.preventDefault()
+    if (blocked) return
     const errs = validate(form, mode, optional)
+    // Seal check at the gate: required when a seal was recorded; a mismatch needs a note.
+    if (sealToCheck && !form.sealConfirmed) errs.sealConfirmed = 'Required'
+    if (sealToCheck && form.sealConfirmed === 'No' && !String(form.sealNote ?? '').trim()) errs.sealNote = 'Describe the seal found on the trailer'
     setErrors(errs)
     if (Object.keys(errs).length) {
-      document.getElementById(`field-${Object.keys(errs)[0]}`)?.focus()
+      // Show the summary of everything missing; its links jump to each field. Wait a frame so it has rendered.
+      requestAnimationFrame(() => {
+        summaryRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        summaryRef.current?.focus({ preventScroll: true })
+      })
       return
     }
     if (isOut && !editingDeparture) {
@@ -203,8 +272,12 @@ export default function GuardForm({ mode = 'in', initial, defaultGuard, takenBay
     save()
   }
 
+  // Clear (new entry) or Revert (editing) asks first when anything has been typed, so one stray tap
+  // doesn't lose a half-done entry.
   const handleClear = () => {
-    setForm(start())
+    const typed = JSON.stringify(form) !== JSON.stringify(baseline.current)
+    if (typed && !window.confirm(isEdit ? 'Undo your changes to this entry?' : 'Clear everything typed on this form?')) return
+    setForm((baseline.current = start()))
     setErrors({})
   }
 
@@ -235,7 +308,8 @@ export default function GuardForm({ mode = 'in', initial, defaultGuard, takenBay
   const submitLabel = isOut ? (editingDeparture ? 'Save Changes' : 'Check Out') : isEdit ? 'Save Changes' : 'Check In'
 
   return (
-    <form ref={formRef} onSubmit={handleSubmit} noValidate className="scroll-mt-[140px] overflow-hidden rounded-[10px] border border-line bg-panel">
+    // No overflow-hidden here: it would stop the action bar below from sticking to the screen bottom.
+    <form ref={formRef} onSubmit={handleSubmit} noValidate className="scroll-mt-[140px] rounded-[10px] border border-line bg-panel">
       <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-line px-5 pt-5 pb-3">
         <h2 className="font-display text-[26px] leading-tight font-bold">{title}</h2>
         <span className="text-sm text-muted">
@@ -250,6 +324,13 @@ export default function GuardForm({ mode = 'in', initial, defaultGuard, takenBay
             <p className="text-[15px]">{checkedIn} is checked in. The form is ready for the next truck.</p>
           </div>
         )}
+        {blocked && (
+          <div role="alert" className="mb-5 rounded-lg border-l-[6px] border-danger bg-danger-soft px-4 py-3">
+            <p className="font-display text-[22px] leading-tight font-bold text-danger">⛔ This truck can't be checked out yet</p>
+            <p className="text-[15px]">{blocked}</p>
+          </div>
+        )}
+        <ErrorSummary errors={errors} action={isOut ? 'check-out' : isEdit ? 'saving' : 'check-in'} summaryRef={summaryRef} />
         {isOut && <ArrivalSummary e={initial} />}
 
         {!isOut && (
@@ -257,8 +338,8 @@ export default function GuardForm({ mode = 'in', initial, defaultGuard, takenBay
             <h3 className={firstSectionTitle}>Time In</h3>
             {/* Fixed two columns so the date stays beside its time at every width. */}
             <div className="grid grid-cols-2 gap-3.5">
-              {header({ label: 'Date In', name: 'dateIn', type: 'date', onNow: () => set({ dateIn: today() }) })}
-              {header({ label: 'Time In', name: 'timeIn', type: 'time', onNow: () => set({ timeIn: nowTime() }) })}
+              {header({ label: 'Date In', name: 'dateIn', type: 'date' })}
+              {header({ label: 'Time In', name: 'timeIn', type: 'time' })}
             </div>
             <div className="mt-3.5">{gate('gateIn', 'Gate In', 'Gate 2')}</div>
           </section>
@@ -272,19 +353,14 @@ export default function GuardForm({ mode = 'in', initial, defaultGuard, takenBay
               <h3 className={sectionTitle}>{section.title}</h3>
               {section.times && (
                 <div className="mb-3.5 grid grid-cols-2 gap-3.5">
-                  {header({ label: 'Date Out', name: 'dateOut', type: 'date', onNow: () => set({ dateOut: today() }) })}
-                  {header({
-                    label: 'Time Out',
-                    name: 'timeOut',
-                    type: 'time',
-                    onNow: () => set({ timeOut: nowTime(), dateOut: form.dateOut || today() }),
-                  })}
+                  {header({ label: 'Date Out', name: 'dateOut', type: 'date' })}
+                  {header({ label: 'Time Out', name: 'timeOut', type: 'time' })}
                 </div>
               )}
               {section.times && <div className="mb-3.5">{gate('gateOut', 'Gate Out', 'Gate 1')}</div>}
               {!fields.length && <p className="text-muted">{section.emptyNote}</p>}
               {section.purpose && (
-                <fieldset className="mb-3.5">
+                <fieldset className="mb-3.5" aria-invalid={errors.visitPurpose ? true : undefined} aria-describedby={errors.visitPurpose ? 'field-visitPurpose-error' : undefined}>
                   <legend className={ui.label + ' mb-1'}>
                     Purpose of Visit
                     <span className={ui.required}>*</span>
@@ -317,7 +393,11 @@ export default function GuardForm({ mode = 'in', initial, defaultGuard, takenBay
                       </label>
                     ))}
                   </div>
-                  {errors.visitPurpose && <p className={ui.errorText + ' mt-1'}>{errors.visitPurpose}</p>}
+                  {errors.visitPurpose && (
+                    <p id="field-visitPurpose-error" className={ui.errorText + ' mt-1'}>
+                      {errors.visitPurpose}
+                    </p>
+                  )}
                 </fieldset>
               )}
               <div className={grid}>
@@ -355,6 +435,39 @@ export default function GuardForm({ mode = 'in', initial, defaultGuard, takenBay
           )
         })}
 
+        {isOut && sealToCheck && (
+          <section>
+            <h3 className={sectionTitle}>Seal Check</h3>
+            <div className={grid}>
+              <Field
+                name="sealConfirmed"
+                label={`Seal on the trailer matches ${sealToCheck}?`}
+                type="choice"
+                options={['Yes', 'No']}
+                dangerOptions={['No']}
+                value={form.sealConfirmed ?? ''}
+                onChange={handleChange}
+                required
+                error={errors.sealConfirmed}
+                wide
+              />
+              {form.sealConfirmed === 'No' && (
+                <Field
+                  name="sealNote"
+                  label="Seal found on the trailer"
+                  type="textarea"
+                  value={form.sealNote ?? ''}
+                  onChange={handleChange}
+                  required
+                  error={errors.sealNote}
+                  warning="The seal doesn't match: tell Shipping before the truck leaves"
+                  wide
+                />
+              )}
+            </div>
+          </section>
+        )}
+
         {isOut ? (
           <section>
             <h3 className={sectionTitle}>Guard on Duty</h3>
@@ -367,8 +480,10 @@ export default function GuardForm({ mode = 'in', initial, defaultGuard, takenBay
         )}
       </div>
 
+      {/* The action bar (or the confirm step) sticks to the bottom of the screen so guards don't
+          scroll to the end of the form to save. */}
       {confirming ? (
-        <div role="alertdialog" aria-labelledby="confirm-checkout-title" className="no-print border-t border-line bg-page p-5">
+        <div role="alertdialog" aria-labelledby="confirm-checkout-title" className={actionBar + ' bg-page'}>
           <p id="confirm-checkout-title" className="font-display text-[23px] leading-tight font-bold">
             Confirm Check Out?
           </p>
@@ -377,15 +492,15 @@ export default function GuardForm({ mode = 'in', initial, defaultGuard, takenBay
           </p>
           <div className="mt-4 flex flex-wrap gap-3">
             <button type="button" onClick={save} autoFocus className={ui.btnPrimary}>
-              Yes
+              Yes, check out
             </button>
             <button type="button" onClick={() => setConfirming(false)} className={ui.btn}>
-              No
+              Go back to form
             </button>
           </div>
         </div>
       ) : (
-        <div className="no-print flex flex-wrap justify-end gap-3 border-t border-line p-5">
+        <div className={actionBar + ' flex flex-wrap justify-end gap-3 bg-panel'}>
           {onCancel && (
             <button type="button" onClick={onCancel} className={ui.btn}>
               Cancel
@@ -397,7 +512,7 @@ export default function GuardForm({ mode = 'in', initial, defaultGuard, takenBay
           <button type="button" onClick={() => window.print()} className={ui.btn}>
             Print
           </button>
-          <button type="submit" className={ui.btnPrimary}>
+          <button type="submit" disabled={Boolean(blocked)} className={ui.btnPrimary}>
             {submitLabel}
           </button>
         </div>

@@ -25,7 +25,8 @@ const STARTER_MESSAGES = [
   },
 ]
 
-export default function Messages() {
+// `raised` lifts the chat above the Gate form's sticky Check In / Check Out bar.
+export default function Messages({ raised }) {
   const [messages, setMessages] = useState(STARTER_MESSAGES)
   const [draft, setDraft] = useState('')
   const [open, setOpen] = useState(false)
@@ -49,7 +50,7 @@ export default function Messages() {
   }
 
   return (
-    <section className="no-print fixed right-4 bottom-4 z-30 w-[min(380px,calc(100vw-2rem))]">
+    <section className={'no-print fixed right-4 z-30 w-[min(380px,calc(100vw-2rem))] ' + (raised ? 'bottom-28' : 'bottom-4')}>
       {open ? (
         <div className="overflow-hidden rounded-xl border border-line bg-panel shadow-2xl">
           <div className="flex items-center justify-between gap-3 bg-chrome px-4 py-3 text-white">
