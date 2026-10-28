@@ -3,19 +3,28 @@ import { flushSync } from 'react-dom'
 import * as ui from '../ui'
 import { LATE_GRACE_MIN, arrivalMs, clockTime, dayKey, departureMs, duration, minutesLate } from '../time'
 import { exportToExcel } from '../logColumns'
+import { DETENTION_TAG, detentionState } from '../detention'
+import { awaitingRelease, isReleased } from '../handoff'
 import AssignDock, { occupiedDocks } from './AssignDock'
 import Dashboard from './Dashboard'
+import ReleaseDialog from './ReleaseDialog'
 
 // Shipping tab: the yard dock board on top, then the outbound (Pickup) shipments table.
+// After the inspection passes, Shipping releases the truck to the gate; until it leaves it is only
+// adding detention.
 const STATUS_TAG = {
   Waiting: 'bg-signal text-signal-ink',
   Loading: 'bg-ink text-panel',
+  'Awaiting release': 'bg-ok text-panel',
+  'Released to gate': 'bg-delivery-soft text-delivery',
   Shipped: 'bg-ok-soft text-ok',
 }
+const STATUSES = Object.keys(STATUS_TAG)
 const MAX_ROWS = 7
 const HOUR = 3600000
 
-const statusOf = (e) => (e.timeOut ? 'Shipped' : e.dockDoor ? 'Loading' : 'Waiting')
+const statusOf = (e) =>
+  e.timeOut ? 'Shipped' : isReleased(e) ? 'Released to gate' : awaitingRelease(e) ? 'Awaiting release' : e.dockDoor ? 'Loading' : 'Waiting'
 const onSiteMs = (e, now) => (e.timeOut ? departureMs(e) : now) - arrivalMs(e)
 const isLate = (e) => (minutesLate(e) ?? 0) > LATE_GRACE_MIN
 const sortedUnique = (values) => [...new Set(values.filter(Boolean))].sort()
@@ -64,7 +73,7 @@ const COLUMNS = [
   {
     id: 'status',
     label: 'Status',
-    options: () => ['Waiting', 'Loading', 'Shipped'].map((s) => ({ value: s, label: s })),
+    options: () => STATUSES.map((s) => ({ value: s, label: s })),
     match: (e, v) => statusOf(e) === v,
   },
 ]
@@ -85,8 +94,12 @@ function printOutbound() {
 }
 
 // `top` renders above the outbound table (the Gate Log); `children` render below it.
-export default function ShippingDashboard({ entries, onAssignDock, onEdit, onCheckOut, top, children }) {
+export default function ShippingDashboard({ entries, onAssignDock, onEdit, onCheckOut, onRelease, top, children }) {
   const [now, setNow] = useState(Date.now)
+  // The truck whose Release to gate pop-up is open.
+  const [releasingId, setReleasingId] = useState(null)
+  const releasing = entries.find((e) => e.id === releasingId && awaitingRelease(e)) ?? null
+  const startRelease = (e) => setReleasingId(e.id)
   // Header dropdown choices by column id; '' = All.
   const [filters, setFilters] = useState({})
   // The table shows the first MAX_ROWS rows until "Show all" is clicked.
@@ -103,7 +116,7 @@ export default function ShippingDashboard({ entries, onAssignDock, onEdit, onChe
   const pickups = useMemo(() => entries.filter((e) => (e.visitPurpose ?? []).includes('Pickup')), [entries])
 
   const todays = useMemo(() => {
-    const order = { Waiting: 0, Loading: 1, Shipped: 2 }
+    const order = Object.fromEntries(STATUSES.map((s, i) => [s, i]))
     return pickups
       // Today's pickups, plus anything still on site from earlier.
       .filter((e) => e.dateIn === today || !e.timeOut)
@@ -141,7 +154,16 @@ export default function ShippingDashboard({ entries, onAssignDock, onEdit, onChe
       onAssignDock={onAssignDock}
       onEdit={onEdit}
       onCheckOut={onCheckOut}
+      onStartRelease={startRelease}
     >
+      <ReleaseDialog
+        entry={releasing}
+        onClose={() => setReleasingId(null)}
+        onRelease={(id, data) => {
+          onRelease(id, data)
+          setReleasingId(null)
+        }}
+      />
       {top}
 
       <section id="outbound" className="rounded-[10px] border border-line bg-panel">
@@ -196,6 +218,7 @@ export default function ShippingDashboard({ entries, onAssignDock, onEdit, onChe
                 shown.map((e) => {
                   const s = statusOf(e)
                   const late = minutesLate(e)
+                  const det = detentionState(e, now)
                   return (
                     <tr key={e.id} className="align-top">
                       <td className="px-3 py-2.5 font-semibold">{e.pickupNumber || <Dash />}</td>
@@ -222,6 +245,7 @@ export default function ShippingDashboard({ entries, onAssignDock, onEdit, onChe
                       </td>
                       <td className="whitespace-nowrap px-3 py-2.5">
                         {duration(onSiteMs(e, now))}
+                        {det && <span className={ui.tag + ' mt-1 block w-fit ' + DETENTION_TAG[det.level]}>{det.text}</span>}
                         {e.timeOut && <Sub>Left {e.timeOut}</Sub>}
                         {e.dockAssignedAt && <Sub>Docked {clockTime(e.dockAssignedAt)}</Sub>}
                       </td>
@@ -233,12 +257,18 @@ export default function ShippingDashboard({ entries, onAssignDock, onEdit, onChe
                         <select
                           aria-label={`Options for ${e.truckName} ${e.trailerNumber}`}
                           value=""
-                          onChange={(ev) => (ev.target.value === 'checkout' ? onCheckOut(e) : onEdit(e))}
+                          onChange={(ev) => {
+                            const choice = ev.target.value
+                            if (choice === 'release') startRelease(e)
+                            else if (choice === 'checkout') onCheckOut(e)
+                            else onEdit(e)
+                          }}
                           className="cursor-pointer rounded-md border border-line bg-panel px-2 py-1.5 text-[14px] font-semibold text-ink"
                         >
                           <option value="" disabled>
                             Options
                           </option>
+                          {awaitingRelease(e) && <option value="release">Release to gate</option>}
                           <option value="checkout">{e.timeOut ? 'Edit Check Out' : 'Check Out'}</option>
                           <option value="edit">Edit Check In</option>
                         </select>

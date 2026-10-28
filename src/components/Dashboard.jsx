@@ -6,9 +6,14 @@ import LoadingInspection from './LoadingInspection'
 import YardMap from './YardMap'
 import { DOCKS } from '../yard'
 import { dayMetrics, isDrop, stagingBays, yardMetrics } from '../metrics'
+import { DETENTION_TAG, detentionState, needsInspection } from '../detention'
+import { awaitingRelease, isReleased } from '../handoff'
 
-// Waits longer than this are flagged (with text, not just color).
-const LONG_WAIT_MS = 2 * 60 * 60 * 1000
+// Detention pill (past or near free time), or nothing when the truck is fine.
+function DetentionPill({ e, now }) {
+  const det = detentionState(e, now)
+  return det ? <span className={ui.tag + ' ' + DETENTION_TAG[det.level]}>{det.text}</span> : null
+}
 
 function Stripe({ purposes }) {
   return (
@@ -30,7 +35,6 @@ function Meta({ items }) {
 
 function WaitingCard({ e, now, occupied, onAssignDock, onEdit }) {
   const waited = now - arrivalMs(e)
-  const long = waited > LONG_WAIT_MS
   const purposes = e.visitPurpose ?? []
 
   return (
@@ -41,9 +45,10 @@ function WaitingCard({ e, now, occupied, onAssignDock, onEdit }) {
           <span className="font-display text-[19px] leading-tight font-bold break-words">
             {e.trailerNumber} · {e.truckName}
           </span>
-          <span className={'text-[15px] font-semibold ' + (long ? 'text-danger' : 'text-ink')}>
-            {long && '⚠ Over 2h · '}Waiting {duration(waited)}
-          </span>
+          <span className="text-[15px] font-semibold">Waiting {duration(waited)}</span>
+        </div>
+        <div className="my-0.5">
+          <DetentionPill e={e} now={now} />
         </div>
         <Meta
           items={[
@@ -78,17 +83,20 @@ function WaitingCard({ e, now, occupied, onAssignDock, onEdit }) {
   )
 }
 
-// Inspection state as a tag; the word carries the meaning, color only reinforces it.
-function InspectionTag({ inspection }) {
+// Inspection and handoff state as a tag; the word carries the meaning, color only reinforces it.
+function InspectionTag({ e }) {
+  const inspection = e.loadingInspection
   if (!inspection) return <span className={ui.tag + ' bg-signal text-signal-ink'}>Not inspected</span>
-  return inspection.result === 'Pass' ? (
-    <span className={ui.tag + ' bg-ok-soft text-ok'}>✓ Inspection passed</span>
+  if (inspection.result !== 'Pass') return <span className={ui.tag + ' bg-danger-soft text-danger'}>⚠ Inspection failed</span>
+  return isReleased(e) ? (
+    <span className={ui.tag + ' bg-delivery-soft text-delivery'}>✓ Released to gate</span>
   ) : (
-    <span className={ui.tag + ' bg-danger-soft text-danger'}>⚠ Inspection failed</span>
+    <span className={ui.tag + ' bg-ok-soft text-ok'}>✓ Passed · awaiting release</span>
   )
 }
 
-function DockCard({ e, now, onCheckOut, onInspect }) {
+// Full At the Docks card for the Shipping tab's side column.
+function DockCard({ e, now, onCheckOut }) {
   const purposes = e.visitPurpose ?? []
   return (
     <div className="grid grid-cols-[8px_1fr] overflow-hidden rounded-lg bg-page">
@@ -114,15 +122,11 @@ function DockCard({ e, now, onCheckOut, onInspect }) {
               `Waited ${duration(e.dockAssignedAt - arrivalMs(e))}`,
             ]}
           />
-          <div className="mt-1">
-            <InspectionTag inspection={e.loadingInspection} />
+          <div className="mt-1 flex flex-wrap gap-1.5">
+            <InspectionTag e={e} />
+            <DetentionPill e={e} now={now} />
           </div>
           <div className="mt-2 flex flex-wrap gap-2">
-            {onInspect && (
-              <button onClick={() => onInspect(e)} className={ui.btnSmallPrimary}>
-                {e.loadingInspection ? 'View Inspection' : 'Inspect'}
-              </button>
-            )}
             <button onClick={() => onCheckOut(e)} className={ui.btnSmall}>
               Check out
             </button>
@@ -130,6 +134,42 @@ function DockCard({ e, now, onCheckOut, onInspect }) {
         </div>
       </div>
     </div>
+  )
+}
+
+// Compact At the Docks tile for the Dock & Loading tab: dock, trailer, carrier, purpose, time at the
+// dock and inspection. Clicking selects it for the panel's Inspect button.
+function DockTile({ e, now, selected, onSelect }) {
+  const purposes = e.visitPurpose ?? []
+  return (
+    <button
+      type="button"
+      aria-pressed={selected}
+      onClick={() => onSelect(e.id)}
+      className={
+        'grid cursor-pointer grid-cols-[6px_1fr] overflow-hidden rounded-lg border-2 bg-page text-left ' +
+        (selected ? 'border-signal' : 'border-transparent hover:border-line')
+      }
+    >
+      <Stripe purposes={purposes} />
+      <div className="min-w-0 px-2.5 py-2">
+        <div className="flex items-baseline justify-between gap-2">
+          <span className="font-display text-[19px] leading-none font-bold">Dock {e.dockDoor}</span>
+          <span className="text-[13px] font-semibold whitespace-nowrap" title={`At dock since ${clockTime(e.dockAssignedAt)}`}>
+            {duration(now - e.dockAssignedAt)}
+          </span>
+        </div>
+        <div className="mt-1 truncate text-[15px] font-bold" title={e.trailerNumber}>
+          {e.trailerNumber || '—'}
+        </div>
+        <div className="truncate text-[13px] text-muted" title={[e.truckName, ...purposes].join(' · ')}>
+          {[e.truckName, purposes.join(' + ')].filter(Boolean).join(' · ')}
+        </div>
+        <div className="mt-1.5">
+          <InspectionTag e={e} />
+        </div>
+      </div>
+    </button>
   )
 }
 
@@ -217,23 +257,35 @@ function StagingBays({ entries, now, wide }) {
   )
 }
 
-function Panel({ title, count, empty, children }) {
+// `tiles` lays the children out as a grid of small tiles instead of a single column; `action` sits
+// at the right of the title; `className` adds layout classes to the card.
+function Panel({ id, title, count, empty, tiles, action, className = '', children }) {
   return (
-    <section className="rounded-[10px] border border-line bg-panel p-4">
-      <h2 className="font-display text-[21px] leading-tight font-bold">
-        {title} <span className="text-muted">({count})</span>
-      </h2>
-      {count === 0 ? <p className="py-2 text-sm text-muted">{empty}</p> : <div className="mt-3 grid gap-2">{children}</div>}
+    <section id={id} className={'scroll-mt-[calc(var(--header-h,114px)+16px)] rounded-[10px] border border-line bg-panel p-4 ' + className}>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="font-display text-[21px] leading-tight font-bold">
+          {title} <span className="text-muted">({count})</span>
+        </h2>
+        {action}
+      </div>
+      {count === 0 ? (
+        <p className="py-2 text-sm text-muted">{empty}</p>
+      ) : (
+        <div className={'mt-3 grid gap-2' + (tiles ? ' grid-cols-[repeat(auto-fill,minmax(165px,1fr))]' : '')}>{children}</div>
+      )}
     </section>
   )
 }
 
-// Dock Status, Trucks Waiting and At the Docks. `wide` lays them out full width (Dock & Loading tab);
-// otherwise they render as stacked boxes for a narrow column.
-export function DockBoard({ entries, onAssignDock, onEdit, onCheckOut, onSaveInspection, wide }) {
+// Dock Status, Trucks Waiting and At the Docks. `wide` lays them out full width (Dock & Loading tab).
+// Otherwise (Shipping tab) `section="waiting"` renders only Trucks Waiting, filling and scrolling
+// inside its parent on wide screens; without it, the dock and bay boxes stack for the sidebar.
+export function DockBoard({ entries, onAssignDock, onEdit, onCheckOut, onSaveInspection, wide, section }) {
   const [now, setNow] = useState(Date.now)
   // Truck whose Loading Inspection is open (wide layout only).
   const [inspectingId, setInspectingId] = useState(null)
+  // At the Docks tile picked for the panel's Inspect button (wide layout only).
+  const [selectedTileId, setSelectedTileId] = useState(null)
 
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 30000)
@@ -248,40 +300,74 @@ export function DockBoard({ entries, onAssignDock, onEdit, onCheckOut, onSaveIns
     .sort((a, b) => dockKey(a.dockDoor).localeCompare(dockKey(b.dockDoor), undefined, { numeric: true }))
   const occupied = new Map(atDock.map((e) => [dockKey(e.dockDoor), e]))
 
-  const panels = (
-    <>
-      <Panel title="Trucks Waiting" count={waiting.length} empty="No trucks waiting. Trucks logged on the Gate tab appear here.">
-        {waiting.map((e) => (
-          <WaitingCard key={e.id} e={e} now={now} occupied={occupied} onAssignDock={onAssignDock} onEdit={onEdit} />
-        ))}
-      </Panel>
-      <Panel title="At the Docks" count={atDock.length} empty="No docks in use. Assign a dock to a waiting truck to see it here.">
-        {atDock.map((e) => (
-          <DockCard
-            key={e.id}
-            e={e}
-            now={now}
-            onCheckOut={onCheckOut}
-            onInspect={
-              wide
-                ? (truck) => {
-                    setInspectingId(truck.id)
-                    requestAnimationFrame(() => document.getElementById('loading-inspection')?.scrollIntoView({ behavior: 'smooth' }))
-                  }
-                : undefined
-            }
-          />
-        ))}
-      </Panel>
-    </>
+  const waitingPanel = (
+    <Panel
+      title="Trucks Waiting"
+      count={waiting.length}
+      empty="No trucks waiting. Trucks logged on the Gate tab appear here."
+      className={section === 'waiting' ? 'lg:absolute lg:inset-0 lg:overflow-y-auto' : ''}
+    >
+      {waiting.map((e) => (
+        <WaitingCard key={e.id} e={e} now={now} occupied={occupied} onAssignDock={onAssignDock} onEdit={onEdit} />
+      ))}
+    </Panel>
+  )
+  const inspect = (truck) => {
+    setInspectingId(truck.id)
+    requestAnimationFrame(() => document.getElementById('loading-inspection')?.scrollIntoView({ behavior: 'smooth' }))
+  }
+  // Dock & Loading tab: small tiles; click one to select it, then the panel's Inspect button opens its
+  // Loading Inspection (check out from the Gate or Shipping tab). Shipping tab: full cards with Check out.
+  const selectedTile = atDock.find((e) => e.id === selectedTileId)
+  const inspectButton = wide && atDock.length > 0 && (
+    <button type="button" onClick={() => inspect(selectedTile)} disabled={!selectedTile} className={ui.btnSmallPrimary}>
+      {!selectedTile
+        ? 'Select a tile to inspect'
+        : `${selectedTile.loadingInspection ? 'View Inspection' : 'Inspect'} · Dock ${selectedTile.dockDoor}`}
+    </button>
+  )
+  const docksPanel = (
+    <Panel
+      id={wide ? 'at-the-docks' : undefined}
+      title="At the Docks"
+      count={atDock.length}
+      empty="No docks in use. Assign a dock to a waiting truck to see it here."
+      tiles={wide}
+      action={inspectButton}
+    >
+      {atDock.map((e) =>
+        wide ? (
+          <DockTile key={e.id} e={e} now={now} selected={e.id === selectedTileId} onSelect={setSelectedTileId} />
+        ) : (
+          <DockCard key={e.id} e={e} now={now} onCheckOut={onCheckOut} />
+        ),
+      )}
+    </Panel>
   )
 
+  // Dock & Loading tab: At the Docks beside the live yard map; no Trucks Waiting there (docks are
+  // assigned from the Shipping tab).
   if (wide) {
     return (
       <div className="space-y-5">
-        <DockStatus occupied={occupied} now={now} wide />
-        <StagingBays entries={entries} now={now} wide />
-        <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-2">{panels}</div>
+        {/* At the Docks takes 1/3 and the map 2/3 of the width; both cards stretch to the taller one. */}
+        <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+          {docksPanel}
+          {/* The wrapper keeps LiveYard's sidebar column spans out of this grid. Here the map opens on
+              the trucks needing inspection; tapping one selects its tile and opens its inspection. */}
+          <div>
+            <LiveYard
+              entries={entries}
+              onEdit={onEdit}
+              onCheckOut={onCheckOut}
+              onInspect={(truck) => {
+                setSelectedTileId(truck.id)
+                inspect(truck)
+              }}
+              stretch
+            />
+          </div>
+        </div>
         <LoadingInspection
           atDock={atDock}
           selectedId={inspectingId}
@@ -294,19 +380,26 @@ export function DockBoard({ entries, onAssignDock, onEdit, onCheckOut, onSaveIns
       </div>
     )
   }
+  // Shipping tab: Trucks Waiting sits beside the map; the dock and bay boxes go in the sidebar.
+  if (section === 'waiting') return waitingPanel
   return (
     <>
       <DockStatus occupied={occupied} now={now} />
+      {docksPanel}
       <StagingBays entries={entries} now={now} />
-      {panels}
     </>
   )
 }
 
-// Small live copy of the Overview yard map, refreshed every 30 seconds. Clicking it (or Enlarge)
+// Small live copy of the yard map, refreshed every 30 seconds. Clicking it (or Enlarge)
 // opens the full-size map in a pop-up; Esc, Close or a click on the dimmed background closes it.
-function LiveYard({ entries, onEdit, onCheckOut }) {
+// `stretch`: fill the parent's height (beside At the Docks on Dock & Loading, Trucks Waiting on Shipping).
+// `onInspect` (Dock & Loading) adds a Needs inspection / All trucks switch, starting on Needs
+// inspection: trucks waiting for their Loading Inspection are highlighted and open it when tapped.
+function LiveYard({ entries, onEdit, onCheckOut, onInspect, stretch }) {
   const [now, setNow] = useState(Date.now)
+  const [view, setView] = useState(onInspect ? 'inspect' : 'all')
+  const inspecting = onInspect && view === 'inspect'
   const dialog = useRef(null)
 
   useEffect(() => {
@@ -325,14 +418,47 @@ function LiveYard({ entries, onEdit, onCheckOut }) {
   }
 
   return (
-    <section className="rounded-[10px] border border-line bg-panel p-4 sm:col-span-2 lg:col-span-1">
-      <div className="flex items-center justify-between gap-2">
-        <h2 className="font-display text-[21px] leading-tight font-bold">Live Yard Map</h2>
-        <button type="button" onClick={open} className="cursor-pointer font-semibold underline">
-          ⤢ Enlarge
-        </button>
+    <section className={'rounded-[10px] border border-line bg-panel p-4 sm:col-span-2 lg:col-span-1' + (stretch ? ' h-full' : '')}>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="font-display text-[21px] leading-tight font-bold">{inspecting ? 'Inspection Map' : 'Live Yard Map'}</h2>
+        <div className="flex flex-wrap items-center gap-3">
+          {onInspect && (
+            <div role="group" aria-label="Map view" className="flex gap-1">
+              {[
+                ['inspect', 'Needs inspection'],
+                ['all', 'All trucks'],
+              ].map(([id, label]) => (
+                <button
+                  key={id}
+                  type="button"
+                  aria-pressed={view === id}
+                  onClick={() => setView(id)}
+                  className={
+                    'min-h-11 cursor-pointer rounded-md border-2 px-3 text-[14px] font-semibold ' +
+                    (view === id ? 'border-signal bg-signal text-signal-ink' : 'border-line bg-panel text-ink')
+                  }
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
+          <button type="button" onClick={open} className="cursor-pointer font-semibold underline">
+            ⤢ Enlarge
+          </button>
+        </div>
       </div>
-      <YardMap yard={yard} gateCounts={gateCounts} at={Infinity} clock={now} live compact onExpand={open} />
+      <YardMap
+        yard={yard}
+        gateCounts={gateCounts}
+        at={Infinity}
+        clock={now}
+        live
+        compact
+        onExpand={open}
+        focus={inspecting ? needsInspection : undefined}
+        onInspect={inspecting ? onInspect : undefined}
+      />
 
       <dialog
         ref={dialog}
@@ -343,7 +469,7 @@ function LiveYard({ entries, onEdit, onCheckOut }) {
         {/* Padding sits on this wrapper so a click inside the pop-up never reaches the dialog itself. */}
         <div className="p-5">
           <div className="flex items-center justify-between gap-3">
-            <h2 className="font-display text-[26px] leading-tight font-bold">Live Yard Map</h2>
+            <h2 className="font-display text-[26px] leading-tight font-bold">{inspecting ? 'Inspection Map' : 'Live Yard Map'}</h2>
             <button type="button" onClick={close} className={ui.btnSmall}>
               ✕ Close
             </button>
@@ -356,6 +482,8 @@ function LiveYard({ entries, onEdit, onCheckOut }) {
             live
             onEdit={closeThen(onEdit)}
             onCheckOut={closeThen(onCheckOut)}
+            focus={inspecting ? needsInspection : undefined}
+            onInspect={inspecting ? closeThen(onInspect) : undefined}
           />
         </div>
       </dialog>
@@ -363,16 +491,134 @@ function LiveYard({ entries, onEdit, onCheckOut }) {
   )
 }
 
-// Lays out the Shipping page: `children` on the left; the live yard map and dock boxes in a sticky
-// right column (stacked above the content below lg).
-export default function Dashboard({ entries, onAssignDock, onEdit, onCheckOut, children }) {
+// "Right now" row at the top of the Shipping page: the figures that say what needs action next.
+// Each figure's tone is also written in its note, so it never relies on color alone.
+function SummaryStrip({ entries }) {
+  const [now, setNow] = useState(Date.now)
+
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 30000)
+    return () => clearInterval(t)
+  }, [])
+
+  const onSite = entries.filter((e) => !e.timeOut)
+  const yard = yardMetrics(entries, Infinity, now)
+  const free = DOCKS.filter((d) => !yard.atDock.has(dockKey(d))).length
+  const states = onSite.map((e) => detentionState(e, now)).filter(Boolean)
+  const over = states.filter((s) => s.level === 'over')
+  const near = states.length - over.length
+  const fee = over.reduce((s, d) => s + d.fee, 0)
+  const awaiting = onSite.filter(awaitingRelease).length
+  const released = onSite.filter(isReleased).length
+
+  const items = [
+    { label: 'On site', value: onSite.length, note: `${yard.drops.length} dropped trailer${yard.drops.length === 1 ? '' : 's'}` },
+    {
+      label: 'Waiting for a dock',
+      value: yard.waiting.length,
+      note: yard.waiting.length ? `Longest ${duration(yard.longestWaitMs)}` : 'No one waiting',
+      tone: yard.waiting.length > 2 ? 'warn' : undefined,
+    },
+    {
+      label: 'Docks free',
+      value: `${free} of ${DOCKS.length}`,
+      note: free ? 'Ready to assign' : '⚠ All docks in use',
+      tone: free ? 'good' : 'alert',
+    },
+    {
+      label: 'Past free time',
+      value: over.length,
+      note: over.length ? `⚠ Est. $${Math.round(fee)} so far${near ? ` · ${near} near` : ''}` : near ? `${near} near free time` : 'None',
+      tone: over.length ? 'alert' : near ? 'warn' : 'good',
+    },
+    {
+      label: 'Awaiting release',
+      value: awaiting,
+      note: (awaiting ? 'Passed inspection · release below' : 'None to release') + (released ? ` · ${released} released to gate` : ''),
+      tone: awaiting ? 'warn' : undefined,
+    },
+  ]
+  const toneCls = { good: 'border-l-ok', warn: 'border-l-signal', alert: 'border-l-danger' }
+
   return (
-    <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[minmax(0,1fr)_420px]">
-      <aside className="grid gap-4 sm:grid-cols-2 lg:sticky lg:top-[140px] lg:order-2 lg:max-h-[calc(100vh-160px)] lg:grid-cols-1 lg:overflow-y-auto">
-        <LiveYard entries={entries} onEdit={onEdit} onCheckOut={onCheckOut} />
-        <DockBoard entries={entries} onAssignDock={onAssignDock} onEdit={onEdit} onCheckOut={onCheckOut} />
-      </aside>
-      <div className="min-w-0 space-y-5 lg:order-1">{children}</div>
+    <section aria-label="Right now" className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+      {items.map((it) => (
+        <div key={it.label} className={'rounded-lg border border-l-[5px] border-line bg-panel px-3 py-2 ' + (toneCls[it.tone] ?? '')}>
+          <div className="text-[13px] font-semibold text-muted">{it.label}</div>
+          <div className="font-display text-[26px] leading-tight font-bold">{it.value}</div>
+          <div className={'text-[13px] ' + (it.tone === 'alert' ? 'font-semibold text-danger' : 'text-muted')}>{it.note}</div>
+        </div>
+      ))}
+    </section>
+  )
+}
+
+// Trucks that passed their inspection and wait for Shipping to release them to the gate, oldest first.
+function ReadyForRelease({ entries, onStartRelease }) {
+  const [now, setNow] = useState(Date.now)
+
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 30000)
+    return () => clearInterval(t)
+  }, [])
+
+  const ready = entries
+    .filter(awaitingRelease)
+    .sort((a, b) => (a.loadingInspection.inspectedAt ?? 0) - (b.loadingInspection.inspectedAt ?? 0))
+  return (
+    <Panel title="Ready for Release" count={ready.length} empty="Nothing waiting for release. Trucks appear here when their loading inspection passes." tiles>
+      {ready.map((e) => (
+        <div key={e.id} className="grid grid-cols-[6px_1fr] overflow-hidden rounded-lg bg-page">
+          <Stripe purposes={e.visitPurpose ?? []} />
+          <div className="flex min-w-0 flex-col gap-1 px-2.5 py-2">
+            <div className="flex items-baseline justify-between gap-2">
+              <span className="font-display text-[19px] leading-none font-bold">Dock {e.dockDoor}</span>
+              {e.loadingInspection.inspectedAt && (
+                <span className="text-[13px] font-semibold whitespace-nowrap">Passed {duration(now - e.loadingInspection.inspectedAt)} ago</span>
+              )}
+            </div>
+            <div className="truncate text-[15px] font-bold" title={`${e.trailerNumber} · ${e.truckName}`}>
+              {e.trailerNumber} · {e.truckName}
+            </div>
+            <div className="truncate text-[13px] text-muted">
+              {[e.customerPickupFor, e.pickupNumber && `Order ${e.pickupNumber}`].filter(Boolean).join(' · ') || 'No order details'}
+            </div>
+            <DetentionPill e={e} now={now} />
+            <button type="button" onClick={() => onStartRelease(e)} className={ui.btnSmallPrimary + ' mt-1 w-full'}>
+              Release to gate
+            </button>
+          </div>
+        </div>
+      ))}
+    </Panel>
+  )
+}
+
+// Lays out the Shipping page: the "Right now" row; Ready for Release (Shipping's sign-off after a
+// passed inspection); then Trucks Waiting (1/3) beside a large live yard map (2/3), as on Dock &
+// Loading; then `children` on the left and the dock and bay boxes in a sticky right column. Below lg
+// everything stacks, Trucks Waiting first.
+export default function Dashboard({ entries, onAssignDock, onEdit, onCheckOut, onStartRelease, children }) {
+  const board = { entries, onAssignDock, onEdit, onCheckOut }
+  return (
+    <div className="space-y-5">
+      <SummaryStrip entries={entries} />
+      {onStartRelease && <ReadyForRelease entries={entries} onStartRelease={onStartRelease} />}
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+        {/* The map sets this row's height; Trucks Waiting fills it and scrolls inside when long. */}
+        <div className="relative">
+          <DockBoard {...board} section="waiting" />
+        </div>
+        <div>
+          <LiveYard entries={entries} onEdit={onEdit} onCheckOut={onCheckOut} stretch />
+        </div>
+      </div>
+      <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[minmax(0,1fr)_420px]">
+        <aside className="grid gap-4 sm:grid-cols-2 lg:sticky lg:top-[140px] lg:order-2 lg:max-h-[calc(100vh-160px)] lg:grid-cols-1 lg:overflow-y-auto">
+          <DockBoard {...board} />
+        </aside>
+        <div className="min-w-0 space-y-5 lg:order-1">{children}</div>
+      </div>
     </div>
   )
 }

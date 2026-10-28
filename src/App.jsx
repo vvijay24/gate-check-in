@@ -1,13 +1,14 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import GuardForm from './components/GuardForm'
 import CheckOutPicker from './components/CheckOutPicker'
 import EntryLog from './components/EntryLog'
 import ShippingDashboard from './components/ShippingDashboard'
 import { DockBoard } from './components/Dashboard'
 import Messages from './components/Messages'
-import Overview from './components/Overview'
+import Analytics from './components/Analytics'
 import { makeSampleEntries } from './sampleData'
 import { takenBays } from './metrics'
+import { awaitingRelease, isReleased } from './handoff'
 
 const STORAGE_KEY = 'guard-load-log'
 
@@ -15,7 +16,7 @@ const TABS = [
   { id: 'gate', label: 'Gate' },
   { id: 'shipping', label: 'Shipping' },
   { id: 'docks', label: 'Dock & Loading' },
-  { id: 'overview', label: 'Overview' },
+  { id: 'analytics', label: 'Overview' },
 ]
 
 const GATE_MODES = [
@@ -54,6 +55,19 @@ export default function App() {
   useEffect(() => {
     const t = setInterval(() => setClock(timeNow()), 15000)
     return () => clearInterval(t)
+  }, [])
+
+  // The header's height as --header-h, so things pinned below it (the Overview sidebar) start exactly
+  // where it ends, even when its contents wrap.
+  const headerRef = useRef(null)
+  useEffect(() => {
+    const el = headerRef.current
+    if (!el) return
+    const set = () => document.documentElement.style.setProperty('--header-h', `${el.offsetHeight}px`)
+    set()
+    const ro = new ResizeObserver(set)
+    ro.observe(el)
+    return () => ro.disconnect()
   }, [])
 
   useEffect(() => {
@@ -100,15 +114,45 @@ export default function App() {
   }
 
   // Saves the Loading Inspection on the entry; the applied seal fills Outgoing Seals # if it's still empty.
+  // Saving an inspection again clears any earlier Shipping release, so the truck must be released again.
   const handleSaveInspection = (id, loadingInspection) => {
     setEntries((list) =>
       list.map((e) =>
-        e.id === id ? { ...e, loadingInspection, outgoingSeals: e.outgoingSeals || loadingInspection.sealApplied } : e,
+        e.id === id
+          ? { ...e, loadingInspection, release: undefined, outgoingSeals: e.outgoingSeals || loadingInspection.sealApplied }
+          : e,
       ),
     )
-    const entry = entries.find((e) => e.id === id)
-    setNotice(`Loading inspection ${loadingInspection.result === 'Pass' ? 'passed' : 'failed'} for trailer ${entry?.trailerNumber ?? ''}`)
+    const trailer = entries.find((e) => e.id === id)?.trailerNumber ?? ''
+    setNotice(
+      loadingInspection.result === 'Pass'
+        ? `Inspection passed · trailer ${trailer} sent to Shipping for release`
+        : `Inspection failed for trailer ${trailer} · re-check needed before it can leave`,
+    )
   }
+
+  // Shipping releases a truck that passed its inspection to the gate. The confirmed seal and order
+  // number go onto the visit, so the Gate's check-out starts with them.
+  const handleRelease = (id, { orderNo, seal, paperwork, releasedBy, note }) => {
+    setEntries((list) =>
+      list.map((e) =>
+        e.id === id
+          ? {
+              ...e,
+              pickupNumber: orderNo || e.pickupNumber,
+              outgoingSeals: seal || e.outgoingSeals,
+              release: { releasedAt: Date.now(), releasedBy, paperwork, orderNo, seal, note },
+            }
+          : e,
+      ),
+    )
+    const trailer = entries.find((e) => e.id === id)?.trailerNumber ?? ''
+    setNotice(`Trailer ${trailer} released to the gate`)
+  }
+
+  // Tab badges: what's waiting for each team.
+  const badges = { shipping: entries.filter(awaitingRelease).length, gate: entries.filter(isReleased).length }
+  const badgeWords = { shipping: 'awaiting release', gate: 'released to the gate' }
 
   // Sample visits are marked `sample: true` and go in by arrival time among the real entries;
   // loading again replaces the old samples.
@@ -130,7 +174,7 @@ export default function App() {
 
   return (
     <>
-      <header className="sticky top-0 z-10 border-b-[6px] border-signal bg-chrome text-white">
+      <header ref={headerRef} className="sticky top-0 z-10 border-b-[6px] border-signal bg-chrome text-white">
         <div className="mx-auto flex max-w-[1400px] flex-wrap items-center gap-4 px-5 py-3">
           {tab === 'gate' && <h1 className="font-display text-[28px] leading-none font-bold">Gate Check In</h1>}
           {/* ml-auto keeps the clock on the right when there's no title. */}
@@ -151,6 +195,17 @@ export default function App() {
               }
             >
               {t.label}
+              {badges[t.id] > 0 && (
+                <span
+                  className={
+                    'ml-2 inline-flex min-w-6 items-center justify-center rounded-full px-1.5 align-middle font-body text-[13px] font-bold tabular-nums ' +
+                    (tab === t.id ? 'bg-chrome text-white' : 'bg-signal text-signal-ink')
+                  }
+                >
+                  {badges[t.id]}
+                  <span className="sr-only"> {badgeWords[t.id]}</span>
+                </span>
+              )}
             </button>
           ))}
         </nav>
@@ -222,16 +277,9 @@ export default function App() {
               wide
             />
           </div>
-        ) : tab === 'overview' ? (
-          <div role="tabpanel" id="panel-overview" aria-labelledby="tab-overview">
-            <Overview
-              entries={entries}
-              onEdit={handleEdit}
-              onCheckOut={handleCheckOut}
-              sampleCount={sampleCount}
-              onLoadSample={handleLoadSample}
-              onRemoveSample={handleRemoveSample}
-            />
+        ) : tab === 'analytics' ? (
+          <div role="tabpanel" id="panel-analytics" aria-labelledby="tab-analytics">
+            <Analytics entries={entries} sampleCount={sampleCount} onLoadSample={handleLoadSample} onRemoveSample={handleRemoveSample} />
           </div>
         ) : (
           <div role="tabpanel" id="panel-shipping" aria-labelledby="tab-shipping">
@@ -240,13 +288,14 @@ export default function App() {
               onAssignDock={handleAssignDock}
               onEdit={handleEdit}
               onCheckOut={handleCheckOut}
+              onRelease={handleRelease}
               top={
                 <EntryLog entries={entries} onEdit={handleEdit} onCheckOut={handleCheckOut} onDelete={handleDelete} onAssignDock={handleAssignDock} />
               }
             />
           </div>
         )}
-        {(tab === 'gate' || tab === 'shipping') && <Messages />}
+        {(tab === 'gate' || tab === 'shipping') && <Messages raised={tab === 'gate'} />}
       </main>
     </>
   )

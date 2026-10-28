@@ -1,16 +1,18 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { flushSync } from 'react-dom'
 import * as ui from '../ui'
 import { LOG_COLUMNS, exportToExcel } from '../logColumns'
 import AssignDock, { occupiedDocks } from './AssignDock'
 import { dayKey } from '../time'
+import { DETENTION_TAG, detentionState } from '../detention'
+import { awaitingRelease, isReleased } from '../handoff'
 
 // Today = checked in today, plus anything still on site from earlier (the default view).
-// Waiting = still on site (not checked out), including trucks already at a dock.
+// On site = not checked out yet, including trucks already at a dock.
 const TABS = [
   { id: 'today', label: 'Today' },
   { id: 'all', label: 'All' },
-  { id: 'waiting', label: 'Waiting' },
+  { id: 'onsite', label: 'On site' },
   { id: 'departed', label: 'Departed' },
 ]
 
@@ -18,10 +20,26 @@ const MAX_ROWS = 7
 
 const Dash = () => <span className="text-muted">—</span>
 
-const statusOf = (e) => (e.timeOut ? 'Departed' : e.dockDoor ? 'At dock' : 'Waiting')
+// After a passed inspection: Awaiting release (Shipping's turn), then Released to gate (the Gate's
+// turn). Same wording as Outbound Shipments.
+const STATUSES = ['Waiting', 'At dock', 'Awaiting release', 'Released to gate', 'Departed']
+const statusOf = (e) =>
+  e.timeOut ? 'Departed' : isReleased(e) ? 'Released to gate' : awaitingRelease(e) ? 'Awaiting release' : e.dockDoor ? 'At dock' : 'Waiting'
 const hourOf = (e) => (e.timeIn ? Number(e.timeIn.slice(0, 2)) : null)
 const hourLabel = (h) => `${h % 12 || 12} ${h < 12 ? 'AM' : 'PM'}`
 const sortedUnique = (values) => [...new Set(values.filter(Boolean))].sort()
+
+// "Today", "Yesterday" or "Oct 26" (with the year when it isn't this year). The export keeps full dates.
+function friendlyDate(key) {
+  if (!key) return ''
+  const now = new Date()
+  const yesterday = new Date(now)
+  yesterday.setDate(now.getDate() - 1)
+  if (key === dayKey(now)) return 'Today'
+  if (key === dayKey(yesterday)) return 'Yesterday'
+  const d = new Date(`${key}T00:00`)
+  return d.toLocaleDateString([], { month: 'short', day: 'numeric', ...(d.getFullYear() !== now.getFullYear() && { year: 'numeric' }) })
+}
 
 // The five columns on screen. `options` lists the header dropdown's choices for the rows in the tab;
 // `match` says whether an entry fits the chosen value. Every field still goes into the Excel export.
@@ -44,7 +62,7 @@ const COLUMNS = [
   {
     id: 'date',
     label: 'Date In',
-    options: (rows) => sortedUnique(rows.map((e) => e.dateIn)).reverse().map((d) => ({ value: d, label: d })),
+    options: (rows) => sortedUnique(rows.map((e) => e.dateIn)).reverse().map((d) => ({ value: d, label: friendlyDate(d) })),
     match: (e, v) => e.dateIn === v,
   },
   {
@@ -59,14 +77,17 @@ const COLUMNS = [
   {
     id: 'status',
     label: 'Status',
-    options: () => ['Waiting', 'At dock', 'Departed'].map((s) => ({ value: s, label: s })),
+    options: () => STATUSES.map((s) => ({ value: s, label: s })),
     match: (e, v) => statusOf(e) === v,
   },
 ]
 
+// The dock number is in the Dock column, so the status doesn't repeat it.
 function StatusTag({ e }) {
   if (e.timeOut) return <span className={ui.tag + ' bg-ok-soft text-ok'}>Departed</span>
-  if (e.dockDoor) return <span className={ui.tag + ' bg-ink text-panel'}>At dock {e.dockDoor}</span>
+  if (isReleased(e)) return <span className={ui.tag + ' bg-delivery-soft text-delivery'}>Released to gate</span>
+  if (awaitingRelease(e)) return <span className={ui.tag + ' bg-ok text-panel'}>Awaiting release</span>
+  if (e.dockDoor) return <span className={ui.tag + ' bg-ink text-panel'}>At dock</span>
   return <span className={ui.tag + ' bg-signal text-signal-ink'}>Waiting</span>
 }
 
@@ -90,21 +111,44 @@ export default function EntryLog({ entries, onEdit, onCheckOut, onDelete, onAssi
   const [showAll, setShowAll] = useState(false)
   const [exporting, setExporting] = useState(false)
   const [exportError, setExportError] = useState('')
+  // Keeps the detention pills current.
+  const [now, setNow] = useState(Date.now)
   const occupied = occupiedDocks(entries)
 
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 30000)
+    return () => clearInterval(t)
+  }, [])
+
+  // The tab lists for a set of entries. All and Today: trucks still on site first; each group keeps
+  // newest-first order.
+  const today = dayKey(new Date(now))
+  const tabLists = (list) => {
+    const onsite = list.filter((e) => !e.timeOut)
+    const departed = list.filter((e) => e.timeOut)
+    const all = [...onsite, ...departed]
+    return { today: all.filter((e) => e.dateIn === today || !e.timeOut), all, onsite, departed }
+  }
   // Search matches any field (the same fields the export has); tabs and counts apply on top of it.
   const q = search.trim().toLowerCase()
   const matches = q ? entries.filter((e) => LOG_COLUMNS.some((c) => String(c.get(e) ?? '').toLowerCase().includes(q))) : entries
-  const waiting = matches.filter((e) => !e.timeOut)
-  const departed = matches.filter((e) => e.timeOut)
-  // All and Today: trucks still on site first; each group keeps newest-first order.
-  const today = dayKey(new Date())
-  const all = [...waiting, ...departed]
-  const lists = { today: all.filter((e) => e.dateIn === today || !e.timeOut), all, waiting, departed }
+  const lists = tabLists(matches)
   // Header dropdowns narrow the selected tab further.
   const active = COLUMNS.filter((c) => filters[c.id])
   const rows = lists[tab].filter((e) => active.every((c) => c.match(e, filters[c.id])))
   const setFilter = (id, value) => setFilters((f) => ({ ...f, [id]: value }))
+  const clearAll = () => {
+    setSearch('')
+    setFilters({})
+  }
+
+  // "Showing 4 of 31 · Today · search "penske" · Status: Waiting": what is narrowing the list.
+  const tabTotal = tabLists(entries)[tab].length
+  const narrowing = [
+    TABS.find((t) => t.id === tab).label,
+    q && `search “${search.trim()}”`,
+    ...active.map((c) => `${c.label}: ${c.options(lists[tab]).find((o) => o.value === filters[c.id])?.label ?? filters[c.id]}`),
+  ].filter(Boolean)
   const shown = showAll ? rows : rows.slice(0, MAX_ROWS)
   // Print covers every filtered row, so expand the table before the print dialog opens.
   const handlePrint = () => {
@@ -117,7 +161,7 @@ export default function EntryLog({ entries, onEdit, onCheckOut, onDelete, onAssi
     : {
         today: 'No check-ins today and no trucks on site. Earlier days are under All.',
         all: 'No entries yet. Trucks checked in on the Gate tab appear here.',
-        waiting: 'No trucks on site.',
+        onsite: 'No trucks on site.',
         departed: 'No trucks have departed yet.',
       }[tab]
 
@@ -169,9 +213,18 @@ export default function EntryLog({ entries, onEdit, onCheckOut, onDelete, onAssi
           placeholder="Search order no, customer, trailer, truck, trucker, seal, dock, guard…"
           className={ui.input + ' min-w-0 flex-1'}
         />
-        {active.length > 0 && (
-          <button type="button" onClick={() => setFilters({})} className="cursor-pointer font-semibold underline">
-            Clear filters
+      </div>
+
+      <div className="no-print flex flex-wrap items-baseline gap-x-3 gap-y-1 px-5 pb-3 text-[14px]" aria-live="polite">
+        <span>
+          <b>
+            Showing {rows.length} of {tabTotal}
+          </b>
+          <span className="text-muted"> · {narrowing.join(' · ')}</span>
+        </span>
+        {(q || active.length > 0) && (
+          <button type="button" onClick={clearAll} className="cursor-pointer font-semibold underline">
+            Clear all
           </button>
         )}
       </div>
@@ -213,14 +266,26 @@ export default function EntryLog({ entries, onEdit, onCheckOut, onDelete, onAssi
                 </td>
               </tr>
             ) : (
-              shown.map((e) => (
+              shown.map((e) => {
+                const det = detentionState(e, now)
+                return (
                 <tr key={e.id} className="align-top">
-                  <td className="px-3 py-2.5 font-semibold">{e.pickupNumber || <Dash />}</td>
+                  <td className="px-3 py-2.5">
+                    <span className="font-semibold">{e.pickupNumber || <Dash />}</span>
+                    {/* Which truck this is, even for deliveries and drops that have no order no. */}
+                    <span className="block text-[13px] text-muted">
+                      Trailer {e.trailerNumber || '—'}
+                      {e.truckName && ` · ${e.truckName}`}
+                    </span>
+                  </td>
                   <td className="px-3 py-2.5">{e.customerPickupFor || <Dash />}</td>
-                  <td className="whitespace-nowrap px-3 py-2.5">{e.dateIn || <Dash />}</td>
+                  <td className="whitespace-nowrap px-3 py-2.5" title={e.dateIn}>
+                    {friendlyDate(e.dateIn) || <Dash />}
+                  </td>
                   <td className="whitespace-nowrap px-3 py-2.5">{e.timeIn || <Dash />}</td>
                   <td className="px-3 py-2.5">
                     <StatusTag e={e} />
+                    {det && <span className={ui.tag + ' mt-1 block w-fit ' + DETENTION_TAG[det.level]}>{det.text}</span>}
                   </td>
                   {/* Assign dock only for trucks still on site without a dock. */}
                   <td className="no-print whitespace-nowrap px-3 py-2.5">
@@ -254,7 +319,8 @@ export default function EntryLog({ entries, onEdit, onCheckOut, onDelete, onAssi
                     </select>
                   </td>
                 </tr>
-              ))
+                )
+              })
             )}
           </tbody>
         </table>
