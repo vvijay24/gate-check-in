@@ -3,6 +3,7 @@
 import { EMPTY_FORM } from './formConfig'
 import { dayKey } from './time'
 import { BAY_NAMES, DOCKS } from './yard'
+import { CHECK_NAMES } from './inspectionChecks'
 
 const DAYS = 14
 const CARRIERS = ['KLLM', 'Brannon Golden', 'Penske', 'Syfan', 'U S Citylink', 'Pickup']
@@ -65,7 +66,10 @@ export function makeSampleEntries(now = Date.now()) {
         ...EMPTY_FORM,
         id: `sample-${++n}`,
         sample: true,
-        createdAt: arrive,
+        // Most check-ins are saved within minutes; a few are typed in later from paper.
+        createdAt: Math.min(now, arrive + Math.round((random() < 0.07 ? between(20, 150) : between(0, 4)) * MIN)),
+        // An occasional check-in is corrected after saving.
+        ...(random() < 0.04 && { edits: 1 }),
         dateIn: dayKey(arrival),
         timeIn: hhmm(arrival),
         gateIn: 'Gate 1',
@@ -116,6 +120,7 @@ export function makeSampleEntries(now = Date.now()) {
         const inspectedAt = Math.round(dockAt + dwell * 0.75)
         if (inspectedAt <= now) {
           e.loadingInspection = {
+            ...Object.fromEntries(CHECK_NAMES.map((name) => [name, 'Yes'])),
             result: 'Pass',
             issues: [],
             inspectedAt,
@@ -155,6 +160,12 @@ export function makeSampleEntries(now = Date.now()) {
           outgoingSeals: e.loadingInspection?.sealApplied ?? '',
           fuelOut: reefer ? pick(FUEL) : '',
         })
+        // The gate checks the seal on anything that was released with one; now and then it differs.
+        if (e.release?.seal) {
+          const mismatch = random() < 0.02
+          e.sealConfirmed = mismatch ? 'No' : 'Yes'
+          if (mismatch) e.sealNote = `Seal on trailer reads ${700000 + Math.floor(random() * 99999)}`
+        }
       }
       entries.push(e)
     }

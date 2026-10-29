@@ -6,9 +6,10 @@ import { DETENTION_FREE_MIN } from '../../yard'
 // and a "Show as table" view, so nothing depends on color alone.
 
 export const LIVE = 'var(--color-chart-live)'
-export const DROP = 'var(--color-chart-drop)'
-export const THIRD = 'var(--color-chart-3)'
-export const FOURTH = 'var(--color-chart-4)'
+// Drops are striped as well as colored: the blue / magenta pair is borderline for color-blind readers
+// in light mode, so the stripes are the second cue (also on the legend swatch). Use it as a background.
+export const DROP =
+  'repeating-linear-gradient(135deg, var(--color-chart-drop) 0 5px, color-mix(in oklab, var(--color-chart-drop) 45%, var(--color-panel)) 5px 8px)'
 
 export const shortDate = (key) => new Date(`${key}T00:00`).toLocaleDateString([], { month: 'short', day: 'numeric' })
 export const weekdayDate = (key) => new Date(`${key}T00:00`).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })
@@ -114,10 +115,12 @@ function DateAxis({ days }) {
 }
 
 // One bar per day; with several `series` ({ key, label, color }) the bars stack, first at the bottom.
-export function DayBars({ days, series, format = count, scale = (v) => v }) {
+// `refLine` ({ value, label }) draws a dashed reference across the chart, e.g. a starting point.
+// `dayLabel` names a bar in tooltips and the table (defaults to its weekday and date).
+export function DayBars({ days, series, format = count, scale = (v) => v, refLine, dayLabel = (d) => weekdayDate(d.date) }) {
   const [hover, setHover] = useState(null)
   const totalOf = (d) => series.reduce((s, x) => s + (d[x.key] ?? 0), 0)
-  const step = niceStep(scale(Math.max(0, ...days.map(totalOf))))
+  const step = niceStep(scale(Math.max(0, ...days.map(totalOf), refLine?.value ?? 0)))
   const top = step * 4
   const h = (v) => `${(scale(v) / top) * 100}%`
 
@@ -126,6 +129,11 @@ export function DayBars({ days, series, format = count, scale = (v) => v }) {
       <div className="relative mt-4 pl-12">
         <div className="relative grid h-[220px] items-end gap-1 border-b border-line" style={{ gridTemplateColumns: `repeat(${days.length}, minmax(0, 1fr))` }}>
           <YTicks step={(t) => format(step * t, true)} />
+          {refLine && (
+            <div className="pointer-events-none absolute inset-x-0 z-[1] border-t-2 border-dashed border-ink" style={{ bottom: h(refLine.value) }}>
+              <span className="absolute right-0 -top-5 rounded bg-panel px-1 text-[12px] font-semibold">{refLine.label}</span>
+            </div>
+          )}
           {days.map((d, i) => {
             const total = totalOf(d)
             const parts = series.filter((x) => d[x.key] > 0)
@@ -133,7 +141,7 @@ export function DayBars({ days, series, format = count, scale = (v) => v }) {
               <div
                 key={d.date}
                 tabIndex={0}
-                aria-label={`${weekdayDate(d.date)}: ${series.map((x) => `${x.label} ${format(d[x.key] ?? 0)}`).join(', ')}`}
+                aria-label={`${dayLabel(d)}: ${series.map((x) => `${x.label} ${format(d[x.key] ?? 0)}`).join(', ')}`}
                 onMouseEnter={() => setHover(i)}
                 onMouseLeave={() => setHover(null)}
                 onFocus={() => setHover(i)}
@@ -148,7 +156,7 @@ export function DayBars({ days, series, format = count, scale = (v) => v }) {
                 </div>
                 {hover === i && (
                   <span className={tooltipCls + ' -translate-y-1.5'} style={{ bottom: h(total) }}>
-                    <b>{weekdayDate(d.date)}</b>
+                    <b>{dayLabel(d)}</b>
                     {series.map((x) => (
                       <span key={x.key} className="block">
                         {x.label}: {format(d[x.key] ?? 0)}
@@ -162,7 +170,7 @@ export function DayBars({ days, series, format = count, scale = (v) => v }) {
         </div>
         <DateAxis days={days} />
       </div>
-      <TableView head={['Date', ...series.map((x) => x.label)]} rows={days.map((d) => [weekdayDate(d.date), ...series.map((x) => format(d[x.key] ?? 0))])} />
+      <TableView head={['Date', ...series.map((x) => x.label)]} rows={days.map((d) => [dayLabel(d), ...series.map((x) => format(d[x.key] ?? 0))])} />
     </div>
   )
 }
@@ -250,7 +258,8 @@ export function DayLine({ days, value, format, max, tip, refLine }) {
 }
 
 // Counts by day and hour (`field` holds 24 numbers per day), shaded light (few) to dark (many) in one hue.
-const shade = (n, max) => (n ? `color-mix(in oklab, var(--color-chart-live) ${Math.round(15 + 85 * (n / max))}%, var(--color-panel))` : 'var(--color-field)')
+// The lightest shade starts at 25% so an hour with one or two check-ins stands out from an empty one.
+const shade = (n, max) => (n ? `color-mix(in oklab, var(--color-chart-live) ${Math.round(25 + 75 * (n / max))}%, var(--color-panel))` : 'var(--color-field)')
 
 export function HourGrid({ days, field, noun }) {
   const [hover, setHover] = useState(null)
@@ -309,20 +318,23 @@ export function HourGrid({ days, field, noun }) {
   )
 }
 
-// Labeled rows with a bar each, e.g. arrivals by timing or failure reasons.
+// Labeled rows with a bar each, e.g. arrivals by timing or failure reasons. A row's `text` replaces
+// the plain number shown at its end (e.g. "$443"); `strong` makes the row stand out.
 export function BarList({ rows, color = 'var(--color-ink)', empty }) {
   const max = Math.max(1, ...rows.map((r) => r.value))
   if (!rows.length) return <p className="px-5 pb-5 text-muted">{empty}</p>
   return (
     <ul className="space-y-2.5 px-5 pt-3 pb-5">
       {rows.map((r) => (
-        <li key={r.label} className="grid grid-cols-[minmax(0,160px)_minmax(0,1fr)_auto] items-center gap-3 text-[14px]">
-          <span className="truncate font-semibold">{r.label}</span>
+        <li key={r.label} className="grid grid-cols-[minmax(0,200px)_minmax(0,1fr)_auto] items-center gap-3 text-[14px]">
+          <span className={'truncate ' + (r.strong ? 'font-bold' : 'font-semibold')} title={r.label}>
+            {r.label}
+          </span>
           <span className="h-3 overflow-hidden rounded bg-track">
             <span className="block h-full rounded-r" style={{ width: `${(r.value / max) * 100}%`, background: r.color ?? color }} />
           </span>
-          <span className="text-right whitespace-nowrap tabular-nums">
-            {r.value}
+          <span className={'text-right whitespace-nowrap tabular-nums' + (r.strong ? ' font-bold' : '')}>
+            {r.text ?? r.value}
             {r.note && <span className="text-muted"> · {r.note}</span>}
           </span>
         </li>
@@ -331,11 +343,13 @@ export function BarList({ rows, color = 'var(--color-ink)', empty }) {
   )
 }
 
+// The stages of a stay, in order. They're steps in a sequence, so they use one blue from light to dark
+// (no hue that could read as a status like "good" or "warning"); labels below the bar name each one.
 export const STAGES = [
-  { key: 'waitDockMs', label: 'Waiting for a dock', color: LIVE },
-  { key: 'toInspectMs', label: 'At dock until inspected', color: DROP },
-  { key: 'toReleaseMs', label: 'Waiting for Shipping release', color: THIRD },
-  { key: 'releaseToOutMs', label: 'Released until check-out', color: FOURTH },
+  { key: 'waitDockMs', label: 'Waiting for a dock', color: 'var(--color-stage-1)' },
+  { key: 'toInspectMs', label: 'At dock until inspected', color: 'var(--color-stage-2)' },
+  { key: 'toReleaseMs', label: 'Waiting for Shipping release', color: 'var(--color-stage-3)' },
+  { key: 'releaseToOutMs', label: 'Released until check-out', color: 'var(--color-stage-4)' },
 ]
 
 // The average stay split into its four stages, with the free-time line marked.

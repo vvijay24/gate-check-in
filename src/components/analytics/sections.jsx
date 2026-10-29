@@ -28,12 +28,12 @@ import {
 // a row of the other figures; SUMMARY (end of file) gives each its sidebar figure and takeaway line.
 
 const FREE_H = DETENTION_FREE_MIN / 60
-const toMin = (ms) => (ms == null ? null : ms / 60000)
+export const toMin = (ms) => (ms == null ? null : ms / 60000)
 // Three per row until the screen is very wide, so the numbers never crowd beside the sidebar.
-const Tiles = ({ children }) => <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 2xl:grid-cols-5">{children}</div>
-const Pair = ({ children }) => <div className="grid gap-5 xl:grid-cols-2">{children}</div>
+export const Tiles = ({ children }) => <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 2xl:grid-cols-5">{children}</div>
+export const Pair = ({ children }) => <div className="grid gap-5 xl:grid-cols-2">{children}</div>
 // The section's main figure (1/3) beside the chart that explains it (2/3); both stretch to the taller.
-const LeadRow = ({ lead, children }) => (
+export const LeadRow = ({ lead, children }) => (
   <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
     {lead}
     {children}
@@ -59,7 +59,7 @@ export function Takeaway({ children }) {
 }
 
 // Visit identity used by the visit tables.
-const visitCell = (s) => (
+export const visitCell = (s) => (
   <>
     <b>{s.e.truckName || 'Unknown carrier'}</b>
     <span className="block text-[13px] text-muted">
@@ -290,7 +290,10 @@ const DOCK_COLUMNS = [
   { id: 'cost', label: 'Est. detention', value: (d) => d.detentionCost, render: (d) => money(d.detentionCost), numeric: true },
 ]
 
-export function DockSection({ r, prev, trend }) {
+export function DockSection({ r, prev, trend, impact }) {
+  // The wait split into capacity (no dock free for the truck) and response (a dock free, not assigned).
+  const g = impact?.gateShipping
+  const split = g?.docked ? ` · ${dur(g.avgNoDockMs)} with no dock free · ${dur(g.avgFreeDockMs)} with a dock free` : ''
   const t = r.totals
   const p = prev.totals
   const loads = r.docks.reduce((s, d) => s + d.loads, 0)
@@ -305,7 +308,7 @@ export function DockSection({ r, prev, trend }) {
             size="lead"
             label="Avg wait for a dock"
             value={dur(t.avgWaitDockMs)}
-            note={`Check-in to dock assigned · ${waitingLong} day${waitingLong === 1 ? '' : 's'} averaged over 30 min`}
+            note={`Check-in to dock assigned${split} · ${waitingLong} day${waitingLong === 1 ? '' : 's'} averaged over 30 min`}
             tone={waitingLong ? 'warn' : 'good'}
             trend={trend(t.avgWaitDockMs, p.avgWaitDockMs, duration, true)}
           />

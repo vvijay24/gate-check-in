@@ -58,6 +58,15 @@ unless the user asks.
 | Staging capacity | Trucks/trailers in the 6 staging bays ÷ 6. Alert at 85 %. | `yard.js` `STAGING_BAYS`, `YARD_ALERT_PCT` |
 | Customer | Only filled in for pickups, so customer figures cover pickups only. | `customerPickupFor` |
 | Gates | Gate 1 = in, Gate 2 = out. | `formConfig.js` `GATES` |
+| Handoffs | Four timed steps per visit: arrived → dock assigned, docked → inspected, passed → released by Shipping, released → checked out. Default targets 30 / 60 / 10 / 10 min (editable in **Targets & go-live**). | `impactSettings.js` `HANDOFFS`, `analytics.js` `visitStages` |
+| On target % | Share of timed handoffs done within their target; overall % pools all four. | `analytics.js` `impactMetrics` |
+| Money on the table | Est. detention avoided if a handoff had taken no longer than its target (the excess comes off the stay, then the fee is recomputed). Per-handoff figures assume only that handoff improves, so they don't sum to the all-targets figure. Reported per week (range figure × 7 ÷ days). | `impactMetrics` |
+| Starting point | The first 14 days from the go-live date (set in the app, else the first real entry's date). Not available until 14 days have passed. | `impactMetrics` `start` |
+| Dock wait split (Gate → Shipping) | Each truck's arrival → dock assigned is split into **no dock free** (every dock busy, or free docks going to trucks that arrived earlier) and **dock free, not assigned** (a dock was free and the truck was next in line: the Gate → Shipping response delay). Target for the second part: 10 min (`dockResponseMs`). | `analytics.js` `dockWaitSplit`, `impactMetrics.gateShipping` |
+| Details not re-typed | Non-empty Gate check-in details Shipping and the Gate reuse (trailer #, carrier, trucker name, driver phone, purpose, order no, customer, appointment) plus the inspection seal carried to the release / check-out. On paper each was written on both forms. | `analytics.js` `SHARED_FIELDS`, `impactMetrics.shared` |
+| Logged live | Entry saved (`createdAt`) within 15 min after the Time In typed on the form. | `impactMetrics` `quality.livePct` |
+| Corrected after saving | Entries with `edits` > 0 (check-in edits and departure edits; a first check-out doesn't count). | `App.jsx` `handleSave` |
+| Check-outs blocked | Gate events recorded when a guard opens a truck that isn't inspected / released (browser key `gate-events`, counted from when the feature was added). | `App.jsx` `handleCheckOut` |
 
 If these constants change in the code, the code wins — re-read the file rather than trusting this table.
 
@@ -80,7 +89,10 @@ If these constants change in the code, the code wins — re-read the file rather
 - Compare against the previous period of the same length (as the Overview tab does with
   `previousRange` in `src/analytics.js`) when it adds context, e.g. "on-time 70 %, down from 78 % last week".
 - For waiting time and detention, `visitStages` in `src/analytics.js` splits each visit into
-  wait for dock → dock to inspected → inspected to check-out.
+  wait for dock → dock to inspected → waiting for Shipping release → released to check-out.
+- The project's purpose is showing what digitizing the yard saves (detention, miscommunication,
+  mistakes). There are no pre-digital figures yet, so frame savings as **money on the table** and
+  **trend vs the starting point**, not "saved vs before", unless the user has entered a baseline.
 - **Charts / dashboard page:** load the `dataviz` skill first. Use the app's colors where it helps:
   Gate 1 green `#2b7d52`, Gate 2 rose `#b8406a`, Delivery `#1f6fb2`, Pickup `#2b7d52`, Drop `#7a4fa0`.
 - **Spreadsheet:** use the `xlsx` skill; keep the export's column names so it lines up with the app.

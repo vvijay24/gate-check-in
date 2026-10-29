@@ -4,6 +4,7 @@ import { ErrorSummary } from './GuardForm'
 import * as ui from '../ui'
 import { arrivalMs, dayKey, duration } from '../time'
 import { DETENTION_TAG, detentionState } from '../detention'
+import { LOAD_CHECKS, TRAILER_CHECKS } from '../inspectionChecks'
 
 // Pre-loading inspection for outbound poultry. Every load is frozen, so one set of limits applies:
 // typical cold-chain figures; confirm them against the plant's HACCP plan.
@@ -11,20 +12,6 @@ const LIMIT = { product: 0, precool: 10 }
 
 const YES_NO = ['Yes', 'No']
 
-// Checks that must be answered Yes for the load to pass.
-const TRAILER_CHECKS = [
-  { name: 'trailerClean', label: 'Trailer clean and free of debris' },
-  { name: 'odorFree', label: 'Free of odors' },
-  { name: 'noPests', label: 'No signs of pests' },
-  { name: 'structureIntact', label: 'Walls, floor and ceiling intact' },
-  { name: 'doorsSeal', label: 'Doors and seals close properly' },
-  { name: 'noChemicals', label: 'No chemicals or non-food items' },
-]
-const LOAD_CHECKS = [
-  { name: 'palletsGood', label: 'Pallets in good condition' },
-  { name: 'packagingIntact', label: 'Packaging and labels intact' },
-  { name: 'loadSecured', label: 'Load secured (load locks / straps)' },
-]
 const PRODUCT_TEMPS = [
   { name: 'tempFront', label: 'Product Temp Front °F' },
   { name: 'tempMiddle', label: 'Product Temp Middle °F' },

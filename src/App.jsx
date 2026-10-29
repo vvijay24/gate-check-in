@@ -8,9 +8,10 @@ import Messages from './components/Messages'
 import Analytics from './components/Analytics'
 import { makeSampleEntries } from './sampleData'
 import { takenBays } from './metrics'
-import { awaitingRelease, isReleased } from './handoff'
+import { awaitingRelease, checkOutBlock, isReleased } from './handoff'
 
 const STORAGE_KEY = 'guard-load-log'
+const EVENTS_KEY = 'gate-events'
 
 const TABS = [
   { id: 'gate', label: 'Gate' },
@@ -86,10 +87,34 @@ export default function App() {
     return () => clearTimeout(t)
   }, [notice])
 
+  // Gate events the Overview's Data Quality section counts; today only check-outs blocked because
+  // the truck wasn't inspected or released. Kept in this browser beside the entries.
+  const [gateEvents, setGateEvents] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem(EVENTS_KEY)) ?? []
+    } catch {
+      return []
+    }
+  })
+  useEffect(() => {
+    try {
+      localStorage.setItem(EVENTS_KEY, JSON.stringify(gateEvents))
+    } catch {
+      // Only the Overview counts these; losing them doesn't affect the gate log.
+    }
+  }, [gateEvents])
+
   const handleSave = (form) => {
     if (form.id) {
-      setEntries((list) => list.map((e) => (e.id === form.id ? { ...form, updatedAt: Date.now() } : e)))
       const checkedOut = gateMode === 'out' && !editing?.timeOut
+      // Anything but a first check-out is a correction to a saved entry; the Overview counts them.
+      setEntries((list) =>
+        list.map((e) =>
+          e.id === form.id
+            ? { ...form, updatedAt: Date.now(), ...(!checkedOut && { edits: (e.edits ?? 0) + 1, editedAt: Date.now() }) }
+            : e,
+        ),
+      )
       setEditing(null)
       setNotice(checkedOut ? `Checked out ${form.truckName} — trailer ${form.trailerNumber}` : `Updated entry for ${form.truckName}`)
     } else {
@@ -105,7 +130,11 @@ export default function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
   const handleEdit = (entry) => openGate('in', entry)
-  const handleCheckOut = (entry) => openGate('out', entry)
+  const handleCheckOut = (entry) => {
+    // A guard opening a truck that can't leave yet is a mistake the system stopped.
+    if (checkOutBlock(entry)) setGateEvents((list) => [...list, { type: 'blocked', id: entry.id, at: Date.now() }])
+    openGate('out', entry)
+  }
 
   const handleAssignDock = (id, dockDoor) => {
     setEntries((list) => list.map((e) => (e.id === id ? { ...e, dockDoor, dockAssignedAt: Date.now() } : e)))
@@ -279,7 +308,13 @@ export default function App() {
           </div>
         ) : tab === 'analytics' ? (
           <div role="tabpanel" id="panel-analytics" aria-labelledby="tab-analytics">
-            <Analytics entries={entries} sampleCount={sampleCount} onLoadSample={handleLoadSample} onRemoveSample={handleRemoveSample} />
+            <Analytics
+              entries={entries}
+              gateEvents={gateEvents}
+              sampleCount={sampleCount}
+              onLoadSample={handleLoadSample}
+              onRemoveSample={handleRemoveSample}
+            />
           </div>
         ) : (
           <div role="tabpanel" id="panel-shipping" aria-labelledby="tab-shipping">
