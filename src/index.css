@@ -33,13 +33,15 @@
   --color-gate-out: #b8406a;
   --color-gate-out-soft: #fbe6ee;
 
-  /* Analytics charts: live visits blue, drops orange (checked for color-blind separation) */
+  /* Analytics charts. Live visits blue; drops magenta-purple, near the app's Drop purple. Checked for
+     color-blind separation: light mode is borderline (ΔE 7), so drop marks also carry stripes. */
   --color-chart-live: #1f6fb2;
-  --color-chart-drop: #c26a1c;
-  /* Third stage color; only valid next to orange in the blue → orange → purple order */
-  --color-chart-3: #7a4fa0;
-  /* Fourth stage color; checked only in the blue → orange → purple → green order */
-  --color-chart-4: #4f8a1f;
+  --color-chart-drop: #a3478f;
+  /* Visit stages in order (dock wait → inspection → release → check-out): one blue, light → dark */
+  --color-stage-1: #a9cdee;
+  --color-stage-2: #5f9fd8;
+  --color-stage-3: #1f6fb2;
+  --color-stage-4: #0f3f6b;
 
   /* Overview sidebar: a dark rail joined to the header. The text colors are for use on the rail and
      stay the same in dark mode; only the rail itself gets deeper there (see below). */
@@ -78,9 +80,11 @@
     --color-gate-out: #ee8fb0;
     --color-gate-out-soft: #3a2130;
     --color-chart-live: #4a90d0;
-    --color-chart-drop: #c47f30;
-    --color-chart-3: #9a7cc4;
-    --color-chart-4: #6aa33a;
+    --color-chart-drop: #cc5e98;
+    --color-stage-1: #1f4f7a;
+    --color-stage-2: #2f78bd;
+    --color-stage-3: #5ca4e3;
+    --color-stage-4: #a9cdee;
     --color-rail: #0d0f11;
     --color-asphalt: #2a3036;
     --color-bay: #1d2226;
@@ -110,9 +114,11 @@
   --color-gate-out: #ee8fb0;
   --color-gate-out-soft: #3a2130;
   --color-chart-live: #4a90d0;
-  --color-chart-drop: #c47f30;
-  --color-chart-3: #9a7cc4;
-  --color-chart-4: #6aa33a;
+  --color-chart-drop: #cc5e98;
+  --color-stage-1: #1f4f7a;
+  --color-stage-2: #2f78bd;
+  --color-stage-3: #5ca4e3;
+  --color-stage-4: #a9cdee;
   --color-rail: #0d0f11;
   --color-asphalt: #2a3036;
   --color-bay: #1d2226;

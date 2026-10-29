@@ -6,6 +6,9 @@ import { dayMetrics, isDrop } from './metrics'
 import { dockKey } from './components/AssignDock'
 import { DETENTION_FREE_MIN, DETENTION_RATE_PER_HOUR, DOCKS } from './yard'
 import { GATES } from './formConfig'
+import { HANDOFFS } from './impactSettings'
+import { CHECK_NAMES } from './inspectionChecks'
+import { awaitingRelease, isReleased } from './handoff'
 
 const MIN = 60000
 const HOUR = 60 * MIN
@@ -236,5 +239,265 @@ export function rangeMetrics(entries, from, to, now) {
     carriers: rollup(live, (e) => e.truckName),
     // The Customer field is only filled in for pickups.
     customers: rollup(pickups, (e) => e.customerPickupFor),
+  }
+}
+
+// ---- Digitization Impact: what going digital is saving, and what's still on the table ----
+
+// Est. detention fee for a stay of `onSiteMs`.
+const feeFor = (onSiteMs) => (Math.max(0, onSiteMs - FREE_MS) / HOUR) * DETENTION_RATE_PER_HOUR
+// Weeks of `days` days ending on `to`, newest last, none starting before `earliest`.
+function weeksEnding(to, earliest, count = 8) {
+  const weeks = []
+  for (let i = count - 1; i >= 0; i--) {
+    const end = shiftDate(to, -7 * i)
+    const start = shiftDate(end, -6)
+    if (end >= earliest) weeks.push({ from: start, to: end })
+  }
+  return weeks
+}
+// Figures that describe one stretch of days, for trends and the starting point.
+function periodFigures(entries, from, to, now) {
+  const r = rangeMetrics(entries, from, to, now)
+  const t = r.totals
+  return {
+    date: from,
+    from,
+    to,
+    days: r.dayCount,
+    detention: t.detentionCost,
+    weeklyDetention: r.dayCount ? (t.detentionCost / r.dayCount) * 7 : null,
+    perLoad: t.live ? t.detentionCost / t.live : null,
+    overFreePct: t.live ? t.overFree / t.live : null,
+    avgOnSiteMs: t.avgOnSiteMs,
+    live: t.live,
+  }
+}
+
+// Splits each truck's wait for a dock (arrival → dock assigned) into
+// - noDockMs: every dock was busy, or every free dock was going to trucks that arrived earlier
+//   (a capacity wait), and
+// - freeDockMs: a dock was free and this truck was next in line, but no dock was assigned yet (a
+//   Gate → Shipping response delay — what two paper forms used to cause).
+// `subjects` are the trucks to split; everything in `entries` counts toward dock use and the queue.
+export function dockWaitSplit(entries, subjects, now) {
+  const busy = entries
+    .filter((e) => e.dockAssignedAt && DOCKS.includes(dockKey(e.dockDoor)))
+    .map((e) => [e.dockAssignedAt, e.timeOut ? departureMs(e) : now])
+    .filter(([a, b]) => Number.isFinite(a) && Number.isFinite(b) && b > a)
+  const waits = entries
+    .filter((e) => !isDrop(e) && Number.isFinite(arrivalMs(e)))
+    .map((e) => ({ e, from: arrivalMs(e), to: e.dockAssignedAt ?? (e.timeOut ? departureMs(e) : now) }))
+    .filter((w) => Number.isFinite(w.to) && w.to > w.from)
+  const split = new Map()
+  for (const s of subjects) {
+    const a = arrivalMs(s)
+    const b = s.dockAssignedAt
+    if (!Number.isFinite(a) || !(b > a)) {
+      split.set(s.id, { freeDockMs: 0, noDockMs: 0 })
+      continue
+    }
+    // Trucks that arrived earlier and were still waiting after this one arrived are ahead of it.
+    const ahead = waits.filter((w) => w.e !== s && w.from < a && w.to > a)
+    const docksInUse = busy.filter(([x, y]) => x < b && y > a)
+    const points = new Set([a, b])
+    for (const [x, y] of docksInUse) for (const p of [x, y]) if (p > a && p < b) points.add(p)
+    for (const w of ahead) if (w.to > a && w.to < b) points.add(w.to)
+    const ts = [...points].sort((x, y) => x - y)
+    let free = 0
+    for (let i = 0; i < ts.length - 1; i++) {
+      const mid = (ts[i] + ts[i + 1]) / 2
+      const used = docksInUse.filter(([x, y]) => x <= mid && y > mid).length
+      const queued = ahead.filter((w) => w.to > mid).length
+      if (DOCKS.length - used > queued) free += ts[i + 1] - ts[i]
+    }
+    split.set(s.id, { freeDockMs: free, noDockMs: b - a - free })
+  }
+  return split
+}
+
+// Gate → Shipping figures for visits checked in from–to: how soon the guard saved the arrival, and
+// how quickly Shipping assigned a dock once one was free for the truck.
+function gateToShipping(entries, from, to, now, targetMs) {
+  const visits = entries.filter((e) => e.dateIn >= from && e.dateIn <= to && !isDrop(e))
+  const logged = visits.filter((e) => e.createdAt && Number.isFinite(arrivalMs(e)))
+  const loggedMs = logged.map((e) => Math.max(0, e.createdAt - arrivalMs(e)))
+  const docked = visits.filter((e) => e.dockAssignedAt)
+  const split = dockWaitSplit(entries, docked, now)
+  const parts = docked.map((e) => ({ e, ...split.get(e.id) }))
+  const within = parts.filter((p) => p.freeDockMs <= targetMs).length
+  // Money on the table: the response time over target comes off the stay of departed trucks.
+  const opportunity = sum(
+    parts
+      .filter((p) => p.e.timeOut)
+      .map((p) => {
+        const stay = departureMs(p.e) - arrivalMs(p.e)
+        return Number.isFinite(stay) ? feeFor(stay) - feeFor(stay - Math.max(0, p.freeDockMs - targetMs)) : 0
+      }),
+  )
+  return {
+    logged: logged.length,
+    avgLoggedMs: average(loggedMs),
+    livePct: logged.length ? loggedMs.filter((ms) => ms <= 15 * MIN).length / logged.length : null,
+    docked: parts.length,
+    avgFreeDockMs: average(parts.map((p) => p.freeDockMs)),
+    avgNoDockMs: average(parts.map((p) => p.noDockMs)),
+    responseOnTargetPct: parts.length ? within / parts.length : null,
+    opportunity,
+  }
+}
+
+// Details the Gate enters once that Shipping and the Gate reuse without re-typing (on paper each was
+// written on both forms), plus the seal carried from the inspection to the release and check-out.
+export const SHARED_FIELDS = [
+  { key: 'trailerNumber', label: 'Trailer #' },
+  { key: 'truckName', label: 'Carrier' },
+  { key: 'truckerNameIn', label: 'Trucker name' },
+  { key: 'driverPhone', label: 'Driver phone' },
+  { key: 'visitPurpose', label: 'Purpose of visit' },
+  { key: 'pickupNumber', label: 'Order No' },
+  { key: 'customerPickupFor', label: 'Customer' },
+  { key: 'appointmentTime', label: 'Appointment time' },
+]
+function sharedDetails(visits) {
+  const filled = (v) => (Array.isArray(v) ? v.length > 0 : String(v ?? '').trim() !== '')
+  const byField = SHARED_FIELDS.map((f) => ({ ...f, count: visits.filter((e) => filled(e[f.key])).length }))
+  // The inspection's seal, reused at the Shipping release and on the check-out form.
+  const seal = visits.filter((e) => e.loadingInspection?.sealApplied && (e.release?.seal || e.outgoingSeals)).length
+  byField.push({ key: 'seal', label: 'Seal # (inspection → release → check-out)', count: seal })
+  const total = sum(byField.map((f) => f.count))
+  return { total, perTruck: visits.length ? total / visits.length : null, byField }
+}
+
+// `settings`: { goLive, targets } (targets in minutes per handoff); `gateEvents`: recorded gate events.
+// "Opportunity" is the est. detention that would have been avoided if a handoff had taken no longer
+// than its target (the time over target comes off the stay). Per-handoff figures assume only that
+// handoff improves, so they don't add up to the all-targets figure.
+export function impactMetrics(entries, from, to, now, settings, gateEvents = []) {
+  const today = dayKey(new Date(now))
+  const dates = datesBetween(from, to).filter((d) => d <= today)
+  const perWeek = dates.length ? 7 / dates.length : 0
+  const targetMs = (key) => settings.targets[key] * MIN
+  const inRange = entries.filter((e) => e.dateIn >= from && e.dateIn <= to)
+  const departed = inRange.filter((e) => !isDrop(e) && e.timeOut).map((e) => visitStages(e, now))
+
+  const handoffs = HANDOFFS.map((h) => {
+    const timed = departed.filter((s) => s[h.key] != null)
+    const within = timed.filter((s) => s[h.key] <= targetMs(h.key)).length
+    const opportunity = sum(timed.map((s) => feeFor(s.onSiteMs) - feeFor(s.onSiteMs - Math.max(0, s[h.key] - targetMs(h.key)))))
+    return {
+      ...h,
+      targetMin: settings.targets[h.key],
+      count: timed.length,
+      avgMs: avgOf(timed, (s) => s[h.key]),
+      onTargetPct: timed.length ? within / timed.length : null,
+      opportunity,
+      opportunityPerWeek: opportunity * perWeek,
+    }
+  })
+  const overTargets = (s) => sum(HANDOFFS.map((h) => (s[h.key] != null ? Math.max(0, s[h.key] - targetMs(h.key)) : 0)))
+  const allOpportunity = sum(departed.map((s) => feeFor(s.onSiteMs) - feeFor(s.onSiteMs - overTargets(s))))
+  const checks = sum(handoffs.map((h) => h.count))
+  const onTarget = checks ? sum(handoffs.map((h) => (h.onTargetPct ?? 0) * h.count)) / checks : null
+
+  // % of handoffs on target, per day.
+  const handoffDays = dates.map((date) => {
+    const day = departed.filter((s) => s.e.dateIn === date)
+    let n = 0
+    let ok = 0
+    for (const s of day)
+      for (const h of HANDOFFS)
+        if (s[h.key] != null) {
+          n++
+          if (s[h.key] <= targetMs(h.key)) ok++
+        }
+    return { date, onTargetPct: n ? ok / n : null, checks: n }
+  })
+
+  // Trucks on site right now that are over a handoff's target.
+  const stuck = []
+  for (const e of entries.filter((x) => !x.timeOut)) {
+    const add = (step, since, key) => {
+      const over = now - since - targetMs(key)
+      if (Number.isFinite(over) && over > 0) stuck.push({ e, step, sinceMs: now - since, overMs: over })
+    }
+    if (!e.dockDoor && !isDrop(e)) add('Waiting for a dock', arrivalMs(e), 'waitDockMs')
+    else if (e.dockDoor && !e.loadingInspection && e.dockAssignedAt) add('Docked, not inspected', e.dockAssignedAt, 'toInspectMs')
+    else if (awaitingRelease(e)) add('Passed, not released by Shipping', e.loadingInspection.inspectedAt, 'toReleaseMs')
+    else if (isReleased(e)) add('Released, not checked out', e.release.releasedAt, 'releaseToOutMs')
+  }
+  stuck.sort((a, b) => b.overMs - a.overMs)
+
+  // Weekly trend and the starting point (the first two weeks from go-live).
+  const earliest = entries.reduce((m, e) => (e.dateIn && e.dateIn < m ? e.dateIn : m), today)
+  const weeks = weeksEnding(to, earliest).map((w) => periodFigures(entries, w.from, w.to, now))
+  const goLive = settings.goLive || earliest
+  const daysSinceGoLive = goLive <= today ? datesBetween(goLive, today).length : 0
+  const start = daysSinceGoLive >= 14 ? periodFigures(entries, goLive, shiftDate(goLive, 13), now) : null
+
+  // Data quality and use.
+  const startMs = new Date(`${from}T00:00`).getTime()
+  const endMs = new Date(`${shiftDate(to, 1)}T00:00`).getTime()
+  const docked = inRange.filter((e) => e.timeOut && e.dockAssignedAt && !isDrop(e))
+  const complete = docked.filter((e) => e.loadingInspection?.inspectedAt && e.release?.releasedAt).length
+  const inspections = inRange.filter((e) => e.loadingInspection)
+  const answered = inspections.filter((e) => CHECK_NAMES.every((n) => e.loadingInspection[n])).length
+  // "Logged live": saved within 15 minutes after the Time In typed on the form.
+  const logged = inRange.filter((e) => e.createdAt && Number.isFinite(arrivalMs(e)))
+  const isLive = (e) => e.createdAt - arrivalMs(e) <= 15 * MIN
+  const sealChecks = inRange.filter((e) => e.sealConfirmed)
+  const guards = new Map()
+  for (const e of inRange) {
+    const name = String(e.guardOnDuty ?? '').trim()
+    if (!name) continue
+    const key = name.toLowerCase()
+    if (!guards.has(key)) guards.set(key, { name, checkIns: 0, timed: 0, live: 0, edited: 0 })
+    const g = guards.get(key)
+    g.checkIns++
+    if (logged.includes(e)) {
+      g.timed++
+      if (isLive(e)) g.live++
+    }
+    if (e.edits) g.edited++
+  }
+
+  const responseTarget = targetMs('dockResponseMs')
+  const g2s = gateToShipping(entries, from, to, now, responseTarget)
+  const gateShipping = {
+    ...g2s,
+    targetMin: settings.targets.dockResponseMs,
+    opportunityPerWeek: g2s.opportunity * perWeek,
+    start: start ? gateToShipping(entries, start.from, start.to, now, responseTarget) : null,
+  }
+
+  return {
+    handoffs,
+    gateShipping,
+    shared: sharedDetails(inRange),
+    onTargetPct: onTarget,
+    allOpportunity,
+    allOpportunityPerWeek: allOpportunity * perWeek,
+    biggest: [...handoffs].sort((a, b) => b.opportunity - a.opportunity)[0],
+    handoffDays,
+    stuck,
+    weeks,
+    goLive,
+    daysSinceGoLive,
+    start,
+    quality: {
+      docked: docked.length,
+      completePct: docked.length ? complete / docked.length : null,
+      inspections: inspections.length,
+      answeredPct: inspections.length ? answered / inspections.length : null,
+      logged: logged.length,
+      livePct: logged.length ? logged.filter(isLive).length / logged.length : null,
+      visits: inRange.length,
+      edited: inRange.filter((e) => e.edits).length,
+      editedPct: inRange.length ? inRange.filter((e) => e.edits).length / inRange.length : null,
+      sealChecks: sealChecks.length,
+      sealMismatches: sealChecks.filter((e) => e.sealConfirmed === 'No').length,
+      blocked: gateEvents.filter((g) => g.type === 'blocked' && g.at >= startMs && g.at < endMs).length,
+      guards: [...guards.values()].map((g) => ({ ...g, livePct: g.timed ? g.live / g.timed : null })),
+    },
   }
 }

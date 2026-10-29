@@ -24,7 +24,7 @@ So: large controls, high contrast, plain words, and the next action always visib
 - **Colors are tokens** in `src/index.css` (`@theme`): `page`, `panel`, `ink`, `muted`, `line`, `field`,
   `chrome`, `signal` (yellow accent / primary action), `ok`, `danger`, the purpose colors `delivery`,
   `pickup`, `drop`, gates `gate-in` (green) / `gate-out` (rose), yard map `asphalt`, `bay`, `building`,
-  `track`, and charts `chart-live`, `chart-drop`, `chart-3`. Use them as Tailwind utilities
+  `track`, charts `chart-live`, `chart-drop`, and the visit-stage scale `stage-1`…`stage-4`. Use them as Tailwind utilities
   (`bg-panel`, `text-muted`, `border-line`) or `var(--color-…)`. **Never hard-code hex in components.**
 - **A new token goes in three places**: `@theme` (light), the `@media (prefers-color-scheme: dark)` block,
   and the `:root[data-theme="dark"]` block. Missing one breaks dark mode.
@@ -75,9 +75,15 @@ moment shown when it isn't live.
 Load the **`dataviz`** skill before writing any chart. In this app:
 - Draw charts with plain HTML/SVG like `src/components/analytics/charts.jsx` (`DayBars`, `DayLine`,
   `HourGrid`, `StageBar`, `BarList`) — reuse those before writing a new one. No chart library.
-- Run the palette validator for any new color set, in light **and** dark. Current validated sets:
-  live/drop = `chart-live` / `chart-drop`; three stages = blue → orange → purple (`chart-3` is only valid
-  next to orange).
+- Run the palette validator for any new color set, in light **and** dark. Current sets:
+  - live / drop = `chart-live` (blue) / `chart-drop` (magenta-purple, near the app's Drop purple). Light
+    mode is borderline for color-blind readers (ΔE 7), so drops are also **striped**: use the `DROP`
+    fill from `charts.jsx`, never the plain token, for drop marks and swatches.
+  - Visit stages (dock wait → inspection → release → check-out) are ordered, so they use one blue from
+    light to dark (`stage-1`…`stage-4`) with labels under the bar, not distinct hues.
+  - Single-measure charts (e.g. detention $ per day) use `chart-live`; the busiest-hours grid shades
+    `chart-live` from 25% to 100%.
+  - Keep chart hues away from status meanings: no green/red/accent for categories.
 - One y-axis per chart; two measures → two charts. Hover/focus tooltip on every mark, a legend for ≥ 2
   series, and **Show as table**.
 
