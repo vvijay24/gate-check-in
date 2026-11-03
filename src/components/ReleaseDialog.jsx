@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import * as ui from '../ui'
-import { duration } from '../time'
+import { ago } from '../time'
 
 // Shipping's sign-off before a truck that passed its inspection may leave: confirm the order and
 // seal, tick the paperwork, and say who released it. Opens as a pop-up while `entry` is set.
@@ -59,7 +59,7 @@ export default function ReleaseDialog({ entry, onRelease, onClose }) {
     onRelease(entry.id, { ...form, releasedBy: form.releasedBy.trim(), note: form.note.trim() })
   }
 
-  const passedAgo = entry?.loadingInspection?.inspectedAt ? duration(Date.now() - entry.loadingInspection.inspectedAt) : null
+  const passedAgo = entry?.loadingInspection?.inspectedAt ? ago(Date.now() - entry.loadingInspection.inspectedAt) : null
 
   return (
     <dialog
@@ -79,7 +79,7 @@ export default function ReleaseDialog({ entry, onRelease, onClose }) {
             <p className="text-[15px] text-muted">
               Dock {entry.dockDoor} · Trailer {entry.trailerNumber} · {entry.truckName}
               {entry.customerPickupFor && ` · For ${entry.customerPickupFor}`}
-              {passedAgo && ` · Inspection passed ${passedAgo} ago`}
+              {passedAgo && ` · Inspection passed ${passedAgo}`}
             </p>
           </div>
 

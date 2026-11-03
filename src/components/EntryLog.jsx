@@ -3,7 +3,7 @@ import { flushSync } from 'react-dom'
 import * as ui from '../ui'
 import { LOG_COLUMNS, exportToExcel } from '../logColumns'
 import AssignDock, { occupiedDocks } from './AssignDock'
-import { dayKey } from '../time'
+import { dayKey, shortDate } from '../time'
 import { DETENTION_TAG, detentionState } from '../detention'
 import { awaitingRelease, isReleased } from '../handoff'
 
@@ -29,17 +29,8 @@ const hourOf = (e) => (e.timeIn ? Number(e.timeIn.slice(0, 2)) : null)
 const hourLabel = (h) => `${h % 12 || 12} ${h < 12 ? 'AM' : 'PM'}`
 const sortedUnique = (values) => [...new Set(values.filter(Boolean))].sort()
 
-// "Today", "Yesterday" or "Oct 26" (with the year when it isn't this year). The export keeps full dates.
-function friendlyDate(key) {
-  if (!key) return ''
-  const now = new Date()
-  const yesterday = new Date(now)
-  yesterday.setDate(now.getDate() - 1)
-  if (key === dayKey(now)) return 'Today'
-  if (key === dayKey(yesterday)) return 'Yesterday'
-  const d = new Date(`${key}T00:00`)
-  return d.toLocaleDateString([], { month: 'short', day: 'numeric', ...(d.getFullYear() !== now.getFullYear() && { year: 'numeric' }) })
-}
+// "Today", "Yesterday" or "Oct 26" on screen; the export keeps full dates.
+const friendlyDate = shortDate
 
 // The five columns on screen. `options` lists the header dropdown's choices for the rows in the tab;
 // `match` says whether an entry fits the chosen value. Every field still goes into the Excel export.
@@ -142,7 +133,8 @@ export default function EntryLog({ entries, onEdit, onCheckOut, onDelete, onAssi
     setFilters({})
   }
 
-  // "Showing 4 of 31 · Today · search "penske" · Status: Waiting": what is narrowing the list.
+  // "Showing 7 of 31 · Today · search "penske" · Status: Waiting": rows on screen, of the tab's total,
+  // and what is narrowing the list.
   const tabTotal = tabLists(entries)[tab].length
   const narrowing = [
     TABS.find((t) => t.id === tab).label,
@@ -183,7 +175,7 @@ export default function EntryLog({ entries, onEdit, onCheckOut, onDelete, onAssi
     <section id="entry-log" className="rounded-[10px] border border-line bg-panel">
       <div className="flex flex-wrap items-center justify-between gap-3 px-5 pt-5 pb-3">
         <h2 className="font-display text-[26px] leading-tight font-bold">Entry Log</h2>
-        <div role="tablist" aria-label="Entry Log filter" className="no-print flex gap-1.5">
+        <div role="tablist" aria-label="Entry Log filter" className="no-print flex flex-wrap gap-1.5">
           {TABS.map((t) => (
             <button
               key={t.id}
@@ -218,8 +210,9 @@ export default function EntryLog({ entries, onEdit, onCheckOut, onDelete, onAssi
       <div className="no-print flex flex-wrap items-baseline gap-x-3 gap-y-1 px-5 pb-3 text-[14px]" aria-live="polite">
         <span>
           <b>
-            Showing {rows.length} of {tabTotal}
+            Showing {shown.length} of {tabTotal}
           </b>
+          {rows.length !== tabTotal && <span className="text-muted"> · {rows.length} match</span>}
           <span className="text-muted"> · {narrowing.join(' · ')}</span>
         </span>
         {(q || active.length > 0) && (
@@ -234,15 +227,15 @@ export default function EntryLog({ entries, onEdit, onCheckOut, onDelete, onAssi
           <thead className="text-[13px] font-semibold text-muted">
             <tr className="border-y border-line">
               {COLUMNS.map((c) => (
-                <th key={c.id} className="px-3 py-2.5 align-top">
+                <th key={c.id} className="px-2.5 py-2.5 align-top">
                   <span className="block">{c.label}</span>
                   <select
                     aria-label={`Filter by ${c.label}`}
                     value={filters[c.id] ?? ''}
                     onChange={(ev) => setFilter(c.id, ev.target.value)}
                     className={
-                      'no-print mt-1 w-full max-w-[170px] cursor-pointer rounded-md border bg-panel px-1.5 py-1 text-[13px] font-normal text-ink ' +
-                      (filters[c.id] ? 'border-signal' : 'border-line')
+                      'no-print mt-1 w-full min-w-[64px] max-w-[170px] cursor-pointer rounded-md bg-panel px-1.5 py-1 text-[13px] font-normal text-ink ' +
+                      (filters[c.id] ? 'border-2 border-signal-line font-semibold' : 'border border-line')
                     }
                   >
                     <option value="">All</option>
@@ -254,8 +247,8 @@ export default function EntryLog({ entries, onEdit, onCheckOut, onDelete, onAssi
                   </select>
                 </th>
               ))}
-              <th className="no-print px-3 py-2.5 align-top">Dock</th>
-              <th className="no-print px-3 py-2.5 align-top">Options</th>
+              <th className="no-print px-2.5 py-2.5 align-top">Dock</th>
+              <th className="no-print px-2.5 py-2.5 align-top">Options</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-line">
@@ -270,25 +263,25 @@ export default function EntryLog({ entries, onEdit, onCheckOut, onDelete, onAssi
                 const det = detentionState(e, now)
                 return (
                 <tr key={e.id} className="align-top">
-                  <td className="px-3 py-2.5">
-                    <span className="font-semibold">{e.pickupNumber || <Dash />}</span>
+                  <td className="px-2.5 py-2.5">
+                    <span className="font-semibold whitespace-nowrap">{e.pickupNumber || <Dash />}</span>
                     {/* Which truck this is, even for deliveries and drops that have no order no. */}
                     <span className="block text-[13px] text-muted">
-                      Trailer {e.trailerNumber || '—'}
+                      <span className="whitespace-nowrap">Trailer {e.trailerNumber || '—'}</span>
                       {e.truckName && ` · ${e.truckName}`}
                     </span>
                   </td>
-                  <td className="px-3 py-2.5">{e.customerPickupFor || <Dash />}</td>
-                  <td className="whitespace-nowrap px-3 py-2.5" title={e.dateIn}>
+                  <td className="px-2.5 py-2.5">{e.customerPickupFor || <Dash />}</td>
+                  <td className="whitespace-nowrap px-2.5 py-2.5" title={e.dateIn}>
                     {friendlyDate(e.dateIn) || <Dash />}
                   </td>
-                  <td className="whitespace-nowrap px-3 py-2.5">{e.timeIn || <Dash />}</td>
-                  <td className="px-3 py-2.5">
+                  <td className="whitespace-nowrap px-2.5 py-2.5">{e.timeIn || <Dash />}</td>
+                  <td className="px-2.5 py-2.5">
                     <StatusTag e={e} />
-                    {det && <span className={ui.tag + ' mt-1 block w-fit ' + DETENTION_TAG[det.level]}>{det.text}</span>}
+                    {det && <span className={ui.tag.replace('whitespace-nowrap', 'whitespace-normal') + ' mt-1 block w-fit ' + DETENTION_TAG[det.level]}>{det.text}</span>}
                   </td>
                   {/* Assign dock only for trucks still on site without a dock. */}
-                  <td className="no-print whitespace-nowrap px-3 py-2.5">
+                  <td className="no-print whitespace-nowrap px-2.5 py-2.5">
                     {e.dockDoor ? (
                       <span className="font-semibold">Dock {e.dockDoor}</span>
                     ) : e.timeOut ? (
@@ -297,7 +290,7 @@ export default function EntryLog({ entries, onEdit, onCheckOut, onDelete, onAssi
                       <AssignDock entry={e} occupied={occupied} onAssignDock={onAssignDock} compact />
                     )}
                   </td>
-                  <td className="no-print whitespace-nowrap px-3 py-2.5">
+                  <td className="no-print whitespace-nowrap px-2.5 py-2.5">
                     {/* Always shows "Options"; picking a choice runs it and the select snaps back. */}
                     <select
                       aria-label={`Options for ${e.truckName} ${e.trailerNumber}`}
@@ -308,7 +301,7 @@ export default function EntryLog({ entries, onEdit, onCheckOut, onDelete, onAssi
                         else if (choice === 'edit') onEdit(e)
                         else if (choice === 'delete' && window.confirm(`Delete entry for ${e.truckName}?`)) onDelete(e.id)
                       }}
-                      className="cursor-pointer rounded-md border border-line bg-panel px-2 py-1.5 text-[14px] font-semibold text-ink"
+                      className="w-24 cursor-pointer rounded-md border border-line bg-panel px-2 py-1.5 text-[14px] font-semibold text-ink"
                     >
                       <option value="" disabled>
                         Options

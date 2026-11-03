@@ -56,7 +56,7 @@ export default function Field({
             key={lvl}
             className={
               ui.seg(value === lvl, Boolean(error), dangerOptions.includes(lvl)) +
-              ' has-[:focus-visible]:outline-3 has-[:focus-visible]:outline-signal has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-40'
+              ' has-[:focus-visible]:outline-3 has-[:focus-visible]:outline-signal-line has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-40'
             }
           >
             <input

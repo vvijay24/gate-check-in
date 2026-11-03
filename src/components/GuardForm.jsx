@@ -15,7 +15,7 @@ import {
 } from '../formConfig'
 import { BAY_NAMES } from '../yard'
 import * as ui from '../ui'
-import { clockTime } from '../time'
+import { clockTime, shortDate } from '../time'
 import { checkOutBlock, expectedSeal } from '../handoff'
 
 const pad = (n) => String(n).padStart(2, '0')
@@ -48,8 +48,10 @@ function validate(form, mode, optional = []) {
   return errors
 }
 
-// Date and time inputs; they start filled with today / now when the form opens.
+// Date and time inputs; they start filled with today / now when the form opens. Date and time sit side
+// by side even on phones, so those two use a smaller font and padding there to show the whole value.
 function HeaderInput({ label, name, type, value, onChange, error, required }) {
+  const narrow = type === 'date' || type === 'time'
   return (
     <div className="flex min-w-0 flex-col gap-1">
       <label htmlFor={`field-${name}`} className={ui.label}>
@@ -64,7 +66,7 @@ function HeaderInput({ label, name, type, value, onChange, error, required }) {
         onChange={onChange}
         aria-invalid={error ? true : undefined}
         aria-describedby={error ? `field-${name}-error` : undefined}
-        className={ui.input + (error ? ui.inputError : '')}
+        className={(narrow ? ui.input.replace('px-3', 'px-2 sm:px-3').replace('text-[19px]', 'text-[16px] sm:text-[19px]') : ui.input) + (error ? ui.inputError : '')}
       />
       {error && (
         <p id={`field-${name}-error`} className={ui.errorText + ' mt-1'}>
@@ -153,7 +155,7 @@ export function ErrorSummary({ errors, action, summaryRef, labels = FIELD_LABELS
 function ArrivalSummary({ e }) {
   const rows = [
     ['Purpose', (e.visitPurpose ?? []).join(' + ')],
-    ['Arrived', [e.dateIn, e.timeIn].filter(Boolean).join(' ')],
+    ['Arrived', [shortDate(e.dateIn), e.timeIn].filter(Boolean).join(' ')],
     ['Gate In', e.gateIn],
     ['Waiting at', e.waitingLocation],
     ['Trucker In', e.truckerNameIn],
@@ -185,7 +187,7 @@ function ArrivalSummary({ e }) {
 }
 
 // `takenBays` maps bay name → the truck holding it, so those bays can't be picked.
-export default function GuardForm({ mode = 'in', initial, defaultGuard, takenBays = new Map(), onSave, onCancel }) {
+export default function GuardForm({ mode = 'in', initial, defaultGuard, takenBays = new Map(), onSave, onCancel, active = true }) {
   const start = () => (mode === 'out' ? checkOutForm(initial, defaultGuard) : (initial ?? freshForm(defaultGuard)))
   // The form as it was last started, saved or cleared; Clear only asks first when something differs.
   const baseline = useRef(null)
@@ -197,6 +199,28 @@ export default function GuardForm({ mode = 'in', initial, defaultGuard, takenBay
   // Shown after a new check-in is saved, e.g. "Trailer T123 · Acme". Cleared when the next entry starts.
   const [checkedIn, setCheckedIn] = useState(null)
   const formRef = useRef(null)
+
+  // `initial` is the live entry. When it changes while the form is open (Shipping releases the truck,
+  // a dock is assigned), fields the guard hasn't touched follow it; typed values are kept. The same
+  // happens when the Gate tab is shown again (`active`), so an untouched Time In / Time Out is now,
+  // not when the form was first opened.
+  const firstRender = useRef(true)
+  useEffect(() => {
+    if (firstRender.current) {
+      firstRender.current = false
+      return
+    }
+    if (!active) return
+    const prev = baseline.current
+    const fresh = start()
+    baseline.current = fresh
+    setForm((f) => {
+      const next = { ...f }
+      for (const k of Object.keys(fresh)) if (f[k] === prev[k]) next[k] = fresh[k]
+      return next
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initial, active])
 
   useEffect(() => {
     if (!checkedIn) return
@@ -241,7 +265,9 @@ export default function GuardForm({ mode = 'in', initial, defaultGuard, takenBay
       const pickupOnly = SECTIONS_IN.flatMap((s) => s.fields).filter((f) => f.pickupOnly)
       data = { ...data, ...Object.fromEntries(pickupOnly.map((f) => [f.name, ''])) }
     }
-    onSave(data)
+    // A saved entry gets only what changed on this form, so the app can merge it onto the latest entry
+    // without undoing a dock, inspection or release recorded elsewhere while the form was open.
+    onSave(isEdit ? { id: initial.id, ...Object.fromEntries(Object.entries(data).filter(([k, v]) => v !== initial[k])) } : data)
     if (!isEdit) {
       setForm((baseline.current = freshForm(form.guardOnDuty)))
       setCheckedIn(`Trailer ${form.trailerNumber} · ${form.truckName}`)
@@ -309,7 +335,7 @@ export default function GuardForm({ mode = 'in', initial, defaultGuard, takenBay
 
   return (
     // No overflow-hidden here: it would stop the action bar below from sticking to the screen bottom.
-    <form ref={formRef} onSubmit={handleSubmit} noValidate className="scroll-mt-[140px] rounded-[10px] border border-line bg-panel">
+    <form ref={formRef} onSubmit={handleSubmit} noValidate className="scroll-mt-[calc(var(--header-h,114px)+84px)] rounded-[10px] border border-line bg-panel">
       <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-line px-5 pt-5 pb-3">
         <h2 className="font-display text-[26px] leading-tight font-bold">{title}</h2>
         <span className="text-sm text-muted">
@@ -509,7 +535,8 @@ export default function GuardForm({ mode = 'in', initial, defaultGuard, takenBay
           <button type="button" onClick={handleClear} className={ui.btn}>
             {isEdit ? 'Revert' : 'Clear'}
           </button>
-          <button type="button" onClick={() => window.print()} className={ui.btn}>
+          {/* Hidden on phones, where the gate form isn't printed, so Clear and Check In fit on one row. */}
+          <button type="button" onClick={() => window.print()} className={ui.btn.replace('inline-flex', 'hidden sm:inline-flex')}>
             Print
           </button>
           <button type="submit" disabled={Boolean(blocked)} className={ui.btnPrimary}>

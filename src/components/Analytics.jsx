@@ -87,6 +87,10 @@ function Toolbar({ from, to, today, preset, onPreset, onRange, days, exportButto
   )
 }
 
+// Left padding that clears the fixed Overview rail on wide screens (see the layout below). App uses it
+// for the notices above the Overview too, so the rail never covers them.
+export const RAIL_PAD = 'lg:pl-[max(0px,calc(240px_-_max(0px,(100vw_-_1400px)/2)))]'
+
 // Wide screens: a dark rail pinned to the window's left edge, from under the header (--header-h, set
 // in App) to the bottom of the window; it stays put while the section scrolls.
 // Narrow screens: a row of light buttons above the content.
@@ -95,7 +99,7 @@ function Toolbar({ from, to, today, preset, onPreset, onRange, days, exportButto
 function Sidebar({ section, onSelect, keys, sampleControl, settingsControl }) {
   const toneCls = { alert: 'font-semibold text-danger lg:text-rail-alert', warn: 'font-semibold text-ink lg:text-white' }
   return (
-    <aside className="no-print lg:fixed lg:bottom-0 lg:left-0 lg:top-[var(--header-h,114px)] lg:z-[5] lg:w-60 lg:overflow-y-auto lg:bg-rail">
+    <aside className="rail no-print min-w-0 lg:fixed lg:bottom-0 lg:left-0 lg:top-[var(--header-h,114px)] lg:z-[5] lg:w-60 lg:overflow-y-auto lg:bg-rail">
       {/* Wide screens: 12px panel margin + 12px item padding puts every line of text 24px from the
           window edge; items are all 64px tall with 8px between them. */}
       <nav aria-label="Analytics sections" className="lg:py-4">
@@ -352,7 +356,9 @@ export default function Analytics({ entries, gateEvents = [], sampleCount, onLoa
     // On wide screens the sidebar is pinned outside the page flow, so the content is pushed right
     // just enough to clear it: the page column starts max(0, (100vw - 1400px) / 2) + 20px from the
     // window edge, and the content should start at least 240px + 20px in.
-    <div className="grid gap-5 lg:block lg:pl-[max(0px,calc(240px_-_max(0px,(100vw_-_1400px)/2)))]">
+    // minmax(0, 1fr): below lg the one column may not grow to fit the sidebar's row of buttons
+    // (they scroll sideways instead), so the page never scrolls sideways.
+    <div className={'grid grid-cols-[minmax(0,1fr)] gap-5 lg:block ' + RAIL_PAD}>
       <Sidebar
         section={section}
         onSelect={setSection}

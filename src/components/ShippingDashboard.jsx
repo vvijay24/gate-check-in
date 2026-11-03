@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { flushSync } from 'react-dom'
 import * as ui from '../ui'
-import { LATE_GRACE_MIN, arrivalMs, clockTime, dayKey, departureMs, duration, minutesLate } from '../time'
+import { LATE_GRACE_MIN, arrivalMs, clockTime, dayKey, departureMs, duration, minutesLate, shortDate } from '../time'
 import { exportToExcel } from '../logColumns'
 import { DETENTION_TAG, detentionState } from '../detention'
 import { awaitingRelease, isReleased } from '../handoff'
@@ -11,20 +11,20 @@ import ReleaseDialog from './ReleaseDialog'
 
 // Shipping tab: the yard dock board on top, then the outbound (Pickup) shipments table.
 // After the inspection passes, Shipping releases the truck to the gate; until it leaves it is only
-// adding detention.
+// adding detention. Statuses use the Entry Log's words and colors, so a truck reads the same in both.
 const STATUS_TAG = {
   Waiting: 'bg-signal text-signal-ink',
-  Loading: 'bg-ink text-panel',
+  'At dock': 'bg-ink text-panel',
   'Awaiting release': 'bg-ok text-panel',
   'Released to gate': 'bg-delivery-soft text-delivery',
-  Shipped: 'bg-ok-soft text-ok',
+  Departed: 'bg-ok-soft text-ok',
 }
 const STATUSES = Object.keys(STATUS_TAG)
 const MAX_ROWS = 7
 const HOUR = 3600000
 
 const statusOf = (e) =>
-  e.timeOut ? 'Shipped' : isReleased(e) ? 'Released to gate' : awaitingRelease(e) ? 'Awaiting release' : e.dockDoor ? 'Loading' : 'Waiting'
+  e.timeOut ? 'Departed' : isReleased(e) ? 'Released to gate' : awaitingRelease(e) ? 'Awaiting release' : e.dockDoor ? 'At dock' : 'Waiting'
 const onSiteMs = (e, now) => (e.timeOut ? departureMs(e) : now) - arrivalMs(e)
 const isLate = (e) => (minutesLate(e) ?? 0) > LATE_GRACE_MIN
 const sortedUnique = (values) => [...new Set(values.filter(Boolean))].sort()
@@ -189,8 +189,8 @@ export default function ShippingDashboard({ entries, onAssignDock, onEdit, onChe
                       value={filters[c.id] ?? ''}
                       onChange={(ev) => setFilter(c.id, ev.target.value)}
                       className={
-                        'no-print mt-1 w-full max-w-[170px] cursor-pointer rounded-md border bg-panel px-1.5 py-1 text-[13px] font-normal text-ink ' +
-                        (filters[c.id] ? 'border-signal' : 'border-line')
+                        'no-print mt-1 w-full min-w-[64px] max-w-[170px] cursor-pointer rounded-md bg-panel px-1.5 py-1 text-[13px] font-normal text-ink ' +
+                        (filters[c.id] ? 'border-2 border-signal-line font-semibold' : 'border border-line')
                       }
                     >
                       <option value="">All</option>
@@ -221,12 +221,12 @@ export default function ShippingDashboard({ entries, onAssignDock, onEdit, onChe
                   const det = detentionState(e, now)
                   return (
                     <tr key={e.id} className="align-top">
-                      <td className="px-3 py-2.5 font-semibold">{e.pickupNumber || <Dash />}</td>
+                      <td className="px-3 py-2.5 font-semibold whitespace-nowrap">{e.pickupNumber || <Dash />}</td>
                       <td className="px-3 py-2.5">{e.customerPickupFor || <Dash />}</td>
                       {/* Assign dock only for pickups still on site without a dock. */}
                       <td className="whitespace-nowrap px-3 py-2.5 font-semibold">
                         {e.dockDoor ? (
-                          e.dockDoor
+                          `Dock ${e.dockDoor}`
                         ) : e.timeOut ? (
                           <Dash />
                         ) : (
@@ -239,13 +239,13 @@ export default function ShippingDashboard({ entries, onAssignDock, onEdit, onChe
                         {e.appointmentTime ? `Appt ${e.appointmentTime}` : 'No appt'}
                         <Sub>
                           In {e.timeIn || '—'}
-                          {e.dateIn !== today && ` · ${e.dateIn}`}
+                          {e.dateIn !== today && ` · ${shortDate(e.dateIn)}`}
                         </Sub>
                         {late !== null && late > LATE_GRACE_MIN && <Warn>{duration(late * 60000)} late</Warn>}
                       </td>
                       <td className="whitespace-nowrap px-3 py-2.5">
                         {duration(onSiteMs(e, now))}
-                        {det && <span className={ui.tag + ' mt-1 block w-fit ' + DETENTION_TAG[det.level]}>{det.text}</span>}
+                        {det && <span className={ui.tag.replace('whitespace-nowrap', 'whitespace-normal') + ' mt-1 block w-fit ' + DETENTION_TAG[det.level]}>{det.text}</span>}
                         {e.timeOut && <Sub>Left {e.timeOut}</Sub>}
                         {e.dockAssignedAt && <Sub>Docked {clockTime(e.dockAssignedAt)}</Sub>}
                       </td>
@@ -263,7 +263,7 @@ export default function ShippingDashboard({ entries, onAssignDock, onEdit, onChe
                             else if (choice === 'checkout') onCheckOut(e)
                             else onEdit(e)
                           }}
-                          className="cursor-pointer rounded-md border border-line bg-panel px-2 py-1.5 text-[14px] font-semibold text-ink"
+                          className="w-24 cursor-pointer rounded-md border border-line bg-panel px-2 py-1.5 text-[14px] font-semibold text-ink"
                         >
                           <option value="" disabled>
                             Options

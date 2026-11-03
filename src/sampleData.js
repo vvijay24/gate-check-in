@@ -6,7 +6,8 @@ import { BAY_NAMES, DOCKS } from './yard'
 import { CHECK_NAMES } from './inspectionChecks'
 
 const DAYS = 14
-const CARRIERS = ['KLLM', 'Brannon Golden', 'Penske', 'Syfan', 'U S Citylink', 'Pickup']
+// Real-looking carrier names only; a carrier called "Pickup" read like a visit purpose on the boards.
+const CARRIERS = ['KLLM', 'Brannon Golden', 'Penske', 'Syfan', 'U S Citylink', 'Schneider']
 const CUSTOMERS = ['US Foods', 'Vertical Cold', 'Decatur West', 'Green Valley', 'Gold Creek', 'Brakebush Bros','Pacific-Agri']
 const DRIVERS = ['D. Brooks', 'L. Nguyen', 'C. Ramirez', 'T. Walker', 'A. Patel', 'K. Johnson', 'S. Miller', 'J. Lopez', 'M. Davis', 'R. Wilson']
 const FUEL = ['1/4', '1/2', '3/4', 'Full']

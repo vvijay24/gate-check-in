@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import * as ui from '../ui'
-import { arrivalMs, duration } from '../time'
+import { ago, arrivalMs, duration } from '../time'
 import { isDrop } from '../metrics'
 import { DETENTION_FREE_MIN, DETENTION_RATE_PER_HOUR, DETENTION_WARN_MIN } from '../yard'
 import { checkOutBlock, isReleased } from '../handoff'
@@ -54,8 +54,12 @@ export default function CheckOutPicker({ entries, onPick }) {
 
   const handleSubmit = (ev) => {
     ev.preventDefault()
-    if (onSite.length === 1) onPick(onSite[0])
+    if (onSite.length === 1) pick(onSite[0])
   }
+
+  // The list already says when a truck can't leave yet, so opening one of those is not a blocked
+  // check-out attempt; `warned` tells the app not to count it as a mistake caught.
+  const pick = (e) => onPick(e, { warned: Boolean(checkOutBlock(e)) })
 
   const card = (e) => {
     const d = detention(e, now)
@@ -65,7 +69,7 @@ export default function CheckOutPicker({ entries, onPick }) {
       <li key={e.id}>
         <button
           type="button"
-          onClick={() => onPick(e)}
+          onClick={() => pick(e)}
           className={
             'flex w-full cursor-pointer flex-wrap items-center justify-between gap-3 rounded-lg border-2 bg-page px-4 py-3 text-left hover:border-ink ' +
             (d?.level === 'over' ? 'border-danger' : 'border-line')
@@ -76,13 +80,13 @@ export default function CheckOutPicker({ entries, onPick }) {
               {e.trailerNumber} · {e.truckName}
             </span>
             <span className="block text-[15px] text-muted">
-              {[(e.visitPurpose ?? []).join(' + '), e.truckerNameIn, e.dockDoor && `Dock ${e.dockDoor}`, `In ${e.timeIn || '—'} (${duration(now - arrivalMs(e))} ago)`]
+              {[(e.visitPurpose ?? []).join(' + '), e.truckerNameIn, e.dockDoor && `Dock ${e.dockDoor}`, `In ${e.timeIn || '—'} (${ago(now - arrivalMs(e))})`]
                 .filter(Boolean)
                 .join(' · ')}
             </span>
             {rel && (
               <span className="block text-[15px] font-semibold text-ink">
-                Released {duration(now - rel.releasedAt)} ago by {rel.releasedBy}
+                Released {ago(now - rel.releasedAt)} by {rel.releasedBy}
                 {rel.note && <span className="block font-normal text-muted">Gate note: {rel.note}</span>}
               </span>
             )}
@@ -91,7 +95,8 @@ export default function CheckOutPicker({ entries, onPick }) {
               {blocked && <span className={ui.tag + ' bg-danger-soft text-danger'}>⛔ {blockedShort(e)}</span>}
             </span>
           </span>
-          {blocked ? <span className={ui.btnSmall}>Can't leave yet</span> : <span className={ui.btnSmallPrimary}>Check Out</span>}
+          {/* A blocked truck opens read-only details (the pill above says why it can't leave). */}
+          {blocked ? <span className={ui.btnSmall}>View details</span> : <span className={ui.btnSmallPrimary}>Check Out</span>}
         </button>
       </li>
     )

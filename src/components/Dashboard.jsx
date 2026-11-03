@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import * as ui from '../ui'
-import { arrivalMs, clockTime, dayKey, duration } from '../time'
+import { ago, arrivalMs, clockTime, dayKey, duration } from '../time'
 import AssignDock, { dockKey } from './AssignDock'
 import LoadingInspection from './LoadingInspection'
 import YardMap from './YardMap'
@@ -84,14 +84,16 @@ function WaitingCard({ e, now, occupied, onAssignDock, onEdit }) {
 }
 
 // Inspection and handoff state as a tag; the word carries the meaning, color only reinforces it.
-function InspectionTag({ e }) {
+// `wrap` lets the tag break onto two lines in a narrow tile instead of running past its edge.
+function InspectionTag({ e, wrap }) {
+  const tag = wrap ? ui.tag.replace('whitespace-nowrap', 'whitespace-normal') : ui.tag
   const inspection = e.loadingInspection
-  if (!inspection) return <span className={ui.tag + ' bg-signal text-signal-ink'}>Not inspected</span>
-  if (inspection.result !== 'Pass') return <span className={ui.tag + ' bg-danger-soft text-danger'}>⚠ Inspection failed</span>
+  if (!inspection) return <span className={tag + ' bg-signal text-signal-ink'}>Not inspected</span>
+  if (inspection.result !== 'Pass') return <span className={tag + ' bg-danger-soft text-danger'}>⚠ Inspection failed</span>
   return isReleased(e) ? (
-    <span className={ui.tag + ' bg-delivery-soft text-delivery'}>✓ Released to gate</span>
+    <span className={tag + ' bg-delivery-soft text-delivery'}>✓ Released to gate</span>
   ) : (
-    <span className={ui.tag + ' bg-ok-soft text-ok'}>✓ Passed · awaiting release</span>
+    <span className={tag + ' bg-ok-soft text-ok'}>✓ Passed · awaiting release</span>
   )
 }
 
@@ -148,13 +150,13 @@ function DockTile({ e, now, selected, onSelect }) {
       onClick={() => onSelect(e.id)}
       className={
         'grid cursor-pointer grid-cols-[6px_1fr] overflow-hidden rounded-lg border-2 bg-page text-left ' +
-        (selected ? 'border-signal' : 'border-transparent hover:border-line')
+        (selected ? 'border-signal-line bg-panel' : 'border-transparent hover:border-line')
       }
     >
       <Stripe purposes={purposes} />
       <div className="min-w-0 px-2.5 py-2">
         <div className="flex items-baseline justify-between gap-2">
-          <span className="font-display text-[19px] leading-none font-bold">Dock {e.dockDoor}</span>
+          <span className="font-display text-[19px] leading-none font-bold whitespace-nowrap">Dock {e.dockDoor}</span>
           <span className="text-[13px] font-semibold whitespace-nowrap" title={`At dock since ${clockTime(e.dockAssignedAt)}`}>
             {duration(now - e.dockAssignedAt)}
           </span>
@@ -165,8 +167,9 @@ function DockTile({ e, now, selected, onSelect }) {
         <div className="truncate text-[13px] text-muted" title={[e.truckName, ...purposes].join(' · ')}>
           {[e.truckName, purposes.join(' + ')].filter(Boolean).join(' · ')}
         </div>
+        {/* The tag may wrap in a narrow tile rather than run past its edge. */}
         <div className="mt-1.5">
-          <InspectionTag e={e} />
+          <InspectionTag e={e} wrap />
         </div>
       </div>
     </button>
@@ -271,7 +274,7 @@ function Panel({ id, title, count, empty, tiles, action, className = '', childre
       {count === 0 ? (
         <p className="py-2 text-sm text-muted">{empty}</p>
       ) : (
-        <div className={'mt-3 grid gap-2' + (tiles ? ' grid-cols-[repeat(auto-fill,minmax(165px,1fr))]' : '')}>{children}</div>
+        <div className={'mt-3 grid gap-2' + (tiles ? ' grid-cols-[repeat(auto-fill,minmax(190px,1fr))]' : '')}>{children}</div>
       )}
     </section>
   )
@@ -365,6 +368,7 @@ export function DockBoard({ entries, onAssignDock, onEdit, onCheckOut, onSaveIns
                 inspect(truck)
               }}
               stretch
+              highlightId={inspectingId ?? selectedTileId}
             />
           </div>
         </div>
@@ -396,7 +400,8 @@ export function DockBoard({ entries, onAssignDock, onEdit, onCheckOut, onSaveIns
 // `stretch`: fill the parent's height (beside At the Docks on Dock & Loading, Trucks Waiting on Shipping).
 // `onInspect` (Dock & Loading) adds a Needs inspection / All trucks switch, starting on Needs
 // inspection: trucks waiting for their Loading Inspection are highlighted and open it when tapped.
-function LiveYard({ entries, onEdit, onCheckOut, onInspect, stretch }) {
+// `highlightId`: the truck picked elsewhere on the page (Dock & Loading), drawn glowing on the map.
+function LiveYard({ entries, onEdit, onCheckOut, onInspect, stretch, highlightId }) {
   const [now, setNow] = useState(Date.now)
   const [view, setView] = useState(onInspect ? 'inspect' : 'all')
   const inspecting = onInspect && view === 'inspect'
@@ -458,6 +463,7 @@ function LiveYard({ entries, onEdit, onCheckOut, onInspect, stretch }) {
         onExpand={open}
         focus={inspecting ? needsInspection : undefined}
         onInspect={inspecting ? onInspect : undefined}
+        highlightId={highlightId}
       />
 
       <dialog
@@ -484,6 +490,7 @@ function LiveYard({ entries, onEdit, onCheckOut, onInspect, stretch }) {
             onCheckOut={closeThen(onCheckOut)}
             focus={inspecting ? needsInspection : undefined}
             onInspect={inspecting ? closeThen(onInspect) : undefined}
+            highlightId={highlightId}
           />
         </div>
       </dialog>
@@ -538,7 +545,7 @@ function SummaryStrip({ entries }) {
       tone: awaiting ? 'warn' : undefined,
     },
   ]
-  const toneCls = { good: 'border-l-ok', warn: 'border-l-signal', alert: 'border-l-danger' }
+  const toneCls = { good: 'border-l-ok', warn: 'border-l-signal-line', alert: 'border-l-danger' }
 
   return (
     <section aria-label="Right now" className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
@@ -571,10 +578,10 @@ function ReadyForRelease({ entries, onStartRelease }) {
         <div key={e.id} className="grid grid-cols-[6px_1fr] overflow-hidden rounded-lg bg-page">
           <Stripe purposes={e.visitPurpose ?? []} />
           <div className="flex min-w-0 flex-col gap-1 px-2.5 py-2">
-            <div className="flex items-baseline justify-between gap-2">
-              <span className="font-display text-[19px] leading-none font-bold">Dock {e.dockDoor}</span>
+            <div className="flex flex-wrap items-baseline justify-between gap-x-2">
+              <span className="font-display text-[19px] leading-tight font-bold whitespace-nowrap">Dock {e.dockDoor}</span>
               {e.loadingInspection.inspectedAt && (
-                <span className="text-[13px] font-semibold whitespace-nowrap">Passed {duration(now - e.loadingInspection.inspectedAt)} ago</span>
+                <span className="text-[13px] font-semibold whitespace-nowrap">Passed {ago(now - e.loadingInspection.inspectedAt)}</span>
               )}
             </div>
             <div className="truncate text-[15px] font-bold" title={`${e.trailerNumber} · ${e.truckName}`}>
@@ -584,7 +591,7 @@ function ReadyForRelease({ entries, onStartRelease }) {
               {[e.customerPickupFor, e.pickupNumber && `Order ${e.pickupNumber}`].filter(Boolean).join(' · ') || 'No order details'}
             </div>
             <DetentionPill e={e} now={now} />
-            <button type="button" onClick={() => onStartRelease(e)} className={ui.btnSmallPrimary + ' mt-1 w-full'}>
+            <button type="button" onClick={() => onStartRelease(e)} className={ui.btnSmallPrimary + ' mt-1 w-full whitespace-nowrap'}>
               Release to gate
             </button>
           </div>
@@ -614,7 +621,7 @@ export default function Dashboard({ entries, onAssignDock, onEdit, onCheckOut, o
         </div>
       </div>
       <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[minmax(0,1fr)_420px]">
-        <aside className="grid gap-4 sm:grid-cols-2 lg:sticky lg:top-[140px] lg:order-2 lg:max-h-[calc(100vh-160px)] lg:grid-cols-1 lg:overflow-y-auto">
+        <aside className="grid gap-4 sm:grid-cols-2 lg:sticky lg:top-[calc(var(--header-h,114px)+16px)] lg:order-2 lg:max-h-[calc(100vh-var(--header-h,114px)-32px)] lg:grid-cols-1 lg:overflow-y-auto">
           <DockBoard {...board} />
         </aside>
         <div className="min-w-0 space-y-5 lg:order-1">{children}</div>

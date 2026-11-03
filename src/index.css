@@ -15,6 +15,9 @@
   --color-chrome: #1b1e21;
   --color-signal-ink: #1b1e21;
   --color-signal: #FFE8A3;
+  /* The accent as a thin line (focus ring, selected tile, active filter, warning edge). The pale fill
+     above is only 1.2:1 on white, so lines use this deeper amber (4.9:1 on white, 3.7:1 on asphalt). */
+  --color-signal-line: #9a6700;
 
   --color-delivery: #1f6fb2;
   --color-delivery-soft: #e3eef8;
@@ -55,6 +58,33 @@
   --color-bay: #f5f6f7;
   --color-building: #c9ced2;
   --color-track: #e3e6e8;
+
+  /* Isometric yard scene: ground, building, vehicles and carrier paints. Paints avoid the status hues
+     (blue, green, purple, yellow) so a truck's color never reads as its status. */
+  --color-iso-ground: #c3cfb8;
+  --color-iso-lot: #7b838a;
+  --color-iso-paint: #f2f3f1;
+  --color-iso-curb: #d3d6d2;
+  --color-iso-street: #555c62;
+  --color-iso-wall: #e7e3da;
+  --color-iso-band: #34414d;
+  --color-iso-roof: #b8bdc1;
+  --color-iso-door: #cdd3d8;
+  --color-iso-glass: #2a3846;
+  --color-iso-light: #fff3c4;
+  --color-iso-trailer: #f4f5f6;
+  --color-iso-steel: #8f989f;
+  --color-iso-chrome: #dfe3e6;
+  --color-iso-tire: #202428;
+  --color-iso-tree: #6a8f5c;
+  --color-iso-tree-dark: #4d7344;
+  --color-iso-shadow: rgb(20 28 36 / 0.28);
+  --color-paint-1: #b8352a;
+  --color-paint-2: #d97b29;
+  --color-paint-3: #4d555d;
+  --color-paint-4: #7b2d32;
+  --color-paint-5: #a9b1b8;
+  --color-paint-6: #eef0f2;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -65,6 +95,7 @@
     --color-muted: #9aa3aa;
     --color-line: #343b42;
     --color-field: #181c20;
+    --color-signal-line: #ffe8a3;
     --color-delivery: #5ca4e3;
     --color-delivery-soft: #1c2c3b;
     --color-pickup: #5bbf86;
@@ -90,6 +121,24 @@
     --color-bay: #1d2226;
     --color-building: #3a4148;
     --color-track: #2c3238;
+    --color-iso-ground: #253024;
+    --color-iso-lot: #30363c;
+    --color-iso-paint: #c9ced2;
+    --color-iso-curb: #3d4449;
+    --color-iso-street: #1c2024;
+    --color-iso-wall: #4b5157;
+    --color-iso-band: #1b222a;
+    --color-iso-roof: #383e44;
+    --color-iso-door: #646c73;
+    --color-iso-glass: #101922;
+    --color-iso-light: #ffe48a;
+    --color-iso-trailer: #d7dbde;
+    --color-iso-steel: #687179;
+    --color-iso-chrome: #a6aeb5;
+    --color-iso-tire: #0c0e10;
+    --color-iso-tree: #3b5a36;
+    --color-iso-tree-dark: #2a4227;
+    --color-iso-shadow: rgb(0 0 0 / 0.45);
   }
 }
 :root[data-theme="dark"] {
@@ -99,6 +148,7 @@
   --color-muted: #9aa3aa;
   --color-line: #343b42;
   --color-field: #181c20;
+  --color-signal-line: #ffe8a3;
   --color-delivery: #5ca4e3;
   --color-delivery-soft: #1c2c3b;
   --color-pickup: #5bbf86;
@@ -124,6 +174,24 @@
   --color-bay: #1d2226;
   --color-building: #3a4148;
   --color-track: #2c3238;
+  --color-iso-ground: #253024;
+  --color-iso-lot: #30363c;
+  --color-iso-paint: #c9ced2;
+  --color-iso-curb: #3d4449;
+  --color-iso-street: #1c2024;
+  --color-iso-wall: #4b5157;
+  --color-iso-band: #1b222a;
+  --color-iso-roof: #383e44;
+  --color-iso-door: #646c73;
+  --color-iso-glass: #101922;
+  --color-iso-light: #ffe48a;
+  --color-iso-trailer: #d7dbde;
+  --color-iso-steel: #687179;
+  --color-iso-chrome: #a6aeb5;
+  --color-iso-tire: #0c0e10;
+  --color-iso-tree: #3b5a36;
+  --color-iso-tree-dark: #2a4227;
+  --color-iso-shadow: rgb(0 0 0 / 0.45);
 }
 
 body {
@@ -135,13 +203,21 @@ body {
 }
 
 :focus-visible {
-  outline: 3px solid var(--color-signal);
+  outline: 3px solid var(--color-signal-line);
   outline-offset: 2px;
+}
+/* On the dark header and Overview rail the pale yellow reads best. */
+.on-chrome :focus-visible {
+  outline-color: var(--color-signal);
+}
+@media (min-width: 64rem) {
+  .rail :focus-visible { outline-color: var(--color-signal); }
 }
 
 /* Yard map icons: SVG groups don't draw an outline, so the hit area shows focus instead. */
-.yard-unit:focus-visible { outline: none; }
-.yard-unit:focus-visible .hit { stroke: var(--color-signal); }
+/* A tapped rig glows instead (YardMap), so no browser box around it after a click. */
+.yard-unit:focus { outline: none; }
+.yard-unit:focus-visible .ring { stroke: var(--color-signal-line); stroke-dasharray: none; stroke-width: 4; }
 
 @media print {
   .no-print { display: none !important; }

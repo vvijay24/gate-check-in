@@ -4,8 +4,8 @@ import CheckOutPicker from './components/CheckOutPicker'
 import EntryLog from './components/EntryLog'
 import ShippingDashboard from './components/ShippingDashboard'
 import { DockBoard } from './components/Dashboard'
-import Messages from './components/Messages'
-import Analytics from './components/Analytics'
+import Messages, { ChatButton } from './components/Messages'
+import Analytics, { RAIL_PAD } from './components/Analytics'
 import { makeSampleEntries } from './sampleData'
 import { takenBays } from './metrics'
 import { awaitingRelease, checkOutBlock, isReleased } from './handoff'
@@ -13,10 +13,11 @@ import { awaitingRelease, checkOutBlock, isReleased } from './handoff'
 const STORAGE_KEY = 'guard-load-log'
 const EVENTS_KEY = 'gate-events'
 
+// `short` is shown on phones so all four tabs fit on one row.
 const TABS = [
   { id: 'gate', label: 'Gate' },
   { id: 'shipping', label: 'Shipping' },
-  { id: 'docks', label: 'Dock & Loading' },
+  { id: 'docks', label: 'Dock & Loading', short: 'Docks' },
   { id: 'analytics', label: 'Overview' },
 ]
 
@@ -45,11 +46,17 @@ function loadEntries() {
 
 export default function App() {
   const [entries, setEntries] = useState(loadEntries)
-  const [editing, setEditing] = useState(null)
+  // The entry open in the Gate form, by id, so the form always sees its latest state (e.g. Shipping
+  // releasing the truck while the guard has it open).
+  const [editingId, setEditingId] = useState(null)
+  const editing = editingId ? (entries.find((e) => e.id === editingId) ?? null) : null
   const [notice, setNotice] = useState('')
   const [storageError, setStorageError] = useState(false)
   const [clock, setClock] = useState(timeNow)
   const [tab, setTab] = useState('gate')
+  // The demo Shipping chat: opened from the header on the Gate and Shipping tabs.
+  const [chatOpen, setChatOpen] = useState(false)
+  const chatTab = tab === 'gate' || tab === 'shipping'
   // Gate sub-tab; `editing` is the entry open in that form (none = new check-in / truck picker).
   const [gateMode, setGateMode] = useState('in')
 
@@ -104,19 +111,22 @@ export default function App() {
     }
   }, [gateEvents])
 
+  // For a saved entry `form` holds only the fields the guard changed (plus its id), merged onto the
+  // latest entry so a dock, inspection or release recorded meanwhile isn't overwritten.
   const handleSave = (form) => {
     if (form.id) {
+      const entry = { ...entries.find((e) => e.id === form.id), ...form }
       const checkedOut = gateMode === 'out' && !editing?.timeOut
       // Anything but a first check-out is a correction to a saved entry; the Overview counts them.
       setEntries((list) =>
         list.map((e) =>
           e.id === form.id
-            ? { ...form, updatedAt: Date.now(), ...(!checkedOut && { edits: (e.edits ?? 0) + 1, editedAt: Date.now() }) }
+            ? { ...e, ...form, updatedAt: Date.now(), ...(!checkedOut && { edits: (e.edits ?? 0) + 1, editedAt: Date.now() }) }
             : e,
         ),
       )
-      setEditing(null)
-      setNotice(checkedOut ? `Checked out ${form.truckName} — trailer ${form.trailerNumber}` : `Updated entry for ${form.truckName}`)
+      setEditingId(null)
+      setNotice(checkedOut ? `Checked out ${entry.truckName} — trailer ${entry.trailerNumber}` : `Updated entry for ${entry.truckName}`)
     } else {
       // The form shows its own "Check In Confirmed" banner, so no page notice here.
       setEntries((list) => [{ ...form, id: crypto.randomUUID(), createdAt: Date.now() }, ...list])
@@ -125,14 +135,23 @@ export default function App() {
 
   const openGate = (mode, entry) => {
     setGateMode(mode)
-    setEditing(entry)
+    setEditingId(entry?.id ?? null)
     setTab('gate')
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
   const handleEdit = (entry) => openGate('in', entry)
-  const handleCheckOut = (entry) => {
-    // A guard opening a truck that can't leave yet is a mistake the system stopped.
-    if (checkOutBlock(entry)) setGateEvents((list) => [...list, { type: 'blocked', id: entry.id, at: Date.now() }])
+  // A guard trying to check out a truck that can't leave yet is a mistake the system stopped; it's
+  // counted once per truck and reason. Not counted when the screen already said so (`warned`, e.g. the
+  // Check Out list's "View details" on a blocked truck).
+  const handleCheckOut = (entry, { warned } = {}) => {
+    const reason = checkOutBlock(entry)
+    if (reason && !warned) {
+      setGateEvents((list) =>
+        list.some((g) => g.type === 'blocked' && g.id === entry.id && g.reason === reason)
+          ? list
+          : [...list, { type: 'blocked', id: entry.id, reason, at: Date.now() }],
+      )
+    }
     openGate('out', entry)
   }
 
@@ -198,18 +217,22 @@ export default function App() {
 
   const handleDelete = (id) => {
     setEntries((list) => list.filter((e) => e.id !== id))
-    if (editing?.id === id) setEditing(null)
+    if (editingId === id) setEditingId(null)
   }
 
   return (
     <>
-      <header ref={headerRef} className="sticky top-0 z-10 border-b-[6px] border-signal bg-chrome text-white">
-        <div className="mx-auto flex max-w-[1400px] flex-wrap items-center gap-4 px-5 py-3">
-          {tab === 'gate' && <h1 className="font-display text-[28px] leading-none font-bold">Gate Check In</h1>}
-          {/* ml-auto keeps the clock on the right when there's no title. */}
-          <span className="ml-auto font-display text-2xl font-semibold text-signal">{clock}</span>
+      <header ref={headerRef} className="on-chrome sticky top-0 z-10 border-b-[6px] border-signal bg-chrome text-white">
+        <div className="mx-auto flex max-w-[1400px] flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 sm:px-5">
+          <h1 className="font-display text-[22px] leading-none font-bold whitespace-nowrap sm:text-[28px]">Gate Check In</h1>
+          {/* ml-auto keeps the chat and clock on the right. */}
+          <div className="ml-auto flex items-center gap-2.5 sm:gap-4">
+            {chatTab && <ChatButton open={chatOpen} onToggle={() => setChatOpen((o) => !o)} />}
+            <span className="font-display text-[20px] font-semibold whitespace-nowrap text-signal sm:text-2xl">{clock}</span>
+          </div>
         </div>
-        <nav role="tablist" className="no-print mx-auto flex max-w-[1400px] gap-1.5 px-5">
+        {/* Scrolls sideways rather than wrapping if the tabs still don't fit. */}
+        <nav role="tablist" className="no-print mx-auto flex max-w-[1400px] gap-1 overflow-x-auto px-4 sm:gap-1.5 sm:px-5">
           {TABS.map((t) => (
             <button
               key={t.id}
@@ -219,15 +242,22 @@ export default function App() {
               aria-controls={`panel-${t.id}`}
               onClick={() => setTab(t.id)}
               className={
-                'min-h-[52px] cursor-pointer rounded-t-lg px-[18px] font-display text-[21px] font-semibold ' +
+                'min-h-[52px] shrink-0 cursor-pointer rounded-t-lg px-2 font-display text-[17px] font-semibold whitespace-nowrap sm:px-[18px] sm:text-[21px] ' +
                 (tab === t.id ? 'bg-signal text-signal-ink' : 'text-[#C9D0D5] hover:text-white')
               }
             >
-              {t.label}
+              {t.short ? (
+                <>
+                  <span className="sm:hidden">{t.short}</span>
+                  <span className="hidden sm:inline">{t.label}</span>
+                </>
+              ) : (
+                t.label
+              )}
               {badges[t.id] > 0 && (
                 <span
                   className={
-                    'ml-2 inline-flex min-w-6 items-center justify-center rounded-full px-1.5 align-middle font-body text-[13px] font-bold tabular-nums ' +
+                    'ml-1 inline-flex min-w-5 items-center justify-center rounded-full px-1 align-middle font-body text-[12px] font-bold tabular-nums sm:ml-2 sm:min-w-6 sm:px-1.5 sm:text-[13px] ' +
                     (tab === t.id ? 'bg-chrome text-white' : 'bg-signal text-signal-ink')
                   }
                 >
@@ -241,61 +271,67 @@ export default function App() {
       </header>
 
       <main className="mx-auto max-w-[1400px] space-y-5 px-4 py-5 sm:px-5">
-        {storageError && (
-          <div role="alert" className="no-print rounded-md border-l-[6px] border-danger bg-danger-soft px-4 py-3 font-semibold text-danger">
-            Browser storage is full — the latest changes are NOT saved and will be lost when this page closes. Delete
-            old entries to free up space.
-          </div>
-        )}
-
-        {notice && (
-          <div role="status" className="no-print rounded-md border-l-[6px] border-signal bg-panel px-4 py-3 font-semibold text-ok">
-            {notice}
-          </div>
-        )}
-
-        {tab === 'gate' ? (
-          <div
-            role="tabpanel"
-            id="panel-gate"
-            aria-labelledby="tab-gate"
-            className="mx-auto max-w-[620px]"
-          >
-            {/* The Check In / Check Out form, kept narrow and centered. */}
-            <div className="min-w-0 space-y-3">
-              <div role="tablist" aria-label="Gate form" className="no-print grid grid-cols-2 gap-2">
-                {GATE_MODES.map((m) => (
-                  <button
-                    key={m.id}
-                    role="tab"
-                    aria-selected={gateMode === m.id}
-                    onClick={() => openGate(m.id, null)}
-                    className={
-                      'min-h-14 cursor-pointer rounded-[10px] border-2 font-display text-[22px] font-bold ' +
-                      (gateMode === m.id ? 'border-signal bg-signal text-signal-ink' : 'border-line bg-panel text-ink')
-                    }
-                  >
-                    {m.label}
-                  </button>
-                ))}
+        {/* On the Overview the notices clear its fixed left rail, like the section content does. */}
+        {(storageError || notice) && (
+          <div className={'space-y-5' + (tab === 'analytics' ? ' ' + RAIL_PAD : '')}>
+            {storageError && (
+              <div role="alert" className="no-print rounded-md border-l-[6px] border-danger bg-danger-soft px-4 py-3 font-semibold text-danger">
+                Browser storage is full — the latest changes are NOT saved and will be lost when this page closes. Delete
+                old entries to free up space.
               </div>
-
-              {gateMode === 'out' && !editing ? (
-                <CheckOutPicker entries={entries} onPick={handleCheckOut} />
-              ) : (
-                <GuardForm
-                  key={`${gateMode}-${editing?.id ?? 'new'}`}
-                  mode={gateMode}
-                  initial={editing}
-                  defaultGuard={entries[0]?.guardOnDuty ?? ''}
-                  takenBays={takenBays(entries)}
-                  onSave={handleSave}
-                  onCancel={editing ? () => setEditing(null) : undefined}
-                />
-              )}
-            </div>
+            )}
+            {notice && (
+              <div role="status" className="no-print rounded-md border-l-[6px] border-signal-line bg-panel px-4 py-3 font-semibold text-ok">
+                {notice}
+              </div>
+            )}
           </div>
-        ) : tab === 'docks' ? (
+        )}
+
+        {/* The Gate panel stays mounted while another tab is open, so a half-typed check-in or check-out
+            isn't lost when the guard glances at Shipping; it follows the live entry meanwhile. */}
+        <div
+          role="tabpanel"
+          id="panel-gate"
+          aria-labelledby="tab-gate"
+          hidden={tab !== 'gate'}
+          className="mx-auto max-w-[620px]"
+        >
+          {/* The Check In / Check Out form, kept narrow and centered. */}
+          <div className="min-w-0 space-y-3">
+            <div role="tablist" aria-label="Gate form" className="no-print grid grid-cols-2 gap-2">
+              {GATE_MODES.map((m) => (
+                <button
+                  key={m.id}
+                  role="tab"
+                  aria-selected={gateMode === m.id}
+                  onClick={() => openGate(m.id, null)}
+                  className={
+                    'min-h-14 cursor-pointer rounded-[10px] border-2 font-display text-[22px] font-bold ' +
+                    (gateMode === m.id ? 'border-signal bg-signal text-signal-ink' : 'border-line bg-panel text-ink')
+                  }
+                >
+                  {m.label}
+                </button>
+              ))}
+            </div>
+
+            {gateMode === 'out' && !editing ? (
+              <CheckOutPicker entries={entries} onPick={handleCheckOut} />
+            ) : (
+              <GuardForm
+                key={`${gateMode}-${editing?.id ?? 'new'}`}
+                mode={gateMode}
+                initial={editing}
+                defaultGuard={entries[0]?.guardOnDuty ?? ''}
+                takenBays={takenBays(entries)}
+                onSave={handleSave}
+                onCancel={editing ? () => setEditingId(null) : undefined}
+              />
+            )}
+          </div>
+        </div>
+        {tab === 'gate' ? null : tab === 'docks' ? (
           <div role="tabpanel" id="panel-docks" aria-labelledby="tab-docks">
             <DockBoard
               entries={entries}
@@ -330,7 +366,7 @@ export default function App() {
             />
           </div>
         )}
-        {(tab === 'gate' || tab === 'shipping') && <Messages raised={tab === 'gate'} />}
+        {chatTab && <Messages open={chatOpen} onClose={() => setChatOpen(false)} />}
       </main>
     </>
   )
