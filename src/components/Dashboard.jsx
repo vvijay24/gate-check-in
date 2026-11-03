@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import * as ui from '../ui'
-import { ago, arrivalMs, clockTime, dayKey, duration } from '../time'
+import { ago, arrivalMs, clockTime, dayKey, departureMs, duration } from '../time'
 import AssignDock, { dockKey } from './AssignDock'
 import LoadingInspection from './LoadingInspection'
 import YardMap from './YardMap'
-import { DOCKS } from '../yard'
+import EmptyState from './EmptyState'
+import { DETENTION_FREE_MIN, DOCKS } from '../yard'
 import { dayMetrics, isDrop, stagingBays, yardMetrics } from '../metrics'
 import { DETENTION_TAG, detentionState, needsInspection } from '../detention'
 import { awaitingRelease, isReleased } from '../handoff'
@@ -88,7 +89,7 @@ function WaitingCard({ e, now, occupied, onAssignDock, onEdit }) {
 function InspectionTag({ e, wrap }) {
   const tag = wrap ? ui.tag.replace('whitespace-nowrap', 'whitespace-normal') : ui.tag
   const inspection = e.loadingInspection
-  if (!inspection) return <span className={tag + ' bg-signal text-signal-ink'}>Not inspected</span>
+  if (!inspection) return <span className={tag + ' bg-signal-soft text-ink ring-1 ring-signal-line/40'}>Not inspected</span>
   if (inspection.result !== 'Pass') return <span className={tag + ' bg-danger-soft text-danger'}>⚠ Inspection failed</span>
   return isReleased(e) ? (
     <span className={tag + ' bg-delivery-soft text-delivery'}>✓ Released to gate</span>
@@ -181,7 +182,7 @@ function DockTile({ e, now, selected, onSelect }) {
 function DockStatus({ occupied, now, wide }) {
   const free = DOCKS.filter((d) => !occupied.has(dockKey(d))).length
   return (
-    <section className="rounded-[10px] border border-line bg-panel p-4">
+    <section className="rounded-xl bg-panel shadow-card p-4">
       <h2 className="font-display text-[21px] leading-tight font-bold">
         Dock Status <span className="text-muted">({free} free)</span>
       </h2>
@@ -222,7 +223,7 @@ function StagingBays({ entries, now, wide }) {
   const { bays, overflow } = stagingBays(entries)
   const open = bays.filter((e) => !e).length
   return (
-    <section className="rounded-[10px] border border-line bg-panel p-4">
+    <section className="rounded-xl bg-panel shadow-card p-4">
       <h2 className="font-display text-[21px] leading-tight font-bold">
         Staging Bays <span className="text-muted">({open} open)</span>
       </h2>
@@ -232,7 +233,7 @@ function StagingBays({ entries, now, wide }) {
             key={i}
             className={
               'flex min-h-[92px] flex-col rounded-lg border-2 px-2 py-1.5 ' +
-              (!e ? 'border-ok bg-ok-soft text-ink' : isDrop(e) ? 'border-drop bg-drop-soft text-ink' : 'border-signal bg-signal text-signal-ink')
+              (!e ? 'border-ok bg-ok-soft text-ink' : isDrop(e) ? 'border-drop bg-drop-soft text-ink' : 'border-signal-line bg-signal-soft text-ink')
             }
           >
             <span className="text-[12px] font-semibold opacity-80">Bay</span>
@@ -262,9 +263,9 @@ function StagingBays({ entries, now, wide }) {
 
 // `tiles` lays the children out as a grid of small tiles instead of a single column; `action` sits
 // at the right of the title; `className` adds layout classes to the card.
-function Panel({ id, title, count, empty, tiles, action, className = '', children }) {
+function Panel({ id, title, count, empty, emptyKind, tiles, action, className = '', children }) {
   return (
-    <section id={id} className={'scroll-mt-[calc(var(--header-h,114px)+16px)] rounded-[10px] border border-line bg-panel p-4 ' + className}>
+    <section id={id} className={'scroll-mt-[calc(var(--header-h,114px)+16px)] rounded-xl bg-panel shadow-card p-4 ' + className}>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="font-display text-[21px] leading-tight font-bold">
           {title} <span className="text-muted">({count})</span>
@@ -272,7 +273,7 @@ function Panel({ id, title, count, empty, tiles, action, className = '', childre
         {action}
       </div>
       {count === 0 ? (
-        <p className="py-2 text-sm text-muted">{empty}</p>
+        <EmptyState compact kind={emptyKind}>{empty}</EmptyState>
       ) : (
         <div className={'mt-3 grid gap-2' + (tiles ? ' grid-cols-[repeat(auto-fill,minmax(190px,1fr))]' : '')}>{children}</div>
       )}
@@ -334,6 +335,7 @@ export function DockBoard({ entries, onAssignDock, onEdit, onCheckOut, onSaveIns
       id={wide ? 'at-the-docks' : undefined}
       title="At the Docks"
       count={atDock.length}
+      emptyKind="dock"
       empty="No docks in use. Assign a dock to a waiting truck to see it here."
       tiles={wide}
       action={inspectButton}
@@ -423,7 +425,7 @@ function LiveYard({ entries, onEdit, onCheckOut, onInspect, stretch, highlightId
   }
 
   return (
-    <section className={'rounded-[10px] border border-line bg-panel p-4 sm:col-span-2 lg:col-span-1' + (stretch ? ' h-full' : '')}>
+    <section className={'rounded-xl bg-panel shadow-card p-4 sm:col-span-2 lg:col-span-1' + (stretch ? ' h-full' : '')}>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="font-display text-[21px] leading-tight font-bold">{inspecting ? 'Inspection Map' : 'Live Yard Map'}</h2>
         <div className="flex flex-wrap items-center gap-3">
@@ -470,7 +472,7 @@ function LiveYard({ entries, onEdit, onCheckOut, onInspect, stretch, highlightId
         ref={dialog}
         aria-label="Live yard map"
         onClick={(ev) => ev.target === dialog.current && close()}
-        className="m-auto w-[95vw] max-w-[1300px] rounded-[10px] border border-line bg-panel p-0 text-ink backdrop:bg-black/60"
+        className="m-auto w-[95vw] max-w-[1300px] rounded-xl bg-panel shadow-raised p-0 text-ink backdrop:bg-black/60"
       >
         {/* Padding sits on this wrapper so a click inside the pop-up never reaches the dialog itself. */}
         <div className="p-5">
@@ -498,8 +500,45 @@ function LiveYard({ entries, onEdit, onCheckOut, onInspect, stretch, highlightId
   )
 }
 
-// "Right now" row at the top of the Shipping page: the figures that say what needs action next.
-// Each figure's tone is also written in its note, so it never relies on color alone.
+// Counts for the "Right now" tiles at moment `t`, for their trend lines.
+const HOUR = 3600000
+function countsAt(entries, t) {
+  const yard = yardMetrics(entries, t, t)
+  const onSite = entries.filter((e) => arrivalMs(e) <= t && !(departureMs(e) <= t))
+  return {
+    onSite: onSite.length,
+    waiting: yard.waiting.length,
+    free: DOCKS.length - DOCKS.filter((d) => yard.atDock.has(dockKey(d))).length,
+    over: onSite.filter((e) => !isDrop(e) && t - arrivalMs(e) > DETENTION_FREE_MIN * 60000).length,
+    awaiting: onSite.filter(
+      (e) => e.loadingInspection?.result === 'Pass' && (e.loadingInspection.inspectedAt ?? 0) <= t && !((e.release?.releasedAt ?? Infinity) <= t),
+    ).length,
+  }
+}
+
+// A small trend line for a stat tile: one series in the chart color, its latest point marked. The
+// numbers are in the tile and its title, so the line is decoration for screen readers.
+function Sparkline({ values, title }) {
+  const W = 84
+  const H = 26
+  const max = Math.max(1, ...values)
+  const step = W / Math.max(1, values.length - 1)
+  const y = (v) => H - 3 - (v / max) * (H - 6)
+  const points = values.map((v, i) => `${(i * step).toFixed(1)},${y(v).toFixed(1)}`).join(' ')
+  const last = values.length - 1
+  return (
+    <svg width={W} height={H} viewBox={`-3 0 ${W + 6} ${H}`} className="shrink-0" aria-hidden="true">
+      <title>{title}</title>
+      <line x1={0} x2={W} y1={H - 3} y2={H - 3} stroke="var(--color-line)" strokeWidth={1} />
+      <polyline points={points} fill="none" stroke="var(--color-chart-live)" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+      <circle cx={last * step} cy={y(values[last])} r={3} fill="var(--color-chart-live)" stroke="var(--color-panel)" strokeWidth={1.5} />
+    </svg>
+  )
+}
+
+// "Right now" row at the top of the Shipping page: the figures that say what needs action next, each
+// with its trend over the last 8 hours. Each figure's tone is also written in its note, so it never
+// relies on color alone.
 function SummaryStrip({ entries }) {
   const [now, setNow] = useState(Date.now)
 
@@ -517,42 +556,57 @@ function SummaryStrip({ entries }) {
   const fee = over.reduce((s, d) => s + d.fee, 0)
   const awaiting = onSite.filter(awaitingRelease).length
   const released = onSite.filter(isReleased).length
+  // Every half hour over the last 8 hours, ending now.
+  const history = useMemo(() => {
+    const end = Math.floor(now / (HOUR / 2)) * (HOUR / 2)
+    return Array.from({ length: 17 }, (_, i) => countsAt(entries, end - (16 - i) * (HOUR / 2)))
+  }, [entries, now])
+  const series = (key, current) => [...history.slice(0, -1).map((c) => c[key]), current]
 
   const items = [
-    { label: 'On site', value: onSite.length, note: `${yard.drops.length} dropped trailer${yard.drops.length === 1 ? '' : 's'}` },
+    { label: 'On site', value: onSite.length, trend: series('onSite', onSite.length), note: `${yard.drops.length} dropped trailer${yard.drops.length === 1 ? '' : 's'}` },
     {
       label: 'Waiting for a dock',
       value: yard.waiting.length,
+      trend: series('waiting', yard.waiting.length),
       note: yard.waiting.length ? `Longest ${duration(yard.longestWaitMs)}` : 'No one waiting',
       tone: yard.waiting.length > 2 ? 'warn' : undefined,
     },
     {
       label: 'Docks free',
       value: `${free} of ${DOCKS.length}`,
+      trend: series('free', free),
       note: free ? 'Ready to assign' : '⚠ All docks in use',
       tone: free ? 'good' : 'alert',
     },
     {
       label: 'Past free time',
       value: over.length,
+      trend: series('over', over.length),
       note: over.length ? `⚠ Est. $${Math.round(fee)} so far${near ? ` · ${near} near` : ''}` : near ? `${near} near free time` : 'None',
       tone: over.length ? 'alert' : near ? 'warn' : 'good',
     },
     {
       label: 'Awaiting release',
       value: awaiting,
+      trend: series('awaiting', awaiting),
       note: (awaiting ? 'Passed inspection · release below' : 'None to release') + (released ? ` · ${released} released to gate` : ''),
       tone: awaiting ? 'warn' : undefined,
     },
   ]
-  const toneCls = { good: 'border-l-ok', warn: 'border-l-signal-line', alert: 'border-l-danger' }
+  const toneBar = { good: 'bg-ok', warn: 'bg-signal', alert: 'bg-danger' }
 
   return (
-    <section aria-label="Right now" className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+    <section aria-label="Right now" className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
       {items.map((it) => (
-        <div key={it.label} className={'rounded-lg border border-l-[5px] border-line bg-panel px-3 py-2 ' + (toneCls[it.tone] ?? '')}>
+        <div key={it.label} className="relative overflow-hidden rounded-xl bg-panel py-3 pr-3 pl-4 shadow-card">
+          {it.tone && <span aria-hidden="true" className={'absolute inset-y-0 left-0 w-1 ' + toneBar[it.tone]} />}
           <div className="text-[13px] font-semibold text-muted">{it.label}</div>
-          <div className="font-display text-[26px] leading-tight font-bold">{it.value}</div>
+          {/* The trend line drops below the figure when the tile is too narrow for both. */}
+          <div className="flex flex-wrap items-end justify-between gap-x-2">
+            <div className="font-display text-[30px] leading-tight font-bold whitespace-nowrap tabular-nums">{it.value}</div>
+            <Sparkline values={it.trend} title={`${it.label}, last 8 hours: ${it.trend[0]} → ${it.trend[it.trend.length - 1]}`} />
+          </div>
           <div className={'text-[13px] ' + (it.tone === 'alert' ? 'font-semibold text-danger' : 'text-muted')}>{it.note}</div>
         </div>
       ))}

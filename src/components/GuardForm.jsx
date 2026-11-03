@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import Field from './Field'
 import OdometerPhoto from './OdometerPhoto'
+import CarrierInput from './CarrierInput'
 import {
   EMPTY_FORM,
   GATES,
@@ -122,6 +123,54 @@ const FIELD_LABELS = {
   sealNote: 'Seal note',
 }
 
+// A new check-in goes in four steps, each with the fields it asks for (its errors stop Next). Edits
+// and check-outs stay one page.
+const STEPS = [
+  { id: 'truck', label: 'Truck', title: 'Truck and Driver', keys: ['dateIn', 'timeIn', 'gateIn', 'visitPurpose', 'appointmentTime', 'truckName', 'trailerNumber', 'truckerNameIn', 'driverPhone', 'waitingLocation', 'odometerPhoto'] },
+  { id: 'load', label: 'Load', title: 'Load', keys: ['pickupNumber', 'customerPickupFor', 'emptyPallets', 'incomingSeals', 'sealIntact', 'shipmentContents'] },
+  { id: 'reefer', label: 'Reefer', title: 'Reefer', keys: ['reefer', 'tempSet', 'tempActual', 'fuelIn'] },
+  { id: 'confirm', label: 'Confirm', title: 'Confirm', keys: ['guardOnDuty'] },
+]
+const only = (errs, keys) => Object.fromEntries(Object.entries(errs).filter(([k]) => keys.includes(k)))
+
+// Numbered steps with a progress bar; earlier steps can be revisited by tapping them.
+function Steps({ step, onPick }) {
+  return (
+    <nav aria-label="Check-in steps" className="no-print mb-5">
+      <ol className="grid grid-cols-4 gap-1.5">
+        {STEPS.map((s, i) => {
+          const done = i < step
+          const current = i === step
+          return (
+            <li key={s.id}>
+              <button
+                type="button"
+                onClick={() => onPick(i)}
+                disabled={i > step}
+                aria-current={current ? 'step' : undefined}
+                className="flex w-full min-h-11 cursor-pointer flex-col items-center gap-1 rounded-lg px-1 py-1 text-[13px] font-semibold disabled:cursor-default sm:flex-row sm:justify-center sm:gap-2 sm:text-[15px]"
+              >
+                <span
+                  className={
+                    'flex h-7 w-7 shrink-0 items-center justify-center rounded-full font-display text-[15px] font-bold ' +
+                    (current ? 'bg-signal text-signal-ink' : done ? 'bg-ok text-panel' : 'bg-field text-muted ring-1 ring-line')
+                  }
+                >
+                  {done ? '✓' : i + 1}
+                </span>
+                <span className={current ? 'text-ink' : 'text-muted'}>{s.label}</span>
+              </button>
+            </li>
+          )
+        })}
+      </ol>
+      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-track" aria-hidden="true">
+        <div className="h-full rounded-full bg-signal transition-[width] duration-300" style={{ width: `${(step / (STEPS.length - 1)) * 100}%` }} />
+      </div>
+    </nav>
+  )
+}
+
 // Lists every field that stopped the save, each a link that jumps to (and focuses) the field.
 // `labels` names the fields (the Loading Inspection passes its own).
 export function ErrorSummary({ errors, action, summaryRef, labels = FIELD_LABELS }) {
@@ -187,7 +236,8 @@ function ArrivalSummary({ e }) {
 }
 
 // `takenBays` maps bay name → the truck holding it, so those bays can't be picked.
-export default function GuardForm({ mode = 'in', initial, defaultGuard, takenBays = new Map(), onSave, onCancel, active = true }) {
+// `carriers`: names used before, most frequent first, suggested as the guard types the Carrier.
+export default function GuardForm({ mode = 'in', initial, defaultGuard, takenBays = new Map(), onSave, onCancel, active = true, carriers = [] }) {
   const start = () => (mode === 'out' ? checkOutForm(initial, defaultGuard) : (initial ?? freshForm(defaultGuard)))
   // The form as it was last started, saved or cleared; Clear only asks first when something differs.
   const baseline = useRef(null)
@@ -196,6 +246,9 @@ export default function GuardForm({ mode = 'in', initial, defaultGuard, takenBay
   const [errors, setErrors] = useState({})
   // A new check-out asks "Confirm Check Out?" before saving.
   const [confirming, setConfirming] = useState(false)
+  // Step of a new check-in (0..3); see STEPS.
+  const [step, setStep] = useState(0)
+  const stepTitle = useRef(null)
   // Shown after a new check-in is saved, e.g. "Trailer T123 · Acme". Cleared when the next entry starts.
   const [checkedIn, setCheckedIn] = useState(null)
   const formRef = useRef(null)
@@ -229,6 +282,15 @@ export default function GuardForm({ mode = 'in', initial, defaultGuard, takenBay
   }, [checkedIn])
   const isEdit = Boolean(initial?.id)
   const isOut = mode === 'out'
+  const stepped = !isOut && !isEdit
+  const goStep = (i) => {
+    setStep(i)
+    setErrors({})
+    requestAnimationFrame(() => {
+      formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      stepTitle.current?.focus({ preventScroll: true })
+    })
+  }
   // Re-opening a truck that already left edits its departure rather than checking it out again.
   const editingDeparture = isOut && Boolean(initial?.timeOut)
   // A truck that was at a dock can only leave once its inspection passed and Shipping released it.
@@ -269,6 +331,7 @@ export default function GuardForm({ mode = 'in', initial, defaultGuard, takenBay
     // without undoing a dock, inspection or release recorded elsewhere while the form was open.
     onSave(isEdit ? { id: initial.id, ...Object.fromEntries(Object.entries(data).filter(([k, v]) => v !== initial[k])) } : data)
     if (!isEdit) {
+      setStep(0)
       setForm((baseline.current = freshForm(form.guardOnDuty)))
       setCheckedIn(`Trailer ${form.trailerNumber} · ${form.truckName}`)
       formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
@@ -278,10 +341,26 @@ export default function GuardForm({ mode = 'in', initial, defaultGuard, takenBay
   const handleSubmit = (e) => {
     e.preventDefault()
     if (blocked) return
-    const errs = validate(form, mode, optional)
+    let errs = validate(form, mode, optional)
     // Seal check at the gate: required when a seal was recorded; a mismatch needs a note.
     if (sealToCheck && !form.sealConfirmed) errs.sealConfirmed = 'Required'
     if (sealToCheck && form.sealConfirmed === 'No' && !String(form.sealNote ?? '').trim()) errs.sealNote = 'Describe the seal found on the trailer'
+    if (stepped) {
+      // Next checks only this step's fields; the last step checks everything and goes back to the
+      // first step that still has a problem.
+      if (step < STEPS.length - 1) {
+        const mine = only(errs, STEPS[step].keys)
+        if (!Object.keys(mine).length) return goStep(step + 1)
+        errs = mine
+      } else {
+        const bad = STEPS.findIndex((st) => Object.keys(only(errs, st.keys)).length)
+        if (bad >= 0 && bad !== step) {
+          goStep(bad)
+          requestAnimationFrame(() => setErrors(only(errs, STEPS[bad].keys)))
+          return
+        }
+      }
+    }
     setErrors(errs)
     if (Object.keys(errs).length) {
       // Show the summary of everything missing; its links jump to each field. Wait a frame so it has rendered.
@@ -305,6 +384,7 @@ export default function GuardForm({ mode = 'in', initial, defaultGuard, takenBay
     if (typed && !window.confirm(isEdit ? 'Undo your changes to this entry?' : 'Clear everything typed on this form?')) return
     setForm((baseline.current = start()))
     setErrors({})
+    setStep(0)
   }
 
   const required = (name) => isRequired(name, form, mode) && !optional.includes(name)
@@ -335,7 +415,7 @@ export default function GuardForm({ mode = 'in', initial, defaultGuard, takenBay
 
   return (
     // No overflow-hidden here: it would stop the action bar below from sticking to the screen bottom.
-    <form ref={formRef} onSubmit={handleSubmit} noValidate className="scroll-mt-[calc(var(--header-h,114px)+84px)] rounded-[10px] border border-line bg-panel">
+    <form ref={formRef} onSubmit={handleSubmit} noValidate className="scroll-mt-[calc(var(--header-h,114px)+84px)] rounded-xl bg-panel shadow-card">
       <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-line px-5 pt-5 pb-3">
         <h2 className="font-display text-[26px] leading-tight font-bold">{title}</h2>
         <span className="text-sm text-muted">
@@ -356,10 +436,28 @@ export default function GuardForm({ mode = 'in', initial, defaultGuard, takenBay
             <p className="text-[15px]">{blocked}</p>
           </div>
         )}
-        <ErrorSummary errors={errors} action={isOut ? 'check-out' : isEdit ? 'saving' : 'check-in'} summaryRef={summaryRef} />
+        {stepped && <Steps step={step} onPick={(i) => i < step && goStep(i)} />}
+        {stepped && (
+          <h3 ref={stepTitle} tabIndex={-1} className="sr-only">
+            Step {step + 1} of {STEPS.length}: {STEPS[step].title}
+          </h3>
+        )}
+        <ErrorSummary errors={errors} action={isOut ? 'check-out' : isEdit ? 'saving' : stepped && step < STEPS.length - 1 ? 'going on' : 'check-in'} summaryRef={summaryRef} />
         {isOut && <ArrivalSummary e={initial} />}
+        {stepped && step === STEPS.length - 1 && (
+          <div className="pop-in">
+            <ArrivalSummary e={form} />
+            <div className="no-print mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm">
+              {STEPS.slice(0, -1).map((st, i) => (
+                <button key={st.id} type="button" onClick={() => goStep(i)} className="min-h-11 cursor-pointer font-semibold underline">
+                  Edit {st.label.toLowerCase()}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
-        {!isOut && (
+        {!isOut && (!stepped || step === 0) && (
           <section>
             <h3 className={firstSectionTitle}>Time In</h3>
             {/* Fixed two columns so the date stays beside its time at every width. */}
@@ -371,12 +469,13 @@ export default function GuardForm({ mode = 'in', initial, defaultGuard, takenBay
           </section>
         )}
 
-        {sections.map((section) => {
+        {sections.map((section, si) => {
+          if (stepped && si !== step) return null
           const fields = section.fields.filter((f) => isShown(f.name, form))
           if (!fields.length && !section.emptyNote) return null
           return (
             <section key={section.title}>
-              <h3 className={sectionTitle}>{section.title}</h3>
+              <h3 className={stepped && si > 0 ? firstSectionTitle : sectionTitle}>{section.title}</h3>
               {section.times && (
                 <div className="mb-3.5 grid grid-cols-2 gap-3.5">
                   {header({ label: 'Date Out', name: 'dateOut', type: 'date' })}
@@ -429,6 +528,19 @@ export default function GuardForm({ mode = 'in', initial, defaultGuard, takenBay
               <div className={grid}>
                 {fields.map((f) => {
                   const locked = f.pickupOnly && !hasPickup
+                  if (f.name === 'truckName' && !isOut) {
+                    return (
+                      <CarrierInput
+                        key={f.name}
+                        {...f}
+                        value={form.truckName ?? ''}
+                        onChange={handleChange}
+                        required={required(f.name)}
+                        error={errors[f.name]}
+                        carriers={carriers}
+                      />
+                    )
+                  }
                   return (
                     <Field
                       key={f.name}
@@ -500,9 +612,11 @@ export default function GuardForm({ mode = 'in', initial, defaultGuard, takenBay
             <div className={grid}>{header({ label: 'Guard Checking Out', name: 'guardOut', type: 'text' })}</div>
           </section>
         ) : (
-          <div className={grid + ' mt-6 border-t border-line pt-3.5'}>
-            {header({ label: 'Guard on Duty', name: 'guardOnDuty', type: 'text' })}
-          </div>
+          (!stepped || step === STEPS.length - 1) && (
+            <div className={grid + ' mt-6 border-t border-line pt-3.5'}>
+              {header({ label: 'Guard on Duty', name: 'guardOnDuty', type: 'text' })}
+            </div>
+          )
         )}
       </div>
 
@@ -532,15 +646,23 @@ export default function GuardForm({ mode = 'in', initial, defaultGuard, takenBay
               Cancel
             </button>
           )}
-          <button type="button" onClick={handleClear} className={ui.btn}>
+          {stepped && step > 0 && (
+            <button type="button" onClick={() => goStep(step - 1)} className={ui.btn + ' mr-auto'}>
+              ← Back
+            </button>
+          )}
+          {/* On phones, past the first step, Clear gives way so Back and Next fit on one row. */}
+          <button type="button" onClick={handleClear} className={stepped && step > 0 ? ui.btn.replace('inline-flex', 'hidden sm:inline-flex') : ui.btn}>
             {isEdit ? 'Revert' : 'Clear'}
           </button>
-          {/* Hidden on phones, where the gate form isn't printed, so Clear and Check In fit on one row. */}
-          <button type="button" onClick={() => window.print()} className={ui.btn.replace('inline-flex', 'hidden sm:inline-flex')}>
-            Print
-          </button>
+          {/* Hidden on phones, where the gate form isn't printed; in steps, only on Confirm. */}
+          {(!stepped || step === STEPS.length - 1) && (
+            <button type="button" onClick={() => window.print()} className={ui.btn.replace('inline-flex', 'hidden sm:inline-flex')}>
+              Print
+            </button>
+          )}
           <button type="submit" disabled={Boolean(blocked)} className={ui.btnPrimary}>
-            {submitLabel}
+            {stepped && step < STEPS.length - 1 ? `Next: ${STEPS[step + 1].label} →` : submitLabel}
           </button>
         </div>
       )}

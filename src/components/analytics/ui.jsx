@@ -3,7 +3,7 @@
 // `legend` sits on the title's line, to the right.
 export function Card({ title, sub, badge, legend, children, className = '' }) {
   return (
-    <section className={'min-w-0 rounded-[10px] border border-line bg-panel ' + className}>
+    <section className={'min-w-0 rounded-xl bg-panel shadow-card ' + className}>
       <div className="px-5 pt-5">
         <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
           <h3 className="font-display text-[21px] leading-tight font-bold">
@@ -27,7 +27,7 @@ export function Tile({ label, value, note, tone, trend, size }) {
   const number =
     { lead: 'mt-1 mb-1 text-[46px] sm:text-[56px]', compact: 'mt-0.5 text-[26px]' }[size] ?? 'mt-1 mb-0.5 text-[30px] sm:text-[34px]'
   return (
-    <div className={'rounded-[10px] border border-t-[6px] border-line bg-panel ' + box + ' ' + border}>
+    <div className={'rounded-xl border-t-[5px] bg-panel shadow-card ' + box + ' ' + border}>
       <div className={(size === 'lead' ? 'text-[17px]' : 'text-sm') + ' font-semibold text-muted'}>{label}</div>
       <div className={number + ' leading-tight font-bold tabular-nums'}>{value}</div>
       <div className={(size === 'lead' ? 'text-[15px] ' : 'text-[13px] ') + (tone === 'alert' ? 'font-bold text-danger' : 'text-muted')}>{note}</div>

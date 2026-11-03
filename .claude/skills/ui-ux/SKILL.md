@@ -22,7 +22,7 @@ So: large controls, high contrast, plain words, and the next action always visib
 ## 2. Tokens, type and shared classes
 
 - **Colors are tokens** in `src/index.css` (`@theme`): `page`, `panel`, `ink`, `muted`, `line`, `field`,
-  `chrome`, `signal` (yellow accent / primary action — fills only), `signal-line` (the accent as a line: focus ring, selected tile, active filter, warning edge; the pale fill is invisible as a thin line on white), `ok`, `danger`, the purpose colors `delivery`,
+  `chrome`, `signal` (safety-amber accent / primary action and active state — fills only), `signal-soft` (amber tint for status tags and tiles, read with `text-ink`), `signal-line` (the accent as a line: focus ring, selected tile, active filter, warning edge; the pale fill is invisible as a thin line on white), `ok`, `danger`, the purpose colors `delivery`,
   `pickup`, `drop`, gates `gate-in` (green) / `gate-out` (rose), `asphalt`, `bay`, `building` (left over from the flat map, now unused), the isometric yard scene `iso-*` (ground, walls, glass, tires…) and carrier paints `paint-1`…`paint-6` (no blue, green, purple or yellow, so a truck's paint never reads as a status),
   `track`, charts `chart-live`, `chart-drop`, and the visit-stage scale `stage-1`…`stage-4`. Use them as Tailwind utilities
   (`bg-panel`, `text-muted`, `border-line`) or `var(--color-…)`. **Never hard-code hex in components.**
@@ -36,8 +36,8 @@ So: large controls, high contrast, plain words, and the next action always visib
   - `input`, `label`, `required`, `errorText`, `inputError` for form fields (`Field.jsx` wraps them).
   - `seg(on, bad)` for segmented choices; `tag` for status pills; `PURPOSE_STYLES` for Delivery /
     Pickup / Drop Trailer colors.
-- **Shape**: cards `rounded-[10px] border border-line bg-panel`; buttons `rounded-[10px] border-2`;
-  pills `rounded-full`.
+- **Shape**: cards `rounded-xl bg-panel shadow-card` (no outline; dark mode adds one via the token); dialogs and
+  popovers `shadow-raised`; buttons `rounded-[10px] border-2`; pills and header tabs `rounded-full`.
 
 ## 3. Established patterns (copy these)
 
@@ -52,10 +52,12 @@ So: large controls, high contrast, plain words, and the next action always visib
 | Status | Pill with words + color (`ui.tag` + soft background); never color alone. On the yard map, a `StatusPin` (color + icon) above each rig | `STATUS_TAG`, `STATUS` / `StatusPin` in `YardMap.jsx` |
 | Pop-up | Native `<dialog>` + `showModal()`; closes on Esc, a **Close** button, or a backdrop click (`ev.target === dialog`); padding on an inner wrapper so clicks on it don't close | Live yard map **⤢ Enlarge** in `Dashboard.jsx` |
 | Selectable tiles | `<button aria-pressed>`; selected = `border-signal`; one panel-level action acts on the selection | At the Docks + **Inspect** |
+| Long entry form | Steps with a progress bar (Next checks only that step; Confirm shows a summary) | New check-in in `GuardForm.jsx` |
+| Tables on tablets | Below `lg`, a filter row and one card per row instead of the table | `EntryLog.jsx`, `ShippingDashboard.jsx` |
 | Headline numbers | `Tile` (label, big value, note, `tone` good/warn/alert, ▲/▼ `Trend` vs previous period) | `analytics/ui.jsx`, `analytics/charts.jsx` |
 | Section with sub-views | Left sidebar (sticky, `aria-current`) on `lg`, a row of buttons on small screens | Overview tab |
-| Notices | `role="status"` banner with `border-signal-line` for success; `role="alert"` with `border-danger` for problems; auto-clear after 3 s | `App.jsx` |
-| Empty state | Say why it's empty and what to do ("Pick a different range, or load the sample data") | |
+| Notices | Pop-up `Toast` under the header via `notify(text, tone)` (`'ok'` draws a check, `'fail'` a cross), auto-clears after 3 s; lasting problems stay a `role="alert"` banner with `border-danger` | `App.jsx`, `Toast.jsx` |
+| Empty state | `EmptyState` (small isometric picture + text): say why it's empty and what to do | `EmptyState.jsx` |
 
 Live data: boards refresh on a timer (30–60 s) via `setInterval` in `useEffect`; show "● Live" or the
 moment shown when it isn't live.

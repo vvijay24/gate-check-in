@@ -516,7 +516,7 @@ export function SettingsDialog({ open, settings, defaultGoLive, onSave, onClose 
       aria-labelledby="impact-settings-title"
       onClose={onClose}
       onClick={(ev) => ev.target === dialog.current && onClose()}
-      className="m-auto w-[95vw] max-w-[620px] rounded-[10px] border border-line bg-panel p-0 text-ink backdrop:bg-black/60"
+      className="m-auto w-[95vw] max-w-[620px] rounded-xl bg-panel shadow-raised p-0 text-ink backdrop:bg-black/60"
     >
       {open && (
         <form onSubmit={submit} noValidate className="space-y-5 p-5">

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import * as ui from '../ui'
+import EmptyState from './EmptyState'
 import { ago, arrivalMs, duration } from '../time'
 import { isDrop } from '../metrics'
 import { DETENTION_FREE_MIN, DETENTION_RATE_PER_HOUR, DETENTION_WARN_MIN } from '../yard'
@@ -21,7 +22,7 @@ function detention(e, now) {
   return null
 }
 
-const DETENTION_TAG = { over: 'bg-danger-soft text-danger', near: 'bg-signal text-signal-ink' }
+const DETENTION_TAG = { over: 'bg-danger-soft text-danger', near: 'bg-signal-soft text-ink' }
 
 // Short form of why a truck can't be checked out yet (the form explains in full).
 const blockedShort = (e) =>
@@ -103,7 +104,7 @@ export default function CheckOutPicker({ entries, onPick }) {
   }
 
   return (
-    <section className="overflow-hidden rounded-[10px] border border-line bg-panel">
+    <section className="overflow-hidden rounded-xl bg-panel shadow-card">
       <div className="border-b border-line px-5 pt-5 pb-3">
         <h2 className="font-display text-[26px] leading-tight font-bold">Check a Trailer Out</h2>
         <p className="text-muted">
@@ -144,7 +145,9 @@ export default function CheckOutPicker({ entries, onPick }) {
         </form>
 
         {onSite.length === 0 ? (
-          <p className="py-5 text-muted">{q ? 'No trucks on site match that search.' : 'No trucks on site. Checked-in trucks appear here.'}</p>
+          <div className="pt-3">
+            <EmptyState>{q ? 'No trucks on site match that search.' : 'No trucks on site. Checked-in trucks appear here.'}</EmptyState>
+          </div>
         ) : (
           <>
             {released.length > 0 && (

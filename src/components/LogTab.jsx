@@ -30,7 +30,7 @@ export default function LogTab({ entries }) {
         {exportError && <span className="ml-2 font-semibold text-danger">{exportError}</span>}
       </p>
 
-      <div className="overflow-x-auto rounded-[10px] border border-line bg-panel">
+      <div className="overflow-x-auto rounded-xl bg-panel shadow-card">
         <table className="w-full border-collapse text-left text-[14px]">
           <thead className="text-[13px] font-semibold text-muted">
             <tr className="border-b border-line">
@@ -56,7 +56,7 @@ export default function LogTab({ entries }) {
                     if (c.header === 'Status') {
                       return (
                         <td key={c.header} className="px-3 py-2">
-                          <span className={ui.tag + (e.timeOut ? ' bg-ok-soft text-ok' : ' bg-signal text-signal-ink')}>{value}</span>
+                          <span className={ui.tag + (e.timeOut ? ' bg-ok-soft text-ok' : ' bg-signal-soft text-ink')}>{value}</span>
                         </td>
                       )
                     }

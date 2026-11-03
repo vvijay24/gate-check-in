@@ -67,7 +67,7 @@ export default function ReleaseDialog({ entry, onRelease, onClose }) {
       aria-labelledby="release-title"
       onClose={onClose}
       onClick={(ev) => ev.target === dialog.current && onClose()}
-      className="m-auto w-[95vw] max-w-[560px] rounded-[10px] border border-line bg-panel p-0 text-ink backdrop:bg-black/60"
+      className="m-auto w-[95vw] max-w-[560px] rounded-xl bg-panel shadow-raised p-0 text-ink backdrop:bg-black/60"
     >
       {/* Padding sits on this wrapper so a click inside the pop-up never reaches the dialog itself. */}
       {entry && form && (

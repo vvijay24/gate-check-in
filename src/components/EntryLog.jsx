@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { flushSync } from 'react-dom'
 import * as ui from '../ui'
+import EmptyState from './EmptyState'
 import { LOG_COLUMNS, exportToExcel } from '../logColumns'
 import AssignDock, { occupiedDocks } from './AssignDock'
 import { dayKey, shortDate } from '../time'
@@ -79,7 +80,7 @@ function StatusTag({ e }) {
   if (isReleased(e)) return <span className={ui.tag + ' bg-delivery-soft text-delivery'}>Released to gate</span>
   if (awaitingRelease(e)) return <span className={ui.tag + ' bg-ok text-panel'}>Awaiting release</span>
   if (e.dockDoor) return <span className={ui.tag + ' bg-ink text-panel'}>At dock</span>
-  return <span className={ui.tag + ' bg-signal text-signal-ink'}>Waiting</span>
+  return <span className={ui.tag + ' bg-signal-soft text-ink ring-1 ring-signal-line/40'}>Waiting</span>
 }
 
 // Prints only the Entry Log: index.css hides everything else while body has data-print="entry-log".
@@ -171,8 +172,54 @@ export default function EntryLog({ entries, onEdit, onCheckOut, onDelete, onAssi
     }
   }
 
+  // Pieces shared by the table (wide screens) and the cards (tablets and phones).
+  const filterSelect = (c, cls = '', wide = false) => (
+    <select
+      aria-label={`Filter by ${c.label}`}
+      value={filters[c.id] ?? ''}
+      onChange={(ev) => setFilter(c.id, ev.target.value)}
+      className={
+        'no-print w-full min-w-[64px] cursor-pointer rounded-md bg-panel px-1.5 py-1 text-[13px] font-normal text-ink ' +
+        (wide ? '' : 'max-w-[170px] ') +
+        (filters[c.id] ? 'border-2 border-signal-line font-semibold ' : 'border border-line ') +
+        cls
+      }
+    >
+      <option value="">All</option>
+      {c.options(lists[tab]).map((o) => (
+        <option key={o.value} value={o.value}>
+          {o.label}
+        </option>
+      ))}
+    </select>
+  )
+  // Assign dock only for trucks still on site without a dock.
+  const dockCell = (e) =>
+    e.dockDoor ? <span className="font-semibold">Dock {e.dockDoor}</span> : e.timeOut ? <Dash /> : <AssignDock entry={e} occupied={occupied} onAssignDock={onAssignDock} compact />
+  // Always shows "Options"; picking a choice runs it and the select snaps back.
+  const optionsSelect = (e) => (
+    <select
+      aria-label={`Options for ${e.truckName} ${e.trailerNumber}`}
+      value=""
+      onChange={(ev) => {
+        const choice = ev.target.value
+        if (choice === 'checkout') onCheckOut(e)
+        else if (choice === 'edit') onEdit(e)
+        else if (choice === 'delete' && window.confirm(`Delete entry for ${e.truckName}?`)) onDelete(e.id)
+      }}
+      className="min-h-11 w-28 cursor-pointer rounded-md border border-line bg-panel px-2 text-[14px] font-semibold text-ink lg:min-h-0 lg:w-24 lg:py-1.5"
+    >
+      <option value="" disabled>
+        Options
+      </option>
+      <option value="checkout">{e.timeOut ? 'Edit Check Out' : 'Check Out'}</option>
+      <option value="edit">Edit Check In</option>
+      <option value="delete">Delete</option>
+    </select>
+  )
+
   return (
-    <section id="entry-log" className="rounded-[10px] border border-line bg-panel">
+    <section id="entry-log" className="rounded-xl bg-panel shadow-card">
       <div className="flex flex-wrap items-center justify-between gap-3 px-5 pt-5 pb-3">
         <h2 className="font-display text-[26px] leading-tight font-bold">Entry Log</h2>
         <div role="tablist" aria-label="Entry Log filter" className="no-print flex flex-wrap gap-1.5">
@@ -222,29 +269,58 @@ export default function EntryLog({ entries, onEdit, onCheckOut, onDelete, onAssi
         )}
       </div>
 
-      <div className="overflow-x-auto">
+      {/* Tablets and phones: the column filters as a row, and one card per entry instead of the table. */}
+      <div className="no-print flex flex-wrap gap-2 px-5 pb-3 lg:hidden">
+        {COLUMNS.map((c) => (
+          <label key={c.id} className="flex min-w-[120px] flex-1 flex-col gap-1 text-[12px] font-semibold text-muted">
+            {c.label}
+            {filterSelect(c, 'min-h-11', true)}
+          </label>
+        ))}
+      </div>
+      <ul className="space-y-2 px-4 pb-3 lg:hidden">
+        {rows.length === 0 ? (
+          <li>
+            <EmptyState>{empty}</EmptyState>
+          </li>
+        ) : (
+          shown.map((e) => {
+            const det = detentionState(e, now)
+            return (
+              <li key={e.id} className="rounded-lg bg-page p-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="font-display text-[19px] leading-tight font-bold">{e.pickupNumber || `Trailer ${e.trailerNumber || '—'}`}</div>
+                    <div className="text-[13px] text-muted">
+                      {[e.pickupNumber && `Trailer ${e.trailerNumber}`, e.truckName, e.customerPickupFor].filter(Boolean).join(' · ')}
+                    </div>
+                  </div>
+                  <StatusTag e={e} />
+                </div>
+                <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px]">
+                  <span>
+                    {friendlyDate(e.dateIn) || '—'} · In {e.timeIn || '—'}
+                  </span>
+                  {det && <span className={ui.tag + ' ' + DETENTION_TAG[det.level]}>{det.text}</span>}
+                </div>
+                <div className="no-print mt-2 flex flex-wrap items-center justify-between gap-2">
+                  {dockCell(e)}
+                  {optionsSelect(e)}
+                </div>
+              </li>
+            )
+          })
+        )}
+      </ul>
+
+      <div className="hidden overflow-x-auto lg:block">
         <table className="w-full min-w-[720px] border-collapse text-left text-[14px]">
           <thead className="text-[13px] font-semibold text-muted">
             <tr className="border-y border-line">
               {COLUMNS.map((c) => (
                 <th key={c.id} className="px-2.5 py-2.5 align-top">
                   <span className="block">{c.label}</span>
-                  <select
-                    aria-label={`Filter by ${c.label}`}
-                    value={filters[c.id] ?? ''}
-                    onChange={(ev) => setFilter(c.id, ev.target.value)}
-                    className={
-                      'no-print mt-1 w-full min-w-[64px] max-w-[170px] cursor-pointer rounded-md bg-panel px-1.5 py-1 text-[13px] font-normal text-ink ' +
-                      (filters[c.id] ? 'border-2 border-signal-line font-semibold' : 'border border-line')
-                    }
-                  >
-                    <option value="">All</option>
-                    {c.options(lists[tab]).map((o) => (
-                      <option key={o.value} value={o.value}>
-                        {o.label}
-                      </option>
-                    ))}
-                  </select>
+                  {filterSelect(c, 'mt-1')}
                 </th>
               ))}
               <th className="no-print px-2.5 py-2.5 align-top">Dock</th>
@@ -254,8 +330,8 @@ export default function EntryLog({ entries, onEdit, onCheckOut, onDelete, onAssi
           <tbody className="divide-y divide-line">
             {rows.length === 0 ? (
               <tr>
-                <td colSpan={7} className="px-3 py-6 text-muted">
-                  {empty}
+                <td colSpan={7} className="px-3 py-3">
+                  <EmptyState>{empty}</EmptyState>
                 </td>
               </tr>
             ) : (
@@ -280,37 +356,8 @@ export default function EntryLog({ entries, onEdit, onCheckOut, onDelete, onAssi
                     <StatusTag e={e} />
                     {det && <span className={ui.tag.replace('whitespace-nowrap', 'whitespace-normal') + ' mt-1 block w-fit ' + DETENTION_TAG[det.level]}>{det.text}</span>}
                   </td>
-                  {/* Assign dock only for trucks still on site without a dock. */}
-                  <td className="no-print whitespace-nowrap px-2.5 py-2.5">
-                    {e.dockDoor ? (
-                      <span className="font-semibold">Dock {e.dockDoor}</span>
-                    ) : e.timeOut ? (
-                      <Dash />
-                    ) : (
-                      <AssignDock entry={e} occupied={occupied} onAssignDock={onAssignDock} compact />
-                    )}
-                  </td>
-                  <td className="no-print whitespace-nowrap px-2.5 py-2.5">
-                    {/* Always shows "Options"; picking a choice runs it and the select snaps back. */}
-                    <select
-                      aria-label={`Options for ${e.truckName} ${e.trailerNumber}`}
-                      value=""
-                      onChange={(ev) => {
-                        const choice = ev.target.value
-                        if (choice === 'checkout') onCheckOut(e)
-                        else if (choice === 'edit') onEdit(e)
-                        else if (choice === 'delete' && window.confirm(`Delete entry for ${e.truckName}?`)) onDelete(e.id)
-                      }}
-                      className="w-24 cursor-pointer rounded-md border border-line bg-panel px-2 py-1.5 text-[14px] font-semibold text-ink"
-                    >
-                      <option value="" disabled>
-                        Options
-                      </option>
-                      <option value="checkout">{e.timeOut ? 'Edit Check Out' : 'Check Out'}</option>
-                      <option value="edit">Edit Check In</option>
-                      <option value="delete">Delete</option>
-                    </select>
-                  </td>
+                  <td className="no-print whitespace-nowrap px-2.5 py-2.5">{dockCell(e)}</td>
+                  <td className="no-print whitespace-nowrap px-2.5 py-2.5">{optionsSelect(e)}</td>
                 </tr>
                 )
               })

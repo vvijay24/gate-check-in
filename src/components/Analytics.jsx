@@ -48,7 +48,7 @@ function Toolbar({ from, to, today, preset, onPreset, onRange, days, exportButto
   const dateCls = 'min-h-11 rounded-md border-2 border-line bg-panel px-2 text-ink'
   const close = () => custom.current && (custom.current.open = false)
   return (
-    <div className="no-print flex flex-wrap items-center gap-x-4 gap-y-2 rounded-[10px] border border-line bg-panel p-2.5">
+    <div className="no-print flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl bg-panel shadow-card p-2.5">
       <div role="group" aria-label="Date range" className="flex flex-wrap items-center gap-2">
         {PRESETS.map((n) => (
           <button key={n} type="button" aria-pressed={preset === n} onClick={() => onPreset(n)} className={seg(preset === n)}>
@@ -66,7 +66,7 @@ function Toolbar({ from, to, today, preset, onPreset, onRange, days, exportButto
             {shortDate(from)} → {shortDate(to)} <span aria-hidden="true">▾</span>
             <span className="sr-only">, choose custom dates</span>
           </summary>
-          <div className="absolute left-0 z-20 mt-1.5 flex flex-wrap items-end gap-2 rounded-[10px] border border-line bg-panel p-3 shadow-lg">
+          <div className="absolute left-0 z-20 mt-1.5 flex flex-wrap items-end gap-2 rounded-xl bg-panel shadow-raised p-3 shadow-lg">
             <label className="text-sm font-semibold text-muted">
               <span className="block">From</span>
               <input type="date" value={from} max={to} onChange={(ev) => ev.target.value && onRange(ev.target.value, to)} className={dateCls} />

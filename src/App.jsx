@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import GuardForm from './components/GuardForm'
 import CheckOutPicker from './components/CheckOutPicker'
 import EntryLog from './components/EntryLog'
 import ShippingDashboard from './components/ShippingDashboard'
 import { DockBoard } from './components/Dashboard'
 import Messages, { ChatButton } from './components/Messages'
+import Toast from './components/Toast'
 import Analytics, { RAIL_PAD } from './components/Analytics'
 import { makeSampleEntries } from './sampleData'
 import { takenBays } from './metrics'
@@ -50,10 +51,21 @@ export default function App() {
   // releasing the truck while the guard has it open).
   const [editingId, setEditingId] = useState(null)
   const editing = editingId ? (entries.find((e) => e.id === editingId) ?? null) : null
-  const [notice, setNotice] = useState('')
+  // The latest pop-up message: { text, tone: 'ok' | 'fail', id }. Shown for 3 seconds.
+  const [notice, setNotice] = useState(null)
+  const notify = (text, tone = 'ok') => setNotice({ text, tone, id: Date.now() })
   const [storageError, setStorageError] = useState(false)
   const [clock, setClock] = useState(timeNow)
   const [tab, setTab] = useState('gate')
+  // The header turns translucent once the page scrolls.
+  const [scrolled, setScrolled] = useState(false)
+  useEffect(() => {
+    const on = () => setScrolled(window.scrollY > 4)
+    on()
+    window.addEventListener('scroll', on, { passive: true })
+    return () => window.removeEventListener('scroll', on)
+  }, [])
+
   // The demo Shipping chat: opened from the header on the Gate and Shipping tabs.
   const [chatOpen, setChatOpen] = useState(false)
   const chatTab = tab === 'gate' || tab === 'shipping'
@@ -90,7 +102,7 @@ export default function App() {
 
   useEffect(() => {
     if (!notice) return
-    const t = setTimeout(() => setNotice(''), 3000)
+    const t = setTimeout(() => setNotice(null), 3200)
     return () => clearTimeout(t)
   }, [notice])
 
@@ -126,7 +138,7 @@ export default function App() {
         ),
       )
       setEditingId(null)
-      setNotice(checkedOut ? `Checked out ${entry.truckName} — trailer ${entry.trailerNumber}` : `Updated entry for ${entry.truckName}`)
+      notify(checkedOut ? `Checked out ${entry.truckName} — trailer ${entry.trailerNumber}` : `Updated entry for ${entry.truckName}`)
     } else {
       // The form shows its own "Check In Confirmed" banner, so no page notice here.
       setEntries((list) => [{ ...form, id: crypto.randomUUID(), createdAt: Date.now() }, ...list])
@@ -158,7 +170,7 @@ export default function App() {
   const handleAssignDock = (id, dockDoor) => {
     setEntries((list) => list.map((e) => (e.id === id ? { ...e, dockDoor, dockAssignedAt: Date.now() } : e)))
     const entry = entries.find((e) => e.id === id)
-    setNotice(`Trailer ${entry?.trailerNumber ?? ''} assigned to dock ${dockDoor}`)
+    notify(`Trailer ${entry?.trailerNumber ?? ''} assigned to dock ${dockDoor}`)
   }
 
   // Saves the Loading Inspection on the entry; the applied seal fills Outgoing Seals # if it's still empty.
@@ -172,10 +184,11 @@ export default function App() {
       ),
     )
     const trailer = entries.find((e) => e.id === id)?.trailerNumber ?? ''
-    setNotice(
+    notify(
       loadingInspection.result === 'Pass'
         ? `Inspection passed · trailer ${trailer} sent to Shipping for release`
         : `Inspection failed for trailer ${trailer} · re-check needed before it can leave`,
+      loadingInspection.result === 'Pass' ? 'ok' : 'fail',
     )
   }
 
@@ -195,8 +208,18 @@ export default function App() {
       ),
     )
     const trailer = entries.find((e) => e.id === id)?.trailerNumber ?? ''
-    setNotice(`Trailer ${trailer} released to the gate`)
+    notify(`Trailer ${trailer} released to the gate`)
   }
+
+  // Carrier names used before, most frequent first, for the Gate form's suggestions.
+  const carriers = useMemo(() => {
+    const count = new Map()
+    for (const e of entries) {
+      const name = String(e.truckName ?? '').trim()
+      if (name) count.set(name, (count.get(name) ?? 0) + 1)
+    }
+    return [...count].sort((a, b) => b[1] - a[1]).map(([name]) => name)
+  }, [entries])
 
   // Tab badges: what's waiting for each team.
   const badges = { shipping: entries.filter(awaitingRelease).length, gate: entries.filter(isReleased).length }
@@ -207,11 +230,11 @@ export default function App() {
   const handleLoadSample = () => {
     const samples = makeSampleEntries()
     setEntries((list) => [...samples, ...list.filter((e) => !e.sample)].sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0)))
-    setNotice(`Loaded ${samples.length} sample visits from the last two weeks`)
+    notify(`Loaded ${samples.length} sample visits from the last two weeks`)
   }
   const handleRemoveSample = () => {
     setEntries((list) => list.filter((e) => !e.sample))
-    setNotice('Removed the sample visits')
+    notify('Removed the sample visits')
   }
   const sampleCount = entries.filter((e) => e.sample).length
 
@@ -222,69 +245,72 @@ export default function App() {
 
   return (
     <>
-      <header ref={headerRef} className="on-chrome sticky top-0 z-10 border-b-[6px] border-signal bg-chrome text-white">
-        <div className="mx-auto flex max-w-[1400px] flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 sm:px-5">
-          <h1 className="font-display text-[22px] leading-none font-bold whitespace-nowrap sm:text-[28px]">Gate Check In</h1>
+      {/* Slim header: the title, tabs, chat and clock on one row on wide screens (tabs wrap to a second
+          row on phones). Once the page scrolls it turns translucent with a soft shadow. */}
+      <header
+        ref={headerRef}
+        className={
+          'on-chrome sticky top-0 z-20 border-b border-white/10 text-white transition-[background-color,box-shadow] duration-200 ' +
+          (scrolled ? 'bg-chrome/85 shadow-[0_10px_28px_-14px_rgb(0_0_0/0.7)] backdrop-blur-md' : 'bg-chrome')
+        }
+      >
+        <div className="mx-auto flex max-w-[1400px] flex-wrap items-center gap-x-5 gap-y-1 px-4 pt-2 sm:px-5 lg:flex-nowrap lg:py-2">
+          <h1 className="font-display text-[22px] leading-none font-bold whitespace-nowrap sm:text-[26px]">Gate Check In</h1>
+          {/* Scrolls sideways rather than wrapping if the tabs still don't fit. */}
+          <nav role="tablist" className="no-print order-last -mx-1 flex w-full gap-1 overflow-x-auto px-1 pb-2 lg:order-none lg:w-auto lg:pb-0">
+            {TABS.map((t) => (
+              <button
+                key={t.id}
+                role="tab"
+                id={`tab-${t.id}`}
+                aria-selected={tab === t.id}
+                aria-controls={`panel-${t.id}`}
+                onClick={() => setTab(t.id)}
+                className={
+                  'min-h-11 shrink-0 cursor-pointer rounded-full px-2.5 font-display text-[17px] font-semibold whitespace-nowrap transition-colors sm:px-4 sm:text-[19px] ' +
+                  (tab === t.id ? 'bg-signal text-signal-ink' : 'text-rail-text hover:bg-white/10 hover:text-white')
+                }
+              >
+                {t.short ? (
+                  <>
+                    <span className="sm:hidden">{t.short}</span>
+                    <span className="hidden sm:inline">{t.label}</span>
+                  </>
+                ) : (
+                  t.label
+                )}
+                {badges[t.id] > 0 && (
+                  <span
+                    className={
+                      'ml-1 inline-flex min-w-5 items-center justify-center rounded-full px-1 align-middle font-body text-[12px] font-bold tabular-nums sm:ml-1.5 sm:min-w-6 sm:px-1.5 sm:text-[13px] ' +
+                      (tab === t.id ? 'bg-chrome text-white' : 'bg-signal text-signal-ink')
+                    }
+                  >
+                    {badges[t.id]}
+                    <span className="sr-only"> {badgeWords[t.id]}</span>
+                  </span>
+                )}
+              </button>
+            ))}
+          </nav>
           {/* ml-auto keeps the chat and clock on the right. */}
           <div className="ml-auto flex items-center gap-2.5 sm:gap-4">
             {chatTab && <ChatButton open={chatOpen} onToggle={() => setChatOpen((o) => !o)} />}
-            <span className="font-display text-[20px] font-semibold whitespace-nowrap text-signal sm:text-2xl">{clock}</span>
+            <span className="font-display text-[20px] font-semibold whitespace-nowrap text-signal sm:text-[22px]">{clock}</span>
           </div>
         </div>
-        {/* Scrolls sideways rather than wrapping if the tabs still don't fit. */}
-        <nav role="tablist" className="no-print mx-auto flex max-w-[1400px] gap-1 overflow-x-auto px-4 sm:gap-1.5 sm:px-5">
-          {TABS.map((t) => (
-            <button
-              key={t.id}
-              role="tab"
-              id={`tab-${t.id}`}
-              aria-selected={tab === t.id}
-              aria-controls={`panel-${t.id}`}
-              onClick={() => setTab(t.id)}
-              className={
-                'min-h-[52px] shrink-0 cursor-pointer rounded-t-lg px-2 font-display text-[17px] font-semibold whitespace-nowrap sm:px-[18px] sm:text-[21px] ' +
-                (tab === t.id ? 'bg-signal text-signal-ink' : 'text-[#C9D0D5] hover:text-white')
-              }
-            >
-              {t.short ? (
-                <>
-                  <span className="sm:hidden">{t.short}</span>
-                  <span className="hidden sm:inline">{t.label}</span>
-                </>
-              ) : (
-                t.label
-              )}
-              {badges[t.id] > 0 && (
-                <span
-                  className={
-                    'ml-1 inline-flex min-w-5 items-center justify-center rounded-full px-1 align-middle font-body text-[12px] font-bold tabular-nums sm:ml-2 sm:min-w-6 sm:px-1.5 sm:text-[13px] ' +
-                    (tab === t.id ? 'bg-chrome text-white' : 'bg-signal text-signal-ink')
-                  }
-                >
-                  {badges[t.id]}
-                  <span className="sr-only"> {badgeWords[t.id]}</span>
-                </span>
-              )}
-            </button>
-          ))}
-        </nav>
       </header>
 
+      <Toast notice={notice} onClose={() => setNotice(null)} />
+
       <main className="mx-auto max-w-[1400px] space-y-5 px-4 py-5 sm:px-5">
-        {/* On the Overview the notices clear its fixed left rail, like the section content does. */}
-        {(storageError || notice) && (
-          <div className={'space-y-5' + (tab === 'analytics' ? ' ' + RAIL_PAD : '')}>
-            {storageError && (
-              <div role="alert" className="no-print rounded-md border-l-[6px] border-danger bg-danger-soft px-4 py-3 font-semibold text-danger">
-                Browser storage is full — the latest changes are NOT saved and will be lost when this page closes. Delete
-                old entries to free up space.
-              </div>
-            )}
-            {notice && (
-              <div role="status" className="no-print rounded-md border-l-[6px] border-signal-line bg-panel px-4 py-3 font-semibold text-ok">
-                {notice}
-              </div>
-            )}
+        {/* Storage trouble stays on the page (a pop-up would vanish); on the Overview it clears the rail. */}
+        {storageError && (
+          <div className={tab === 'analytics' ? RAIL_PAD : ''}>
+            <div role="alert" className="no-print rounded-md border-l-[6px] border-danger bg-danger-soft px-4 py-3 font-semibold text-danger">
+              Browser storage is full — the latest changes are NOT saved and will be lost when this page closes. Delete
+              old entries to free up space.
+            </div>
           </div>
         )}
 
@@ -327,6 +353,8 @@ export default function App() {
                 takenBays={takenBays(entries)}
                 onSave={handleSave}
                 onCancel={editing ? () => setEditingId(null) : undefined}
+                active={tab === 'gate'}
+                carriers={carriers}
               />
             )}
           </div>

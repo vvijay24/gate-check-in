@@ -141,14 +141,27 @@ function StatusPanel({ entry, issues, answered, total, now }) {
       {/* Pass / Fail is given only once every required field is answered; until then, problems
           already found are listed without calling the result. */}
       {done ? (
-        <div role="status" className={'rounded-lg border-l-[6px] px-4 py-3 ' + (fail ? 'border-danger bg-danger-soft' : 'border-ok bg-ok-soft')}>
-          <div className={'font-display text-[22px] leading-tight font-bold ' + (fail ? 'text-danger' : 'text-ok')}>
-            {fail ? '⚠ Result: Fail' : '✓ Result: Pass'}
+        // The result pops in with its mark drawing itself; keyed on the result so a change replays it.
+        <div
+          key={fail ? 'fail' : 'pass'}
+          role="status"
+          className={'pop-in flex items-start gap-3 rounded-xl px-4 py-3 ' + (fail ? 'bg-danger-soft' : 'bg-ok-soft')}
+        >
+          <svg width="40" height="40" viewBox="0 0 30 30" aria-hidden="true" className="shrink-0">
+            <circle cx="15" cy="15" r="14" fill={fail ? 'var(--color-danger)' : 'var(--color-ok)'} />
+            {fail ? (
+              <path className="draw" d="M10 10 L20 20 M20 10 L10 20" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" />
+            ) : (
+              <path className="draw" d="M8.5 15.5 L13 20 L21.5 10.5" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+            )}
+          </svg>
+          <div className="min-w-0">
+            <div className={'font-display text-[24px] leading-tight font-bold ' + (fail ? 'text-danger' : 'text-ok')}>{fail ? 'Result: Fail' : 'Result: Pass'}</div>
+            {fail ? issueList : <p className="text-sm">Every check passed. Save to send it to Shipping.</p>}
           </div>
-          {fail && issueList}
         </div>
       ) : (
-        <div role="status" className={'rounded-lg border border-l-[6px] border-line px-4 py-3 ' + (fail ? 'border-l-danger' : 'border-l-line')}>
+        <div role="status" className={'rounded-xl border-l-[6px] bg-panel px-4 py-3 shadow-card ' + (fail ? 'border-l-danger' : 'border-l-line')}>
           <div className="font-display text-[19px] leading-tight font-bold text-muted">Result: shown when the inspection is complete</div>
           {fail ? (
             <>
@@ -161,27 +174,44 @@ function StatusPanel({ entry, issues, answered, total, now }) {
         </div>
       )}
 
-      <div className="rounded-lg border border-line px-4 py-3">
-        <div className="flex items-baseline justify-between gap-2 text-sm font-semibold">
-          <span>Required answered</span>
-          <span className="tabular-nums">
+      {/* Progress ring: required answers so far, green when all are in. */}
+      <div
+        className="flex items-center gap-4 rounded-xl bg-panel px-4 py-3 shadow-card"
+        role="progressbar"
+        aria-label="Required fields answered"
+        aria-valuemin={0}
+        aria-valuemax={total}
+        aria-valuenow={answered}
+      >
+        <svg width="64" height="64" viewBox="0 0 64 64" aria-hidden="true" className="shrink-0">
+          <circle cx="32" cy="32" r="26" fill="none" stroke="var(--color-track)" strokeWidth="7" />
+          <circle
+            cx="32"
+            cy="32"
+            r="26"
+            fill="none"
+            stroke={done ? 'var(--color-ok)' : 'var(--color-signal)'}
+            strokeWidth="7"
+            strokeLinecap="round"
+            strokeDasharray={`${(answered / total) * 163.4} 163.4`}
+            transform="rotate(-90 32 32)"
+            style={{ transition: 'stroke-dasharray 0.3s ease' }}
+          />
+          <text x="32" y="37" textAnchor="middle" fontSize="15" fontWeight="700" fill="var(--color-ink)">
+            {Math.round((answered / total) * 100)}%
+          </text>
+        </svg>
+        <div className="text-sm">
+          <div className="font-semibold">Required answered</div>
+          <div className="text-muted tabular-nums">
             {answered} of {total}
-          </span>
-        </div>
-        <div
-          className="mt-1.5 h-2.5 overflow-hidden rounded bg-track"
-          role="progressbar"
-          aria-label="Required fields answered"
-          aria-valuemin={0}
-          aria-valuemax={total}
-          aria-valuenow={answered}
-        >
-          <div className={'h-full rounded-r ' + (done ? 'bg-ok' : 'bg-ink')} style={{ width: `${(answered / total) * 100}%` }} />
+            {done ? ' · all in' : ` · ${total - answered} to go`}
+          </div>
         </div>
       </div>
 
       {/* Inspection time counts toward detention, so show how long the truck has been here. */}
-      <div className="rounded-lg border border-line px-4 py-3 text-sm">
+      <div className="rounded-xl bg-panel px-4 py-3 text-sm shadow-card">
         <div className="font-semibold">On site {duration(now - arrivalMs(entry))}</div>
         {det ? (
           <span className={ui.tag + ' mt-1 ' + DETENTION_TAG[det.level]}>{det.text}</span>
@@ -243,7 +273,33 @@ function InspectionForm({ entry, onSave, onCancel, onChangeTruck }) {
       error={errors[props.name]}
     />
   )
-  const check = (c) => field({ ...c, type: 'choice', options: YES_NO, dangerOptions: ['No'] })
+  // A checklist row: its mark shows the answer (✓ Yes, ✕ No, empty circle while unanswered).
+  const check = (c) => {
+    const v = form[c.name]
+    const mark = (
+      <span
+        aria-hidden="true"
+        className={
+          'inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[13px] font-bold ' +
+          (v === 'Yes' ? 'bg-ok text-panel' : v === 'No' ? 'bg-danger text-panel' : 'ring-2 ring-line')
+        }
+      >
+        {v === 'Yes' ? '✓' : v === 'No' ? '✕' : ''}
+      </span>
+    )
+    return field({
+      ...c,
+      label: (
+        <span className="inline-flex items-center gap-2 align-middle text-ink">
+          {mark}
+          {c.label}
+        </span>
+      ),
+      type: 'choice',
+      options: YES_NO,
+      dangerOptions: ['No'],
+    })
+  }
 
   const timeField = (name, label) => (
     <div key={name} className="flex min-w-0 flex-col gap-1">
@@ -379,7 +435,7 @@ export default function LoadingInspection({ atDock, selectedId, onSelect, onSave
   const changeTruck = () => document.getElementById('at-the-docks')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
 
   return (
-    <section id="loading-inspection" className="scroll-mt-[calc(var(--header-h,114px)+16px)] rounded-[10px] border border-line bg-panel p-5">
+    <section id="loading-inspection" className="scroll-mt-[calc(var(--header-h,114px)+16px)] rounded-xl bg-panel shadow-card p-5">
       <h2 className="font-display text-[26px] leading-tight font-bold">Loading Inspection</h2>
       {entry ? (
         <div className="mt-4">

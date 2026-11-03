@@ -6,6 +6,10 @@
   --font-body: "Barlow", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   --font-display: "Barlow Condensed", "Arial Narrow", "Roboto Condensed", sans-serif;
 
+  /* Cards sit on soft shadows instead of outlines (an outline is added in dark mode, below). */
+  --shadow-card: 0 1px 2px rgb(16 24 32 / 0.06), 0 6px 18px -6px rgb(16 24 32 / 0.12);
+  --shadow-raised: 0 2px 6px rgb(16 24 32 / 0.08), 0 16px 40px -12px rgb(16 24 32 / 0.28);
+
   --color-page: #eceeef;
   --color-panel: #ffffff;
   --color-ink: #1b1e21;
@@ -14,9 +18,12 @@
   --color-field: #f5f6f7;
   --color-chrome: #1b1e21;
   --color-signal-ink: #1b1e21;
-  --color-signal: #FFE8A3;
-  /* The accent as a thin line (focus ring, selected tile, active filter, warning edge). The pale fill
-     above is only 1.2:1 on white, so lines use this deeper amber (4.9:1 on white, 3.7:1 on asphalt). */
+  /* Safety amber: the one accent, for primary buttons and active states (8.2:1 with signal-ink).
+     `signal-soft` tints status tags and tiles, read with the normal ink. */
+  --color-signal: #f5a524;
+  --color-signal-soft: #fdf0d5;
+  /* The accent as a thin line (focus ring, selected tile, active filter, warning edge). The amber fill
+     above is only 2:1 on white, so lines use this deeper amber (4.9:1 on white, 3.7:1 on asphalt). */
   --color-signal-line: #9a6700;
 
   --color-delivery: #1f6fb2;
@@ -98,7 +105,11 @@
     --color-muted: #9aa3aa;
     --color-line: #343b42;
     --color-field: #181c20;
-    --color-signal-line: #ffe8a3;
+    --color-signal-line: #f7c35f;
+    --color-signal: #f2b33d;
+    --color-signal-soft: #3d3119;
+    --shadow-card: 0 0 0 1px var(--color-line), 0 8px 20px -8px rgb(0 0 0 / 0.5);
+    --shadow-raised: 0 0 0 1px var(--color-line), 0 18px 44px -12px rgb(0 0 0 / 0.7);
     --color-delivery: #5ca4e3;
     --color-delivery-soft: #1c2c3b;
     --color-pickup: #5bbf86;
@@ -155,7 +166,11 @@
   --color-muted: #9aa3aa;
   --color-line: #343b42;
   --color-field: #181c20;
-  --color-signal-line: #ffe8a3;
+  --color-signal-line: #f7c35f;
+  --color-signal: #f2b33d;
+  --color-signal-soft: #3d3119;
+  --shadow-card: 0 0 0 1px var(--color-line), 0 8px 20px -8px rgb(0 0 0 / 0.5);
+  --shadow-raised: 0 0 0 1px var(--color-line), 0 18px 44px -12px rgb(0 0 0 / 0.7);
   --color-delivery: #5ca4e3;
   --color-delivery-soft: #1c2c3b;
   --color-pickup: #5bbf86;
@@ -234,6 +249,27 @@ body {
 /* A tapped rig glows instead (YardMap), so no browser box around it after a click. */
 .yard-unit:focus { outline: none; }
 .yard-unit:focus-visible .ring { stroke: var(--color-signal-line); stroke-dasharray: none; stroke-width: 4; }
+
+/* Pop-up message: slides down into place; its check or cross draws itself. Off with reduced motion. */
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(-10px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes draw-stroke {
+  to { stroke-dashoffset: 0; }
+}
+@keyframes pop-in {
+  0% { opacity: 0; transform: scale(0.9); }
+  60% { opacity: 1; transform: scale(1.03); }
+  100% { transform: none; }
+}
+.toast-in { animation: toast-in 0.25s ease-out; }
+.draw { stroke-dasharray: 30; stroke-dashoffset: 30; animation: draw-stroke 0.45s 0.15s ease-out forwards; }
+.pop-in { animation: pop-in 0.35s ease-out; }
+@media (prefers-reduced-motion: reduce) {
+  .toast-in, .pop-in { animation: none; }
+  .draw { animation: none; stroke-dashoffset: 0; }
+}
 
 @media print {
   .no-print { display: none !important; }
