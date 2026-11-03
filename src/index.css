@@ -79,6 +79,9 @@
   --color-iso-tree: #6a8f5c;
   --color-iso-tree-dark: #4d7344;
   --color-iso-shadow: rgb(20 28 36 / 0.28);
+  --color-iso-night: #1a2a52;
+  --color-iso-dusk: #ffae73;
+  --color-iso-glow: #ffc561;
   --color-paint-1: #b8352a;
   --color-paint-2: #d97b29;
   --color-paint-3: #4d555d;
@@ -139,6 +142,10 @@
     --color-iso-tree: #3b5a36;
     --color-iso-tree-dark: #2a4227;
     --color-iso-shadow: rgb(0 0 0 / 0.45);
+    --color-iso-night: #0a1226;
+    --color-iso-dusk: #ff9a5c;
+    --color-iso-glow: #ffbf4d;
+    --iso-tint: 0.55;
   }
 }
 :root[data-theme="dark"] {
@@ -192,6 +199,15 @@
   --color-iso-tree: #3b5a36;
   --color-iso-tree-dark: #2a4227;
   --color-iso-shadow: rgb(0 0 0 / 0.45);
+  --color-iso-night: #0a1226;
+  --color-iso-dusk: #ff9a5c;
+  --color-iso-glow: #ffbf4d;
+  --iso-tint: 0.55;
+}
+
+/* How strongly the yard map's night and dusk wash applies (lower in dark mode, set above). */
+:root {
+  --iso-tint: 1;
 }
 
 body {

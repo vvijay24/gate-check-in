@@ -29,14 +29,13 @@ export const RIG_W = 9
 export const RIG_L = 49
 export const DOCK_WY = 0.6
 export const BAY_WY = 84
-export const GATE_WX = [44, 136]
+// Gates sit at the lot's two edges, so trucks run in along the left side and out along the right.
+export const GATE_WX = [10, 170]
+const GATE_HALF = 8
+export const SHACK = { x: 22, y: 160 }
 const BAY_FRONT = BAY_WY + RIG_L + 3
 
 // Text laid on a face or on the ground: the matrix maps the text's x axis onto the face.
-const ON_X_FACE = (x, y, z) => {
-  const [sx, sy] = P(x, y, z)
-  return `matrix(1 -0.5 0 1 ${r1(sx)} ${r1(sy)})`
-}
 const ON_Y_FACE = (x, y, z) => {
   const [sx, sy] = P(x, y, z)
   return `matrix(1 0.5 0 1 ${r1(sx)} ${r1(sy)})`
@@ -79,19 +78,6 @@ const FrontQuad = ({ x, y, w, z, h, ...rest }) => (
   <polygon points={pts([[x, y, z], [x + w, y, z], [x + w, y, z + h], [x, y, z + h]])} {...rest} />
 )
 
-// A wheel on the +x side: a disc in the plane x, centered at (y, z).
-function Wheel({ x, y, z = 1.7, r = 1.7 }) {
-  const [sx, sy] = P(x, y, z)
-  const m = `matrix(1 -0.5 0 1 ${r1(sx)} ${r1(sy)})`
-  return (
-    <g transform={m}>
-      <circle r={r * C} fill="var(--color-iso-tire)" />
-      <circle r={r * C * 0.5} fill="var(--color-iso-steel)" />
-      <circle r={r * C * 0.18} fill="var(--color-iso-tire)" />
-    </g>
-  )
-}
-
 // Carrier paint: the same carrier always gets the same color (no real logos or liveries).
 // Written out in full: Tailwind only keeps theme variables it finds spelled out in the source.
 const PAINTS = [
@@ -132,105 +118,209 @@ function GlowFilters({ motion }) {
 
 const short = (s, n) => (s && s.length > n ? s.slice(0, n - 1) + '…' : s || '')
 
-// One rig drawn at the origin: trailer from y = 0 (rear, at the dock) to y = 34, tractor in front facing
-// +y. `drop` draws the trailer alone on its landing gear; `reefer` adds the refrigeration unit.
-// `glow` (selected) surrounds the rig with a glow in its carrier's paint.
-export function Rig({ carrier, trailerNumber, drop, reefer, glow }) {
-  const paint = paintOf(carrier)
-  const T = { x: 0, y: 0, z: 4.2, w: RIG_W, d: 34, h: 9.4 }
-  const tx = T.x + T.w
-  const name = short(String(carrier || '').toUpperCase(), 15)
-  return (
-    <g>
-      {/* Shadow, cast toward the lower left by light from the upper right. */}
-      <Ground x={-3} y={1} w={RIG_W + 2} d={drop ? 36 : RIG_L} fill="var(--color-iso-shadow)" filter="url(#iso-soft)" />
-      <g filter={glow ? `url(#iso-glow-${paint.index})` : undefined}>
+// A rig in its own frame: `a` runs along it from the trailer's rear (0) to the tractor's bumper (49),
+// `c` across it (0..9), `z` up. `heading` places that frame in the world with the cab facing
+// S (+y, toward the viewer's lower left: how trucks park), N (-y), E (+x) or W (-x); the rig then
+// fills [0, 9] × [0, 49] (S, N) or [0, 49] × [0, 9] (E, W) from the origin. The c = 9 side is always
+// the long side the viewer sees, so wheels and lettering go there; the cab front shows for S and E,
+// the trailer's rear doors for N and W.
+const RIG_FRAME = {
+  S: (a, c, z) => [c, a, z],
+  N: (a, c, z) => [c, RIG_L - a, z],
+  E: (a, c, z) => [a, c, z],
+  W: (a, c, z) => [RIG_L - a, c, z],
+}
+// Where a rig of this heading centered at (cx, cy) has its origin.
+export const rigOrigin = (heading, cx, cy) =>
+  heading === 'E' || heading === 'W' ? [cx - RIG_L / 2, cy - RIG_W / 2] : [cx - RIG_W / 2, cy - RIG_L / 2]
 
-      {/* Trailer underframe and rear tandem. */}
-      <Box x={1} y={0.5} z={2.6} w={7} d={33} h={1.6} color="var(--color-iso-tire)" shade={false} />
-      <Wheel x={tx - 0.2} y={4} />
-      <Wheel x={tx - 0.2} y={7.6} />
+function rigKit(heading) {
+  const map = RIG_FRAME[heading] ?? RIG_FRAME.S
+  const frontShows = heading === 'S' || heading === 'E'
+  // The visible long side is the plane x = 9 (S, N) or y = 9 (E, W).
+  const sideIsX = heading === 'S' || heading === 'N'
+  const quad = (corners, props) => <polygon points={pts(corners.map(([a, c, z]) => map(a, c, z)))} {...props} />
+  const box = (a0, a1, c0, c1, z, h, props) => {
+    const [x0, y0] = map(a0, c0, 0)
+    const [x1, y1] = map(a1, c1, 0)
+    return <Box x={Math.min(x0, x1)} y={Math.min(y0, y1)} z={z} w={Math.abs(x1 - x0)} d={Math.abs(y1 - y0)} h={h} {...props} />
+  }
+  // On the long side (c = cs): a quad spanning a0..a1 and z0..z1, a vertical line, a wheel, lettering.
+  const side = (a0, a1, z0, z1, props, cs = RIG_W) => quad([[a0, cs, z0], [a1, cs, z0], [a1, cs, z1], [a0, cs, z1]], props)
+  const sideLine = (key, a, z0, z1, props) => <polyline key={key} points={pts([map(a, RIG_W, z0), map(a, RIG_W, z1)])} {...props} />
+  const planeMatrix = (x, y, z) => {
+    const [sx, sy] = P(x, y, z)
+    return `matrix(1 ${sideIsX ? -0.5 : 0.5} 0 1 ${r1(sx)} ${r1(sy)})`
+  }
+  const wheel = (a, key, r = 1.7) => {
+    const [x, y, z] = map(a, RIG_W - 0.2, r)
+    return (
+      <g key={key} transform={planeMatrix(x, y, z)}>
+        <circle r={r * C} fill="var(--color-iso-tire)" />
+        <circle r={r * C * 0.5} fill="var(--color-iso-steel)" />
+        <circle r={r * C * 0.18} fill="var(--color-iso-tire)" />
+      </g>
+    )
+  }
+  // Text along the long side between a0 and a1, reading left to right on screen whatever the heading.
+  const sideText = (a0, a1, z, text, props) => {
+    const e0 = map(a0, RIG_W, z)
+    const e1 = map(a1, RIG_W, z)
+    const start = P(...e0)[0] <= P(...e1)[0] ? e0 : e1
+    return (
+      <text transform={planeMatrix(...start)} {...props}>
+        {text}
+      </text>
+    )
+  }
+  // Faces across the rig at a fixed a (the cab front at its a1, the trailer rear at a = 0).
+  const across = (a, c0, c1, z0, z1, props) => quad([[a, c0, z0], [a, c1, z0], [a, c1, z1], [a, c0, z1]], props)
+  return { map, frontShows, box, side, sideLine, wheel, sideText, across, quad }
+}
+
+// One rig, drawn from the origin in the given `heading` (default S, parked). `drop` draws the trailer
+// alone on its landing gear; `reefer` adds the refrigeration unit; `glow` (selected) surrounds the rig
+// with a glow in its carrier's paint.
+export function Rig({ carrier, trailerNumber, drop, reefer, glow, heading = 'S' }) {
+  const paint = paintOf(carrier)
+  const k = rigKit(heading)
+  const Z = 4.2
+  const H = 9.4
+  const name = short(String(carrier || '').toUpperCase(), 15)
+  const cabLine = 'rgb(0 0 0 / 0.25)'
+  const len = drop ? 36 : RIG_L
+
+  const trailer = (
+    <g key="trailer">
+      {/* Underframe and rear tandem. */}
+      {k.box(0.5, 33.5, 1, 8, 2.6, 1.6, { color: 'var(--color-iso-tire)', shade: false })}
+      {k.wheel(4, 'w1')}
+      {k.wheel(7.6, 'w2')}
       {drop && (
         <>
           {/* Landing gear legs and sand shoes. */}
-          <Box x={6.8} y={27.6} z={0} w={0.8} d={0.8} h={4.2} color="var(--color-iso-steel)" />
-          <Box x={1.4} y={27.6} z={0} w={0.8} d={0.8} h={4.2} color="var(--color-iso-steel)" />
-          <Box x={1.2} y={27.2} z={0} w={6.6} d={1.6} h={0.4} color="var(--color-iso-tire)" />
+          {k.box(27.6, 28.4, 6.8, 7.6, 0, 4.2, { color: 'var(--color-iso-steel)' })}
+          {k.box(27.6, 28.4, 1.4, 2.2, 0, 4.2, { color: 'var(--color-iso-steel)' })}
+          {k.box(27.2, 28.8, 1.2, 7.8, 0, 0.4, { color: 'var(--color-iso-tire)', shade: false })}
         </>
       )}
-
-      {/* Trailer body with its ribs, carrier stripe and lettering. */}
-      <Box {...T} color="var(--color-iso-trailer)" line="var(--color-iso-steel)" />
-      {Array.from({ length: 12 }, (_, i) => (
-        <polyline
-          key={i}
-          points={pts([[tx, 1.4 + i * 2.8, T.z + 0.2], [tx, 1.4 + i * 2.8, T.z + T.h - 0.2]])}
-          stroke="var(--color-iso-steel)"
-          strokeWidth={0.35}
-          opacity={0.55}
-        />
-      ))}
-      <SideQuad x={tx} y={0.4} d={33.2} z={T.z + 0.6} h={1.3} fill={paint.color} />
-      <SideQuad x={tx} y={0.4} d={33.2} z={T.z + T.h - 1.2} h={0.5} fill={paint.color} opacity={0.85} />
-      <text
-        transform={ON_X_FACE(tx, 31, T.z + 4.6)}
-        fontFamily="var(--font-display)"
-        fontWeight={700}
-        fontSize={10}
-        letterSpacing={0.4}
-        fill={paint.light ? 'var(--color-iso-band)' : paint.color}
-      >
-        {name}
-      </text>
-      <text transform={ON_X_FACE(tx, 7.4, T.z + 7.4)} fontFamily="var(--font-body)" fontWeight={700} fontSize={5.2} fill="var(--color-iso-band)">
-        {short(String(trailerNumber || ''), 10)}
-      </text>
-      {/* Marker lights along the top edge. */}
-      <SideQuad x={tx} y={33} d={0.7} z={T.z + T.h - 0.5} h={0.4} fill="var(--color-paint-2)" />
-
-      {reefer && (
+      {/* Body, ribs, carrier stripe and lettering, marker lights. */}
+      {k.box(0, 34, 0, RIG_W, Z, H, { color: 'var(--color-iso-trailer)', line: 'var(--color-iso-steel)' })}
+      {Array.from({ length: 12 }, (_, i) =>
+        k.sideLine(i, 1.4 + i * 2.8, Z + 0.2, Z + H - 0.2, { stroke: 'var(--color-iso-steel)', strokeWidth: 0.35, opacity: 0.55 }),
+      )}
+      {k.side(0.4, 33.6, Z + 0.6, Z + 1.9, { fill: paint.color })}
+      {k.side(0.4, 33.6, Z + H - 1.2, Z + H - 0.7, { fill: paint.color, opacity: 0.85 })}
+      {k.sideText(31, 3, Z + 4.6, name, {
+        fontFamily: 'var(--font-display)',
+        fontWeight: 700,
+        fontSize: 10,
+        letterSpacing: 0.4,
+        fill: paint.light ? 'var(--color-iso-band)' : paint.color,
+      })}
+      {k.sideText(7.4, 1, Z + 7.4, short(String(trailerNumber || ''), 10), {
+        fontFamily: 'var(--font-body)',
+        fontWeight: 700,
+        fontSize: 5.2,
+        fill: 'var(--color-iso-band)',
+      })}
+      {k.side(33, 33.7, Z + H - 0.5, Z + H - 0.1, { fill: 'var(--color-paint-2)' })}
+      {!k.frontShows && (
         <>
-          {/* Reefer unit on the trailer nose, with its grille. */}
-          <Box x={1.3} y={34} z={7.2} w={6.4} d={1.5} h={5.8} color="var(--color-iso-chrome)" line="var(--color-iso-steel)" />
-          {[0, 1, 2, 3].map((i) => (
-            <polyline key={i} points={pts([[1.9, 35.5, 8.3 + i * 1.2], [7.1, 35.5, 8.3 + i * 1.2]])} stroke="var(--color-iso-steel)" strokeWidth={0.5} />
+          {/* Rear doors: two panels, lock bars, reflective tape and tail lights. */}
+          {k.across(0, 0.4, 4.4, Z + 0.4, Z + H - 0.4, { fill: 'var(--color-iso-trailer)', stroke: 'var(--color-iso-steel)', strokeWidth: 0.5 })}
+          {k.across(0, 4.6, 8.6, Z + 0.4, Z + H - 0.4, { fill: 'var(--color-iso-trailer)', stroke: 'var(--color-iso-steel)', strokeWidth: 0.5 })}
+          {[1.8, 3.4, 5.6, 7.2].map((c) => (
+            <polyline key={c} points={pts([k.map(0, c, Z + 0.8), k.map(0, c, Z + H - 0.8)])} stroke="var(--color-iso-steel)" strokeWidth={0.6} />
           ))}
+          {k.across(0, 0.4, 8.6, Z + 0.3, Z + 0.9, { fill: 'var(--color-paint-1)', opacity: 0.85 })}
+          {k.across(0, 0.6, 1.6, Z - 1, Z - 0.2, { fill: 'var(--color-paint-1)' })}
+          {k.across(0, 7.4, 8.4, Z - 1, Z - 0.2, { fill: 'var(--color-paint-1)' })}
         </>
       )}
+    </g>
+  )
 
-      {!drop && (
-        <g>
-          {/* Tractor frame, drive axles under the trailer nose and the steer axle. */}
-          <Box x={1.6} y={29} z={1.4} w={5.8} d={19.4} h={1.6} color="var(--color-iso-tire)" shade={false} />
-          <Wheel x={tx - 0.3} y={31.2} />
-          <Wheel x={tx - 0.3} y={34.4} />
-          <Wheel x={tx - 0.6} y={45.4} />
-          {/* Fuel tank and step under the cab. */}
-          <Box x={tx - 0.6} y={37.2} z={1.8} w={1} d={3.6} h={1.8} color="var(--color-iso-chrome)" line="var(--color-iso-steel)" />
-          {/* Cab and sleeper, roof fairing, hood. */}
-          <Box x={0.3} y={36.2} z={3} w={8.4} d={6.8} h={8.4} color={paint.color} line="rgb(0 0 0 / 0.25)" />
-          <Box x={0.9} y={36.2} z={11.4} w={7.2} d={3.6} h={1.6} color={paint.color} line="rgb(0 0 0 / 0.25)" />
-          <Box x={1} y={43} z={3} w={7} d={5.3} h={5.4} color={paint.color} line="rgb(0 0 0 / 0.25)" />
-          {/* Windshield (two panes), side window and door seam. */}
-          <FrontQuad x={0.9} y={43} w={3.3} z={8} h={3} fill="var(--color-iso-glass)" />
-          <FrontQuad x={4.8} y={43} w={3.3} z={8} h={3} fill="var(--color-iso-glass)" />
-          <FrontQuad x={1.2} y={43} w={1.2} z={10} h={0.6} fill="white" opacity={0.35} />
-          <SideQuad x={8.7} y={40.2} d={2.4} z={8} h={2.6} fill="var(--color-iso-glass)" />
-          <SideQuad x={8.7} y={39.6} d={3.2} z={3.6} h={7.4} fill="none" stroke="rgb(0 0 0 / 0.35)" strokeWidth={0.4} />
-          {/* Grille, headlights, bumper. */}
-          <FrontQuad x={2.6} y={48.3} w={3.8} z={3.6} h={4.2} fill="var(--color-iso-chrome)" />
-          {[0, 1, 2, 3, 4].map((i) => (
-            <polyline key={i} points={pts([[2.9, 48.3, 4.2 + i * 0.75], [6.1, 48.3, 4.2 + i * 0.75]])} stroke="var(--color-iso-steel)" strokeWidth={0.45} />
-          ))}
-          <FrontQuad x={1.2} y={48.3} w={1.1} z={5.4} h={1} fill="var(--color-iso-light)" />
-          <FrontQuad x={6.7} y={48.3} w={1.1} z={5.4} h={1} fill="var(--color-iso-light)" />
-          <Box x={0.6} y={48.3} z={2.2} w={7.8} d={0.8} h={1.3} color="var(--color-iso-chrome)" line="var(--color-iso-steel)" />
-          {/* Exhaust stack and mirror. */}
-          <Box x={8.1} y={35.6} z={3.5} w={0.6} d={0.6} h={11.6} color="var(--color-iso-chrome)" line="var(--color-iso-steel)" />
-          <Box x={8.9} y={42.4} z={8.2} w={0.5} d={0.4} h={1.8} color="var(--color-iso-tire)" shade={false} />
-        </g>
-      )}
-      </g>
+  const reeferUnit = reefer && (
+    <g key="reefer">
+      {k.box(34, 35.5, 1.3, 7.7, 7.2, 5.8, { color: 'var(--color-iso-chrome)', line: 'var(--color-iso-steel)' })}
+      {k.frontShows &&
+        [0, 1, 2, 3].map((i) => (
+          <polyline key={i} points={pts([k.map(35.5, 1.9, 8.3 + i * 1.2), k.map(35.5, 7.1, 8.3 + i * 1.2)])} stroke="var(--color-iso-steel)" strokeWidth={0.5} />
+        ))}
+    </g>
+  )
+
+  // Tractor parts, each with where it sits along the rig so they can be drawn back to front.
+  const tractor = drop
+    ? []
+    : [
+        [
+          32,
+          <g key="frame">
+            {k.box(29, 48.4, 1.6, 7.4, 1.4, 1.6, { color: 'var(--color-iso-tire)', shade: false })}
+            {k.wheel(31.2, 'd1')}
+            {k.wheel(34.4, 'd2')}
+            {k.wheel(45.4, 'f1')}
+            {k.box(37.2, 40.8, RIG_W - 0.6, RIG_W + 0.4, 1.8, 1.8, { color: 'var(--color-iso-chrome)', line: 'var(--color-iso-steel)' })}
+          </g>,
+        ],
+        [
+          36,
+          <g key="stack">{k.box(35.6, 36.2, 8.1, 8.7, 3.5, 11.6, { color: 'var(--color-iso-chrome)', line: 'var(--color-iso-steel)' })}</g>,
+        ],
+        [
+          39.6,
+          <g key="cab">
+            {k.box(36.2, 43, 0.3, 8.7, 3, 8.4, { color: paint.color, line: cabLine })}
+            {k.box(36.2, 39.8, 0.9, 8.1, 11.4, 1.6, { color: paint.color, line: cabLine })}
+            {/* Side window, door seam and mirror. */}
+            {k.side(40.2, 42.6, 8, 10.6, { fill: 'var(--color-iso-glass)' }, 8.7)}
+            {k.side(39.6, 42.8, 3.6, 11, { fill: 'none', stroke: 'rgb(0 0 0 / 0.35)', strokeWidth: 0.4 }, 8.7)}
+            {k.box(42.4, 42.8, 8.9, 9.4, 8.2, 1.8, { color: 'var(--color-iso-tire)', shade: false })}
+            {k.frontShows && (
+              <>
+                {/* Two-pane windshield with a glint. */}
+                {k.across(43, 0.9, 4.2, 8, 11, { fill: 'var(--color-iso-glass)' })}
+                {k.across(43, 4.8, 8.1, 8, 11, { fill: 'var(--color-iso-glass)' })}
+                {k.across(43, 1.2, 2.4, 10, 10.6, { fill: 'white', opacity: 0.35 })}
+              </>
+            )}
+          </g>,
+        ],
+        [
+          45.6,
+          <g key="hood">
+            {k.box(43, 48.3, 1, 8, 3, 5.4, { color: paint.color, line: cabLine })}
+            {k.frontShows && (
+              <>
+                {/* Grille, headlights. */}
+                {k.across(48.3, 2.6, 6.4, 3.6, 7.8, { fill: 'var(--color-iso-chrome)' })}
+                {[0, 1, 2, 3, 4].map((i) => (
+                  <polyline key={i} points={pts([k.map(48.3, 2.9, 4.2 + i * 0.75), k.map(48.3, 6.1, 4.2 + i * 0.75)])} stroke="var(--color-iso-steel)" strokeWidth={0.45} />
+                ))}
+                {k.across(48.3, 1.2, 2.3, 5.4, 6.4, { fill: 'var(--color-iso-light)' })}
+                {k.across(48.3, 6.7, 7.8, 5.4, 6.4, { fill: 'var(--color-iso-light)' })}
+              </>
+            )}
+          </g>,
+        ],
+        [48.7, <g key="bumper">{k.box(48.3, 49.1, 0.6, 8.4, 2.2, 1.3, { color: 'var(--color-iso-chrome)', line: 'var(--color-iso-steel)' })}</g>],
+      ]
+
+  // Back to front: rising `a` when the cab faces the viewer (S, E), falling when it faces away (N, W).
+  const parts = [[17, trailer], [34.7, reeferUnit], ...tractor].filter(([, el]) => el)
+  parts.sort((p, q) => (k.frontShows ? p[0] - q[0] : q[0] - p[0]))
+
+  // Shadow: the rig's footprint, nudged toward the lower left.
+  const [ox0, oy0] = k.map(0, 0, 0)
+  const [ox1, oy1] = k.map(len, RIG_W, 0)
+  const fx = Math.min(ox0, ox1)
+  const fy = Math.min(oy0, oy1)
+  return (
+    <g>
+      <Ground x={fx - 3} y={fy + 1} w={Math.abs(ox1 - ox0) + 2} d={Math.abs(oy1 - oy0)} fill="var(--color-iso-shadow)" filter="url(#iso-soft)" />
+      <g filter={glow ? `url(#iso-glow-${paint.index})` : undefined}>{parts.map(([, el]) => el)}</g>
     </g>
   )
 }
@@ -272,12 +362,13 @@ function Tree({ x, y, s = 1 }) {
   )
 }
 
+// Pole with a lamp (its light pool after dark is drawn by NightLights).
 function LightPole({ x, y }) {
   return (
     <g>
       <Box x={x} y={y} z={0} w={0.6} d={0.6} h={24} color="var(--color-iso-steel)" />
-      <Box x={x - 2.4} y={y - 0.2} z={24} w={3.2} d={1} h={0.8} color="var(--color-iso-band)" />
-      <FrontQuad x={x - 2.2} y={y + 0.8} w={2.8} z={24} h={0.3} fill="var(--color-iso-light)" />
+      <Box x={x - 0.4} y={y - 0.2} z={24} w={4} d={1} h={0.8} color="var(--color-iso-band)" />
+      <FrontQuad x={x - 0.2} y={y + 0.8} w={3.6} z={24} h={0.3} fill="var(--color-iso-light)" />
     </g>
   )
 }
@@ -305,20 +396,21 @@ function Fence({ along, at: plane, from, to }) {
 
 // Gate in the front fence: boom post and a striped arm, with the gate's color painted across the lane.
 function Gate({ cx, color }) {
-  const half = 13
+  const half = GATE_HALF
   return (
     <g>
       <Ground x={cx - half} y={LOT_D - 2} w={half * 2} d={4} fill={color} opacity={0.85} />
-      <Box x={cx - half - 1.6} y={LOT_D - 0.8} w={1.6} d={1.6} h={4.4} color="var(--color-iso-band)" />
-      {Array.from({ length: 6 }, (_, i) => (
+      <Box x={cx + half} y={LOT_D - 0.8} w={1.6} d={1.6} h={4.4} color="var(--color-iso-band)" />
+      {/* Boom arm, raised: it points up from the post. */}
+      {Array.from({ length: 4 }, (_, i) => (
         <Box
           key={i}
-          x={cx - half + i * 3.6}
+          x={cx + half + 0.4}
           y={LOT_D - 0.3}
-          z={3.4}
-          w={3.6}
+          z={4.4 + i * 3.2}
+          w={0.7}
           d={0.6}
-          h={0.7}
+          h={3.2}
           color={i % 2 ? 'var(--color-iso-paint)' : 'var(--color-paint-1)'}
           shade={false}
         />
@@ -327,24 +419,25 @@ function Gate({ cx, color }) {
   )
 }
 
-function GuardShack() {
-  const x = 84
-  const y = 154
+// Guard shack just inside Gate 1, where the guards check trucks in.
+function GuardShack({ night = 0 }) {
+  const { x, y } = SHACK
+  const glass = night > 0.4 ? 'var(--color-iso-light)' : 'var(--color-iso-glass)'
   return (
     <g>
-      <Ground x={x - 2} y={y - 2} w={16} d={16} fill="var(--color-iso-curb)" />
-      <Box x={x} y={y} w={12} d={12} h={9} color="var(--color-iso-wall)" line="rgb(0 0 0 / 0.15)" />
-      <FrontQuad x={x + 1.5} y={y + 12} w={9} z={4} h={3.6} fill="var(--color-iso-glass)" />
-      <SideQuad x={x + 12} y={y + 1.5} d={9} z={4} h={3.6} fill="var(--color-iso-glass)" />
-      <FrontQuad x={x + 2} y={y + 12} w={2} z={4.8} h={1.4} fill="white" opacity={0.3} />
-      <Box x={x - 1} y={y - 1} z={9} w={14} d={14} h={1.2} color="var(--color-iso-band)" />
+      <Ground x={x - 2} y={y - 2} w={14} d={14} fill="var(--color-iso-curb)" />
+      <Box x={x} y={y} w={10} d={10} h={9} color="var(--color-iso-wall)" line="rgb(0 0 0 / 0.15)" />
+      <FrontQuad x={x + 1.5} y={y + 10} w={7} z={4} h={3.6} fill={glass} />
+      <SideQuad x={x + 10} y={y + 1.5} d={7} z={4} h={3.6} fill={glass} />
+      <FrontQuad x={x + 2} y={y + 10} w={2} z={4.8} h={1.4} fill="white" opacity={0.3} />
+      <Box x={x - 1} y={y - 1} z={9} w={12} d={12} h={1.2} color="var(--color-iso-band)" />
     </g>
   )
 }
 
 // `occupied` holds the dock numbers with a truck backed in (their doors are drawn open). `motion`: the
 // selected rig's glow may pulse (off when the viewer asks for reduced motion).
-export function Scene({ occupied, motion }) {
+export function Scene({ occupied, motion, night = 0 }) {
   const B = BUILDING
   const front = B.y + B.d
   return (
@@ -352,6 +445,9 @@ export function Scene({ occupied, motion }) {
       <defs>
         <filter id="iso-soft" x="-20%" y="-20%" width="140%" height="140%">
           <feGaussianBlur stdDeviation="2.2" />
+        </filter>
+        <filter id="iso-halo" x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur stdDeviation="5" />
         </filter>
         <GlowFilters motion={motion} />
       </defs>
@@ -423,7 +519,7 @@ export function Scene({ occupied, motion }) {
         WAREHOUSE · SHIPPING &amp; RECEIVING
       </text>
       {[0, 1, 2].map((i) => (
-        <SideQuad key={i} x={B.x + B.w} y={B.y + 6 + i * 11} d={7} z={9} h={5} fill="var(--color-iso-glass)" />
+        <SideQuad key={i} x={B.x + B.w} y={B.y + 6 + i * 11} d={7} z={9} h={5} fill={night > 0.4 ? 'var(--color-iso-light)' : 'var(--color-iso-glass)'} />
       ))}
       {/* Office entrance on the end wall: glass doors under a canopy, with a walkway. */}
       <Ground x={B.x + B.w} y={B.y + 27} w={8} d={10} fill="var(--color-iso-curb)" />
@@ -440,35 +536,95 @@ export function Scene({ occupied, motion }) {
       {DOCKS.map((d, i) => (
         <DockDoor key={d} cx={colWX(i)} label={d} open={occupied?.has(d)} />
       ))}
-      <LightPole x={MARGIN / 2} y={70} />
+      <LightPole x={-5} y={64} />
     </g>
   )
 }
 
 // What sits in front of the rigs: the right-hand and front fences, gates, guard shack, a tree and a pole.
-export function Foreground({ gateFills }) {
+export function Foreground({ gateFills, night = 0 }) {
+  const gap = GATE_HALF + 1
   return (
     <g>
-      <LightPole x={LOT_W - MARGIN / 2} y={70} />
+      <LightPole x={LOT_W + 4} y={64} />
       <Fence along="y" at={LOT_W} from={0} to={LOT_D} />
-      <Fence along="x" at={LOT_D} from={0} to={GATE_WX[0] - 15} />
-      <Fence along="x" at={LOT_D} from={GATE_WX[0] + 15} to={GATE_WX[1] - 15} />
-      <Fence along="x" at={LOT_D} from={GATE_WX[1] + 15} to={LOT_W} />
-      <GuardShack />
+      <Fence along="x" at={LOT_D} from={GATE_WX[0] + gap} to={GATE_WX[1] - gap} />
+      <GuardShack night={night} />
       {GATE_WX.map((x, i) => (
         <Gate key={x} cx={x} color={gateFills[i]} />
       ))}
-      <Tree x={196} y={40} s={1.1} />
-      <Tree x={198} y={120} />
+      <Tree x={198} y={40} s={1.1} />
+      <Tree x={200} y={120} />
+    </g>
+  )
+}
+
+const Pool = ({ x, y, z = 0, rx, ry, opacity }) => {
+  const [cx, cy] = P(x, y, z)
+  return <ellipse cx={cx} cy={cy} rx={rx} ry={ry} fill="var(--color-iso-glow)" opacity={Math.min(1, opacity * 1.25)} filter="url(#iso-halo)" style={{ mixBlendMode: 'screen' }} />
+}
+
+// Lights after dark, drawn above the night tint so they glow: a pool under each dock light (brighter
+// at a dock in use), under each pole lamp, and a glow at the lit office and guard-shack windows.
+export function NightLights({ occupied, night }) {
+  if (night < 0.05) return null
+  const B = BUILDING
+  return (
+    <g aria-hidden="true" pointerEvents="none">
+      {DOCKS.map((d, i) => (
+        <Pool key={d} x={colWX(i)} y={9} rx={40} ry={19} opacity={(occupied?.has(d) ? 0.55 : 0.3) * night} />
+      ))}
+      <Pool x={-2} y={70} rx={80} ry={40} opacity={0.4 * night} />
+      <Pool x={LOT_W + 7} y={70} rx={80} ry={40} opacity={0.4 * night} />
+      {[0, 1, 2].map((i) => (
+        <Pool key={i} x={B.x + B.w + 2} y={B.y + 9.5 + i * 11} z={11} rx={16} ry={10} opacity={0.5 * night} />
+      ))}
+      <Pool x={SHACK.x + 8} y={SHACK.y + 12} z={4} rx={22} ry={12} opacity={0.5 * night} />
+    </g>
+  )
+}
+
+// Headlight beams on the ground ahead of a driving rig centered at (cx, cy), after dark.
+export function Headlights({ cx, cy, heading, night }) {
+  if (night < 0.05) return null
+  const [ox, oy] = rigOrigin(heading, cx, cy)
+  const map = RIG_FRAME[heading] ?? RIG_FRAME.S
+  const corners = [map(49, 0.5, 0), map(49, 8.5, 0), map(70, 14, 0), map(70, -5, 0)].map(([x, y]) => [x + ox, y + oy, 0])
+  return <polygon points={pts(corners)} fill="var(--color-iso-glow)" opacity={0.7 * night} filter="url(#iso-halo)" style={{ mixBlendMode: 'screen' }} aria-hidden="true" />
+}
+
+// How dark it is (0 day .. 1 night) and how warm the light is (dawn, dusk) at a moment, by the local
+// clock: night until 5, brightening to 7; dusk from about 6:30 PM, full dark by 8:30 PM.
+export function daylight(ms) {
+  const d = new Date(ms)
+  const h = d.getHours() + d.getMinutes() / 60
+  const night = h < 5 ? 1 : h < 7 ? 1 - (h - 5) / 2 : h < 18.6 ? 0 : h < 20.6 ? (h - 18.6) / 2 : 1
+  const warm = Math.max(0, 1 - Math.abs(h - 6.4) / 1.4, 1 - Math.abs(h - 18.6) / 1.4)
+  const phase = night > 0.7 ? 'Night' : warm > 0.3 ? (h < 12 ? 'Dawn' : 'Dusk') : 'Day'
+  return { night, warm, phase }
+}
+
+// The night and dusk wash over the whole scene (below the pins and labels). Its strength follows
+// --iso-tint, lower in the app's dark theme, whose scene colors are already dark.
+export function SkyTint({ night, warm }) {
+  return (
+    <g aria-hidden="true" pointerEvents="none">
+      {warm > 0.01 && (
+        <rect x={VIEW.x} y={VIEW.y} width={VIEW.w} height={VIEW.h} fill="var(--color-iso-dusk)" style={{ mixBlendMode: 'multiply', opacity: `calc(var(--iso-tint) * ${(0.3 * warm).toFixed(3)})` }} />
+      )}
+      {night > 0.01 && (
+        <rect x={VIEW.x} y={VIEW.y} width={VIEW.w} height={VIEW.h} fill="var(--color-iso-night)" style={{ mixBlendMode: 'multiply', opacity: `calc(var(--iso-tint) * ${(0.7 * night).toFixed(3)})` }} />
+      )}
     </g>
   )
 }
 
 // The scene's frame in screen units, sized to the lot with the warehouse roof and the street in view.
 export const VIEW = (() => {
-  const left = P(-6, LOT_D + 24)[0]
+  // Wide enough on the left and low enough at the bottom for the gate chips on the street.
+  const left = P(-16, LOT_D + 26)[0]
   const right = P(LOT_W + 14, -40)[0]
   const top = P(0, -42, 34)[1]
-  const bottom = P(LOT_W, LOT_D + 26)[1]
+  const bottom = P(LOT_W + 4, LOT_D + 42)[1]
   return { x: Math.floor(left), y: Math.floor(top), w: Math.ceil(right - left), h: Math.ceil(bottom - top) }
 })()

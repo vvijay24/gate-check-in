@@ -3,7 +3,9 @@ import * as ui from '../ui'
 import { arrivalMs, clockTime, duration } from '../time'
 import { yardStatus, isDrop } from '../metrics'
 import { DETENTION_FREE_MIN, DOCKS, STALE_WARN_H } from '../yard'
-import { BAY_WY, DOCK_WY, Foreground, GATE_WX, LOT_D, P, RIG_L, RIG_W, Rig, Scene, VIEW, colWX, pts } from './YardScene'
+import { BAY_WY, Foreground, GATE_WX, Headlights, LOT_D, NightLights, P, RIG_L, RIG_W, Rig, SHACK, Scene, SkyTint, VIEW, colWX, daylight, pts, rigOrigin } from './YardScene'
+import { poseAt, spotCenter, useYardDrives } from './yardMotion'
+import { detentionState } from '../detention'
 import { GATES } from '../formConfig'
 
 // Status colors shared by the map and its legend: the ground under each rig and its pin. The pin's icon
@@ -104,19 +106,30 @@ function Plate({ lines, tone }) {
   )
 }
 
-// Moves a unit with an easing transition when it changes spot (bay → dock).
-const moveTo = (wx, wy, z = 0) => {
-  const [sx, sy] = P(wx, wy, z)
-  return { transform: `translate(${Math.round(sx * 10) / 10}px, ${Math.round(sy * 10) / 10}px)`, transition: 'transform 1.2s ease, opacity 0.3s ease' }
+// Screen translate for a rig's origin: a parked rig sits in its spot facing S; a driving one is posed
+// along its route.
+const placeAt = (pose) => {
+  const [ox, oy] = rigOrigin(pose.heading, pose.cx, pose.cy)
+  const [sx, sy] = P(ox, oy, 0)
+  return `translate(${Math.round(sx * 10) / 10} ${Math.round(sy * 10) / 10})`
 }
 
-// The ground patch under a rig in local world units: status-colored, and the click / focus target.
-const footprint = (drop) => pts([[-2, -0.4, 0], [RIG_W + 2, -0.4, 0], [RIG_W + 2, (drop ? 36 : RIG_L) + 1.2, 0], [-2, (drop ? 36 : RIG_L) + 1.2, 0]])
+// The ground patch under a parked rig, in its own units: status-colored, and the click / focus target.
+const footprint = (drop, grow = 0) =>
+  pts([[-2 - grow, -0.4 - grow, 0], [RIG_W + 2 + grow, -0.4 - grow, 0], [RIG_W + 2 + grow, (drop ? 36 : RIG_L) + 1.2 + grow, 0], [-2 - grow, (drop ? 36 : RIG_L) + 1.2 + grow, 0]])
+
+// How close to trouble a parked rig is: 'over' past free time (or a dropped trailer left too long),
+// 'near' close to it, or nothing.
+function trouble(e, clock) {
+  if (isDrop(e)) return attention(e, clock) ? 'over' : null
+  return detentionState(e, clock)?.level ?? null
+}
 
 // `onSelect` is left out on the compact map, where the whole map is one button instead.
 // `focus` (inspection view): 'on' highlights the rig with an INSPECT / RE-CHECK tag and its time at the
-// dock; 'off' fades it into the background; undefined draws it normally.
-function Unit({ e, wx, wy, at, clock, selected, onSelect, focus }) {
+// dock; 'off' fades it into the background; undefined draws it normally. `pose` places it (parked or
+// driving); a driving rig is drawn as a whole rig without its ground patch, glow or click target.
+function Unit({ e, pose, driving, at, clock, selected, onSelect, focus, motion }) {
   const status = yardStatus(e, at)
   const alert = attention(e, clock)
   const on = focus === 'on'
@@ -126,6 +139,23 @@ function Unit({ e, wx, wy, at, clock, selected, onSelect, focus }) {
   const label =
     (on ? `${recheck ? 'Re-check' : 'Inspect'} Dock ${e.dockDoor}: ` : '') +
     `Trailer ${e.trailerNumber}, ${e.truckName}, ${STATUS[status].label}${on && atDockFor ? `, ${atDockFor}` : ''}${alert ? `, ${alert}` : ''}`
+  const rig = (
+    <Rig
+      carrier={e.truckName}
+      trailerNumber={e.trailerNumber}
+      drop={drop && !driving}
+      reefer={e.reefer === 'Yes'}
+      glow={selected && !driving}
+      heading={pose.heading}
+    />
+  )
+  if (driving) {
+    return (
+      <g transform={placeAt(pose)} opacity={(focus === 'off' ? 0.3 : 1) * pose.opacity} aria-hidden="true">
+        {rig}
+      </g>
+    )
+  }
   const select = onSelect && {
     role: 'button',
     tabIndex: 0,
@@ -140,9 +170,21 @@ function Unit({ e, wx, wy, at, clock, selected, onSelect, focus }) {
     },
   }
   const pad = footprint(drop)
+  const warn = trouble(e, clock)
   return (
-    <g {...select} className={'yard-unit' + (onSelect ? ' cursor-pointer' : '')} opacity={focus === 'off' ? 0.3 : 1} style={moveTo(wx, wy)}>
+    <g {...select} className={'yard-unit' + (onSelect ? ' cursor-pointer' : '')} opacity={focus === 'off' ? 0.3 : 1} transform={placeAt(pose)}>
       <title>{label}</title>
+      {warn && (
+        // Detention glow: amber as free time runs out, red once it's past (or a drop left too long).
+        <polygon
+          points={footprint(drop, 3)}
+          fill={warn === 'over' ? 'var(--color-danger)' : 'var(--color-signal-line)'}
+          opacity={0.7}
+          filter="url(#iso-halo)"
+        >
+          {motion && <animate attributeName="opacity" values="0.75;0.3;0.75" dur={warn === 'over' ? '1.6s' : '2.6s'} repeatCount="indefinite" />}
+        </polygon>
+      )}
       <polygon points={pad} fill={on ? 'var(--color-signal)' : STATUS[status].fill} opacity={on ? 0.75 : 0.5} />
       {/* A ring on the ground, under the rig: dashed for a rig that needs its inspection, solid amber
           for keyboard focus (index.css). Selected rigs glow in their cab color instead (no box). */}
@@ -154,16 +196,16 @@ function Unit({ e, wx, wy, at, clock, selected, onSelect, focus }) {
         strokeWidth={3}
         strokeDasharray={on ? '7 4' : undefined}
       />
-      <Rig carrier={e.truckName} trailerNumber={e.trailerNumber} drop={drop} reefer={e.reefer === 'Yes'} glow={selected} />
+      {rig}
       {/* Transparent click target over the rig's patch of ground. */}
       <polygon points={pad} fill="transparent" />
     </g>
   )
 }
 
-// What floats above and in front of a rig: the status pin (or the INSPECT tag), the alert badge and the
-// trailer # plate on the ground in front of the cab. Drawn after every rig so nothing covers them.
-function UnitLabels({ e, wx, wy, at, clock, focus }) {
+// What floats above and in front of a parked rig: the status pin (or the INSPECT tag), the alert badge
+// and the trailer # plate on the ground in front of the cab. Drawn after every rig so nothing covers them.
+function UnitLabels({ e, pose, at, clock, focus }) {
   const status = yardStatus(e, at)
   const alert = attention(e, clock)
   const on = focus === 'on'
@@ -173,7 +215,7 @@ function UnitLabels({ e, wx, wy, at, clock, focus }) {
   const [pinX, pinY] = P(RIG_W / 2, 17, 24)
   const [plateX, plateY] = P(RIG_W / 2, (drop ? 36 : RIG_L) + 3, 0)
   return (
-    <g aria-hidden="true" pointerEvents="none" opacity={focus === 'off' ? 0.3 : 1} style={moveTo(wx, wy)}>
+    <g aria-hidden="true" pointerEvents="none" opacity={focus === 'off' ? 0.3 : 1} transform={placeAt(pose)}>
       <line x1={pinX} y1={pinY + 11} x2={pinX} y2={pinY + 22} stroke="var(--color-ink)" strokeWidth={1.5} opacity={0.5} />
       <g transform={`translate(${pinX} ${pinY})`}>
         {on ? (
@@ -197,6 +239,33 @@ function UnitLabels({ e, wx, wy, at, clock, focus }) {
           ]}
         />
       </g>
+    </g>
+  )
+}
+
+// Sun or moon and the light's name, top left of the scene.
+function SkyChip({ phase, clock }) {
+  const x = VIEW.x + 14
+  const y = VIEW.y + 14
+  const dark = phase === 'Night'
+  return (
+    <g transform={`translate(${x} ${y})`} aria-hidden="true">
+      <rect width={118} height={30} rx={15} fill="var(--color-panel)" opacity={0.9} />
+      <g transform="translate(17 15)">
+        {dark ? (
+          <path d="M3 -7 A7.5 7.5 0 1 0 6.5 4.5 A6 6 0 1 1 3 -7 Z" fill="var(--color-ink)" />
+        ) : (
+          <g fill="none" stroke="var(--color-signal-line)" strokeWidth={1.8} strokeLinecap="round">
+            <circle r={4.2} fill="var(--color-signal)" />
+            {[0, 45, 90, 135, 180, 225, 270, 315].map((a) => (
+              <line key={a} x1={0} y1={-6.5} x2={0} y2={-8.6} transform={`rotate(${a})`} />
+            ))}
+          </g>
+        )}
+      </g>
+      <text x={32} y={19.5} fontSize={12.5} fontWeight={700} fill="var(--color-ink)">
+        {phase} · {clockTime(clock)}
+      </text>
     </g>
   )
 }
@@ -227,7 +296,7 @@ function GateChips({ gateCounts }) {
   return (
     <g>
       {GATES.map((gate, i) => {
-        const [x, y] = P(GATE_WX[i], LOT_D + 27, 0)
+        const [x, y] = P(GATE_WX[i], LOT_D + 24, 0)
         const c = gateCounts[gate] ?? { in: 0, out: 0 }
         const fill = GATE_STYLE[gate]?.fill ?? 'var(--color-ink)'
         return (
@@ -242,7 +311,7 @@ function GateChips({ gateCounts }) {
           </g>
         )
       })}
-      <g transform={`translate(${P(90, 160, 16).join(' ')})`}>
+      <g transform={`translate(${P(SHACK.x + 5, SHACK.y + 5, 17).join(' ')})`}>
         <rect x={-30} y={-12} width={60} height={20} rx={6} fill="var(--color-panel)" opacity={0.92} />
         <text y={3} textAnchor="middle" fontSize={11} fontWeight={700} fill="var(--color-ink)">
           GUARD
@@ -391,14 +460,16 @@ function useReducedMotion() {
 }
 
 // Schematic of the grounds with every truck and trailer on site at its door or bay, at moment `at`
-// (Infinity = live). `clock` is the time durations are measured to. `compact` draws a small map to fit
-// a narrow column, with a short legend; the whole map is one button that calls `onExpand`.
+// (Infinity = live). `clock` is the time durations are measured to, and sets the light (day, dusk,
+// night). `compact` draws a small map to fit a narrow column, with a short legend; the whole map is
+// one button that calls `onExpand`.
 // Inspection view: `focus(e)` says which trucks need inspecting; they're highlighted and everything
 // else is faded. With `onInspect`, a highlighted truck opens its inspection (on the compact map a tap
 // does it directly, so the map is no longer one Enlarge button).
 // `highlightId` selects a rig from outside the map (e.g. the truck picked or being inspected on Dock &
-// Loading); a rig tapped on the full map is selected here instead.
-export default function YardMap({ yard, gateCounts, at, clock, live, onEdit, onCheckOut, compact, onExpand, focus, onInspect, highlightId }) {
+// Loading); a rig tapped on the full map is selected here instead, and gets a floating card.
+// `animate`: trucks drive their routes when their spot changes (default: on a live map).
+export default function YardMap({ yard, gateCounts, at, clock, live, onEdit, onCheckOut, compact, onExpand, focus, onInspect, highlightId, animate = live }) {
   const [tappedId, setSelectedId] = useState(null)
   const selectedId = tappedId ?? highlightId ?? null
   const motion = useReducedMotion() === false
@@ -408,15 +479,33 @@ export default function YardMap({ yard, gateCounts, at, clock, live, onEdit, onC
   const units = []
   DOCKS.forEach((d, i) => {
     const e = yard.atDock.get(d)
-    if (e) units.push({ e, wx: colWX(i) - RIG_W / 2, wy: DOCK_WY, place: `Dock ${d}` })
+    if (e) units.push({ e, spot: { kind: 'dock', i }, place: `Dock ${d}` })
   })
   yard.bays.forEach((e, i) => {
-    if (e) units.push({ e, wx: colWX(i) - RIG_W / 2, wy: BAY_WY, place: `Bay ${i + 1}` })
+    if (e) units.push({ e, spot: { kind: 'bay', i }, place: `Bay ${i + 1}` })
   })
-  const selected = units.find((u) => u.e.id === selectedId) ??
+  const { drives, now } = useYardDrives(units, { enabled: motion && Boolean(animate), live: Boolean(live) })
+
+  // Everything drawn on the lot: parked rigs at their spots, driving ones (and ones leaving, no longer
+  // among `units`) posed along their routes; nearer ones (larger x + y) drawn later.
+  const parkedPose = (spot) => {
+    const [cx, cy] = spotCenter(spot)
+    return { cx, cy, heading: 'S', opacity: 1 }
+  }
+  const items = units.map((u) => {
+    const d = drives.get(u.e.id)
+    return { ...u, pose: d ? poseAt(d, now) : parkedPose(u.spot), driving: Boolean(d) }
+  })
+  for (const [id, d] of drives) {
+    if (d.kind === 'leave') items.push({ e: d.e, pose: poseAt(d, now), driving: true, leaving: true, id })
+  }
+  items.sort((p, q) => p.pose.cx + p.pose.cy - (q.pose.cx + q.pose.cy))
+  const parked = items.filter((u) => !u.driving)
+
+  const selected = parked.find((u) => u.e.id === selectedId) ??
     [...yard.overflow, ...yard.otherDocks].map((e) => ({ e, place: e.dockDoor ? `Dock ${e.dockDoor}` : 'No bay free' })).find((u) => u.e.id === selectedId)
   const occupied = new Set(DOCKS.filter((d) => yard.atDock.has(d)))
-  const unitProps = (u) => ({ e: u.e, wx: u.wx, wy: u.wy, at, clock, focus: focusOf(u.e) })
+  const sky = daylight(clock)
 
   const map = (
     <svg
@@ -424,25 +513,38 @@ export default function YardMap({ yard, gateCounts, at, clock, live, onEdit, onC
       role={compact && !inspectTap ? undefined : 'group'}
       aria-label={compact && !inspectTap ? undefined : focus ? 'Inspection map: trucks at docks that need their loading inspection' : 'Yard map: docks, staging bays and gates'}
       aria-hidden={(compact && !inspectTap) || undefined}
-      className={'block h-auto w-full' + (compact ? '' : ' min-w-[700px]')}
+      className="block h-auto w-full"
     >
-      <Scene occupied={occupied} motion={motion} />
-      {/* Docked rigs first, then the staging row in front of them, each row left to right. */}
-      {units.map((u) => (
+      <Scene occupied={occupied} motion={motion} night={sky.night} />
+      {items.map((u) => (
         <Unit
-          key={u.e.id}
-          {...unitProps(u)}
+          key={(u.leaving ? 'leaving-' : '') + u.e.id}
+          e={u.e}
+          pose={u.pose}
+          driving={u.driving}
+          at={at}
+          clock={clock}
+          focus={focusOf(u.e)}
+          motion={motion}
           selected={u.e.id === selectedId}
           onSelect={inspectTap ? (focus(u.e) ? () => onInspect(u.e) : undefined) : compact ? undefined : setSelectedId}
         />
       ))}
-      <Foreground gateFills={GATES.map((g) => GATE_STYLE[g]?.fill ?? 'var(--color-signal)')} />
+      <Foreground gateFills={GATES.map((g) => GATE_STYLE[g]?.fill ?? 'var(--color-signal)')} night={sky.night} />
+      <SkyTint night={sky.night} warm={sky.warm} />
+      <NightLights occupied={occupied} night={sky.night} />
+      {items
+        .filter((u) => u.driving)
+        .map((u) => (
+          <Headlights key={'lights-' + u.e.id} {...u.pose} night={sky.night} />
+        ))}
       {DOCKS.map((d, i) => (yard.atDock.has(d) ? null : <FreeMark key={d} wx={colWX(i)} wy={26} text="✓ Free" />))}
       {yard.bays.map((e, i) => (e ? null : <FreeMark key={i} wx={colWX(i)} wy={BAY_WY + 26} text="✓ Open" />))}
-      {units.map((u) => (
-        <UnitLabels key={u.e.id} {...unitProps(u)} />
+      {parked.map((u) => (
+        <UnitLabels key={u.e.id} e={u.e} pose={u.pose} at={at} clock={clock} focus={focusOf(u.e)} />
       ))}
       <GateChips gateCounts={gateCounts} />
+      <SkyChip phase={sky.phase} clock={clock} />
     </svg>
   )
 
@@ -483,10 +585,68 @@ export default function YardMap({ yard, gateCounts, at, clock, live, onEdit, onC
     )
   }
 
+  // Floating card for the tapped truck, anchored just above it (or below it near the top of the map),
+  // positioned in % of the map so it stays put as the map scales.
+  let card = null
+  if (selected) {
+    const spotUnit = parked.find((u) => u.e.id === selected.e.id)
+    let style = { left: '2%', top: '3%' }
+    if (spotUnit) {
+      // Above the truck when there's room; near the top of the map, beside its cab instead (to the
+      // left when the cab is far enough right, else to the right) so the card covers less of the yard.
+      const pct = ([x, y]) => [((x - VIEW.x) / VIEW.w) * 100, ((y - VIEW.y) / VIEW.h) * 100]
+      const { cx, cy } = spotUnit.pose
+      const [ax, ay] = pct(P(cx, cy - 8, 30))
+      if (ay >= 36) {
+        style = { left: `${Math.min(80, Math.max(20, ax))}%`, top: `${ay}%`, transform: 'translate(-50%, calc(-100% - 10px))' }
+      } else {
+        const [fx, fy] = pct(P(cx - RIG_W / 2, cy + RIG_L / 2, 6))
+        const [rx] = pct(P(cx + RIG_W / 2, cy + RIG_L / 2, 6))
+        style =
+          fx > 38
+            ? { left: `${fx}%`, top: `${fy}%`, transform: 'translate(calc(-100% - 12px), -50%)' }
+            : { left: `${rx}%`, top: `${fy}%`, transform: 'translate(12px, -50%)' }
+      }
+    }
+    card = (
+      <div
+        role="dialog"
+        aria-label={`Trailer ${selected.e.trailerNumber}`}
+        style={style}
+        className="absolute z-10 w-[300px] max-w-[85%] rounded-xl border border-line bg-panel/85 p-3.5 pr-11 shadow-2xl backdrop-blur-md"
+      >
+        <button
+          type="button"
+          aria-label="Close truck details"
+          onClick={() => setSelectedId(null)}
+          className="absolute top-2 right-2 flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg text-xl leading-none text-muted hover:bg-field hover:text-ink"
+        >
+          ✕
+        </button>
+        <Detail
+          e={selected.e}
+          place={selected.place}
+          at={at}
+          clock={clock}
+          live={live}
+          onEdit={onEdit}
+          onCheckOut={onCheckOut}
+          onInspect={onInspect && focus && focus(selected.e) ? onInspect : undefined}
+        />
+      </div>
+    )
+  }
+
   return (
-    <div className="mt-3.5 grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_260px]">
+    // minmax(0, 1fr): on small screens the wide map scrolls inside its box rather than the page.
+    <div className="mt-3.5 grid grid-cols-[minmax(0,1fr)] items-start gap-4 lg:grid-cols-[minmax(0,1fr)_240px]">
       <div>
-        <div className="overflow-x-auto rounded-lg">{map}</div>
+        <div className="overflow-x-auto rounded-lg">
+          <div className="relative min-w-[700px]">
+            {map}
+            {card}
+          </div>
+        </div>
         {yard.overflow.length > 0 && (
           <p className="mt-2 text-sm font-semibold text-danger">
             ⚠ {yard.overflow.length} more without a bay:{' '}
@@ -508,18 +668,9 @@ export default function YardMap({ yard, gateCounts, at, clock, live, onEdit, onC
       </div>
       <aside>
         <Legend />
-        <div className="mt-4 min-h-[92px] rounded-lg bg-page p-3">
-          <Detail
-            e={selected?.e}
-            place={selected?.place}
-            at={at}
-            clock={clock}
-            live={live}
-            onEdit={onEdit}
-            onCheckOut={onCheckOut}
-            onInspect={onInspect && focus && selected && focus(selected.e) ? onInspect : undefined}
-          />
-        </div>
+        <p className="mt-3 text-[13px] text-muted">
+          {selected ? 'Tap another truck, or ✕ to close its card.' : 'Tap a truck to see its details.'}
+        </p>
         <p className="mt-2 text-[12px] text-muted">
           {live ? `Updated ${clockTime(clock)}.` : `Yard as it was at ${clockTime(clock)}.`} Trucks sit in the bay picked at check-in; any without one fill free bays in arrival order.
         </p>

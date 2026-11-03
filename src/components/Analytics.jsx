@@ -7,6 +7,7 @@ import { loadImpactSettings, saveImpactSettings } from '../impactSettings'
 import { Card } from './analytics/ui'
 import { Trend, shortDate } from './analytics/charts'
 import { HandoffSection, IMPACT_SUMMARY, ImpactSection, QualitySection, SettingsDialog } from './analytics/impact'
+import { REPLAY_SUMMARY, ReplaySection } from './analytics/replay'
 import {
   DockSection,
   GateSection,
@@ -32,10 +33,11 @@ const SECTIONS = [
   { id: 'gate', label: 'Gate Operations', sub: 'Arrivals, appointments, gate traffic and carriers', View: GateSection },
   { id: 'shipping', label: 'Shipping', sub: 'Pickups and customers', View: ShippingSection },
   { id: 'docks', label: 'Dock & Loading', sub: 'Waits for a dock, dock use and time at each dock', View: DockSection },
+  { id: 'replay', label: 'Yard Replay', sub: 'Watch any day on the yard map: arrivals, docking and departures', View: ReplaySection },
   { id: 'inspections', label: 'Inspections', sub: 'Loading inspections: results, timing and who did them', View: InspectionSection },
   { id: 'quality', label: 'Data Quality', sub: 'Are the records complete, logged live, and catching mistakes?', View: QualitySection },
 ]
-const ALL_SUMMARIES = { ...SUMMARY, ...IMPACT_SUMMARY }
+const ALL_SUMMARIES = { ...SUMMARY, ...IMPACT_SUMMARY, replay: REPLAY_SUMMARY }
 
 // One toolbar for the whole tab: the range presets, the chosen dates (Custom… opens From / To),
 // what the ▲/▼ compare against, and Export.
@@ -389,7 +391,17 @@ export default function Analytics({ entries, gateEvents = [], sampleCount, onLoa
         ) : (
           <>
             <Takeaway>{summaries[section].takeaway}</Takeaway>
-            <View r={r} prev={prev} trend={trend} impact={impact} prevImpact={prevImpact} settings={settings} onOpenSettings={() => setSettingsOpen(true)} />
+            <View
+              r={r}
+              prev={prev}
+              trend={trend}
+              impact={impact}
+              prevImpact={prevImpact}
+              settings={settings}
+              onOpenSettings={() => setSettingsOpen(true)}
+              entries={entries}
+              range={range}
+            />
           </>
         )}
 
