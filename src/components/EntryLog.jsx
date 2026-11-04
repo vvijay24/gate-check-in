@@ -4,7 +4,9 @@ import * as ui from '../ui'
 import { LOG_COLUMNS, exportToExcel } from '../logColumns'
 import AssignDock, { occupiedDocks } from './AssignDock'
 import { dayKey } from '../time'
-import { DETENTION_TAG, detentionState } from '../detention'
+import { DETENTION_ICON, DETENTION_TAG, detentionState } from '../detention'
+import { Icon } from '../icons'
+import CardHead from './CardHead'
 import { awaitingRelease, isReleased } from '../handoff'
 
 // Today = checked in today, plus anything still on site from earlier (the default view).
@@ -20,7 +22,7 @@ const MAX_ROWS = 7
 
 const Dash = () => <span className="text-muted">—</span>
 
-// After a passed inspection: Awaiting release (Shipping's turn), then Released to gate (the Gate's
+// After a passed inspection: Awaiting release (the inspector's turn), then Released to gate (the Gate's
 // turn). Same wording as Outbound Shipments.
 const STATUSES = ['Waiting', 'At dock', 'Awaiting release', 'Released to gate', 'Departed']
 const statusOf = (e) =>
@@ -88,7 +90,7 @@ function StatusTag({ e }) {
   if (isReleased(e)) return <span className={ui.tag + ' bg-delivery-soft text-delivery'}>Released to gate</span>
   if (awaitingRelease(e)) return <span className={ui.tag + ' bg-ok text-panel'}>Awaiting release</span>
   if (e.dockDoor) return <span className={ui.tag + ' bg-ink text-panel'}>At dock</span>
-  return <span className={ui.tag + ' bg-signal text-signal-ink'}>Waiting</span>
+  return <span className={ui.tag + ' bg-warn text-warn-ink'}>Waiting</span>
 }
 
 // Prints only the Entry Log: index.css hides everything else while body has data-print="entry-log".
@@ -180,10 +182,9 @@ export default function EntryLog({ entries, onEdit, onCheckOut, onDelete, onAssi
   }
 
   return (
-    <section id="entry-log" className="rounded-[10px] border border-line bg-panel">
-      <div className="flex flex-wrap items-center justify-between gap-3 px-5 pt-5 pb-3">
-        <h2 className="font-display text-[26px] leading-tight font-bold">Entry Log</h2>
-        <div role="tablist" aria-label="Entry Log filter" className="no-print flex gap-1.5">
+    <section id="entry-log" className="rounded-2xl border border-hair bg-panel shadow-card">
+      <CardHead icon="log" title="Entry Log" sub="Every check-in, newest first">
+        <div role="tablist" aria-label="Entry Log filter" className="no-print flex flex-wrap gap-1 rounded-xl border border-hair bg-panel p-1">
           {TABS.map((t) => (
             <button
               key={t.id}
@@ -191,17 +192,17 @@ export default function EntryLog({ entries, onEdit, onCheckOut, onDelete, onAssi
               aria-selected={tab === t.id}
               onClick={() => setTab(t.id)}
               className={
-                'min-h-11 cursor-pointer rounded-lg border-2 px-4 font-display text-lg font-bold ' +
-                (tab === t.id ? 'border-signal bg-signal text-signal-ink' : 'border-line bg-panel text-ink')
+                'min-h-10 cursor-pointer rounded-lg px-3.5 font-display text-[15px] font-bold transition-colors duration-150 ' +
+                (tab === t.id ? 'bg-signal text-signal-ink shadow-card' : 'text-ink hover:bg-signal-tint')
               }
             >
               {t.label} <span className="font-semibold opacity-70">({lists[t.id].length})</span>
             </button>
           ))}
         </div>
-      </div>
+      </CardHead>
 
-      <div className="no-print flex flex-wrap items-center gap-3 px-5 pb-4">
+      <div className="no-print flex flex-wrap items-center gap-3 px-5 pt-4 pb-3">
         <label htmlFor="entry-search" className="sr-only">
           Search the Entry Log
         </label>
@@ -223,7 +224,8 @@ export default function EntryLog({ entries, onEdit, onCheckOut, onDelete, onAssi
           <span className="text-muted"> · {narrowing.join(' · ')}</span>
         </span>
         {(q || active.length > 0) && (
-          <button type="button" onClick={clearAll} className="cursor-pointer font-semibold underline">
+          <button type="button" onClick={clearAll} className={ui.btnGhost + ' min-h-9'}>
+            <Icon name="close" size={16} />
             Clear all
           </button>
         )}
@@ -231,18 +233,18 @@ export default function EntryLog({ entries, onEdit, onCheckOut, onDelete, onAssi
 
       <div className="overflow-x-auto">
         <table className="w-full min-w-[720px] border-collapse text-left text-[14px]">
-          <thead className="text-[13px] font-semibold text-muted">
-            <tr className="border-y border-line">
+          <thead className="bg-field text-[13px] font-semibold text-muted">
+            <tr className="border-y border-hair">
               {COLUMNS.map((c) => (
-                <th key={c.id} className="px-3 py-2.5 align-top">
+                <th key={c.id} className="px-3.5 py-3 align-top">
                   <span className="block">{c.label}</span>
                   <select
                     aria-label={`Filter by ${c.label}`}
                     value={filters[c.id] ?? ''}
                     onChange={(ev) => setFilter(c.id, ev.target.value)}
                     className={
-                      'no-print mt-1 w-full max-w-[170px] cursor-pointer rounded-md border bg-panel px-1.5 py-1 text-[13px] font-normal text-ink ' +
-                      (filters[c.id] ? 'border-signal' : 'border-line')
+                      'no-print mt-1 w-full max-w-[170px] cursor-pointer rounded-lg border-[1.5px] bg-panel px-1.5 py-1 text-[13px] font-normal text-ink transition-colors ' +
+                      (filters[c.id] ? 'border-signal' : 'border-line hover:border-signal-bright')
                     }
                   >
                     <option value="">All</option>
@@ -254,14 +256,14 @@ export default function EntryLog({ entries, onEdit, onCheckOut, onDelete, onAssi
                   </select>
                 </th>
               ))}
-              <th className="no-print px-3 py-2.5 align-top">Dock</th>
-              <th className="no-print px-3 py-2.5 align-top">Options</th>
+              <th className="no-print px-3.5 py-3 align-top">Dock</th>
+              <th className="no-print px-3.5 py-3 align-top">Options</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-line">
+          <tbody className="divide-y divide-hair">
             {rows.length === 0 ? (
               <tr>
-                <td colSpan={7} className="px-3 py-6 text-muted">
+                <td colSpan={7} className="px-5 py-8 text-center text-muted">
                   {empty}
                 </td>
               </tr>
@@ -269,8 +271,14 @@ export default function EntryLog({ entries, onEdit, onCheckOut, onDelete, onAssi
               shown.map((e) => {
                 const det = detentionState(e, now)
                 return (
-                <tr key={e.id} className="align-top">
-                  <td className="px-3 py-2.5">
+                // A check-in saved in the last minute starts tinted and fades, so it's easy to spot.
+                <tr
+                  key={e.id}
+                  className={
+                    'align-top transition-colors duration-150 hover:bg-signal-tint' + (Date.now() - (e.createdAt ?? 0) < 60000 ? ' animate-fresh' : '')
+                  }
+                >
+                  <td className="px-3.5 py-3">
                     <span className="font-semibold">{e.pickupNumber || <Dash />}</span>
                     {/* Which truck this is, even for deliveries and drops that have no order no. */}
                     <span className="block text-[13px] text-muted">
@@ -278,17 +286,22 @@ export default function EntryLog({ entries, onEdit, onCheckOut, onDelete, onAssi
                       {e.truckName && ` · ${e.truckName}`}
                     </span>
                   </td>
-                  <td className="px-3 py-2.5">{e.customerPickupFor || <Dash />}</td>
-                  <td className="whitespace-nowrap px-3 py-2.5" title={e.dateIn}>
+                  <td className="px-3.5 py-3">{e.customerPickupFor || <Dash />}</td>
+                  <td className="whitespace-nowrap px-3.5 py-3" title={e.dateIn}>
                     {friendlyDate(e.dateIn) || <Dash />}
                   </td>
-                  <td className="whitespace-nowrap px-3 py-2.5">{e.timeIn || <Dash />}</td>
-                  <td className="px-3 py-2.5">
+                  <td className="whitespace-nowrap px-3.5 py-3">{e.timeIn || <Dash />}</td>
+                  <td className="px-3.5 py-3">
                     <StatusTag e={e} />
-                    {det && <span className={ui.tag + ' mt-1 block w-fit ' + DETENTION_TAG[det.level]}>{det.text}</span>}
+                    {det && (
+                      <span className={ui.tag + ' mt-1 flex w-fit ' + DETENTION_TAG[det.level]}>
+                        <Icon name={DETENTION_ICON[det.level]} size={14} />
+                        {det.text}
+                      </span>
+                    )}
                   </td>
                   {/* Assign dock only for trucks still on site without a dock. */}
-                  <td className="no-print whitespace-nowrap px-3 py-2.5">
+                  <td className="no-print whitespace-nowrap px-3.5 py-3">
                     {e.dockDoor ? (
                       <span className="font-semibold">Dock {e.dockDoor}</span>
                     ) : e.timeOut ? (
@@ -297,7 +310,7 @@ export default function EntryLog({ entries, onEdit, onCheckOut, onDelete, onAssi
                       <AssignDock entry={e} occupied={occupied} onAssignDock={onAssignDock} compact />
                     )}
                   </td>
-                  <td className="no-print whitespace-nowrap px-3 py-2.5">
+                  <td className="no-print whitespace-nowrap px-3.5 py-3">
                     {/* Always shows "Options"; picking a choice runs it and the select snaps back. */}
                     <select
                       aria-label={`Options for ${e.truckName} ${e.trailerNumber}`}
@@ -308,7 +321,7 @@ export default function EntryLog({ entries, onEdit, onCheckOut, onDelete, onAssi
                         else if (choice === 'edit') onEdit(e)
                         else if (choice === 'delete' && window.confirm(`Delete entry for ${e.truckName}?`)) onDelete(e.id)
                       }}
-                      className="cursor-pointer rounded-md border border-line bg-panel px-2 py-1.5 text-[14px] font-semibold text-ink"
+                      className="cursor-pointer rounded-lg border-[1.5px] border-line bg-panel px-2 py-1.5 text-[14px] font-semibold text-ink transition-colors hover:border-signal-bright"
                     >
                       <option value="" disabled>
                         Options
@@ -326,17 +339,19 @@ export default function EntryLog({ entries, onEdit, onCheckOut, onDelete, onAssi
         </table>
       </div>
 
-      <div className="no-print flex flex-wrap items-center justify-end gap-3 border-t border-line px-5 py-4">
+      <div className="no-print flex flex-wrap items-center justify-end gap-3 border-t border-hair px-5 py-4">
         {rows.length > MAX_ROWS && (
-          <button type="button" onClick={() => setShowAll((v) => !v)} className="mr-auto cursor-pointer font-semibold underline">
+          <button type="button" onClick={() => setShowAll((v) => !v)} className={'mr-auto ' + ui.btnGhost}>
             {showAll ? 'Show less' : `Show all (${rows.length})`}
           </button>
         )}
         {exportError && <span className="mr-auto font-semibold text-danger">{exportError}</span>}
         <button type="button" onClick={handlePrint} disabled={!rows.length} className={ui.btnSmall}>
+          <Icon name="print" />
           Print
         </button>
         <button type="button" onClick={handleExport} disabled={!rows.length || exporting} className={ui.btnSmallPrimary}>
+          <Icon name="export" />
           {exporting ? 'Exporting…' : 'Export'}
         </button>
       </div>

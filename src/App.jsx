@@ -1,28 +1,31 @@
 import { useEffect, useRef, useState } from 'react'
-import GuardForm from './components/GuardForm'
-import CheckOutPicker from './components/CheckOutPicker'
+import CheckInForm from './components/CheckInForm'
+import CheckOutPage from './components/CheckOutPage'
+import GuardOnDuty from './components/GuardOnDuty'
 import EntryLog from './components/EntryLog'
 import ShippingDashboard from './components/ShippingDashboard'
-import { DockBoard } from './components/Dashboard'
+import { DockBoard, phaseOf } from './components/Dashboard'
 import Messages from './components/Messages'
-import Analytics from './components/Analytics'
+import Overview from './components/Overview'
 import { makeSampleEntries } from './sampleData'
-import { takenBays } from './metrics'
 import { awaitingRelease, checkOutBlock, isReleased } from './handoff'
+import { Icon } from './icons'
 
 const STORAGE_KEY = 'guard-load-log'
 const EVENTS_KEY = 'gate-events'
+// The guard on duty, set once per shift in the Gate header and kept on this device.
+const GUARD_KEY = 'guard-on-duty'
 
 const TABS = [
-  { id: 'gate', label: 'Gate' },
-  { id: 'shipping', label: 'Shipping' },
-  { id: 'docks', label: 'Dock & Loading' },
-  { id: 'analytics', label: 'Overview' },
+  { id: 'gate', label: 'Gate', icon: 'gate' },
+  { id: 'shipping', label: 'Shipping', icon: 'shipping' },
+  { id: 'docks', label: 'Loading & Inspection', icon: 'dock' },
+  { id: 'analytics', label: 'Overview', icon: 'overview' },
 ]
 
 const GATE_MODES = [
-  { id: 'in', label: 'Check In' },
-  { id: 'out', label: 'Check Out' },
+  { id: 'in', label: 'Check In', icon: 'checkIn' },
+  { id: 'out', label: 'Check Out', icon: 'checkOut' },
 ]
 
 const timeNow = () => new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
@@ -50,8 +53,24 @@ export default function App() {
   const [storageError, setStorageError] = useState(false)
   const [clock, setClock] = useState(timeNow)
   const [tab, setTab] = useState('gate')
-  // Gate sub-tab; `editing` is the entry open in that form (none = new check-in / truck picker).
+  // Gate sub-tab; `editing` is the entry open in that form (none = new check-in / truck list).
   const [gateMode, setGateMode] = useState('in')
+  // Falls back to whoever logged the latest entry, so an existing device keeps its guard.
+  const [guard, setGuard] = useState(() => {
+    try {
+      return localStorage.getItem(GUARD_KEY) ?? entries[0]?.guardOnDuty ?? ''
+    } catch {
+      return entries[0]?.guardOnDuty ?? ''
+    }
+  })
+  const changeGuard = (name) => {
+    setGuard(name)
+    try {
+      localStorage.setItem(GUARD_KEY, name)
+    } catch {
+      // Only a convenience; the name still applies for this session.
+    }
+  }
 
   useEffect(() => {
     const t = setInterval(() => setClock(timeNow()), 15000)
@@ -142,8 +161,27 @@ export default function App() {
     setNotice(`Trailer ${entry?.trailerNumber ?? ''} assigned to dock ${dockDoor}`)
   }
 
+  // Loading & Inspection's "Loading started" / "Loading finished": `patch` is { loadStartedAt } or { loadFinishedAt }.
+  const handleLoading = (id, patch) => {
+    setEntries((list) => list.map((e) => (e.id === id ? { ...e, ...patch } : e)))
+    const entry = entries.find((e) => e.id === id)
+    setNotice(`Trailer ${entry?.trailerNumber ?? ''}: loading ${patch.loadStartedAt ? 'started' : 'finished'}`)
+  }
+
+  // Loading & Inspection's trailer check, done on the empty trailer before loading. A pass lets the dock
+  // start loading; a fail stays on the dock card until the trailer is re-checked.
+  const handleSaveTrailerCheck = (id, trailerCheck) => {
+    setEntries((list) => list.map((e) => (e.id === id ? { ...e, trailerCheck } : e)))
+    const trailer = entries.find((e) => e.id === id)?.trailerNumber ?? ''
+    setNotice(
+      trailerCheck.result === 'Pass'
+        ? `Trailer ${trailer} checked · ready to load`
+        : `Trailer ${trailer} not OK · ${trailerCheck.issues[0] ?? 're-check needed'}`,
+    )
+  }
+
   // Saves the Loading Inspection on the entry; the applied seal fills Outgoing Seals # if it's still empty.
-  // Saving an inspection again clears any earlier Shipping release, so the truck must be released again.
+  // Saving an inspection again clears any earlier release, so the inspector must release the truck again.
   const handleSaveInspection = (id, loadingInspection) => {
     setEntries((list) =>
       list.map((e) =>
@@ -155,12 +193,13 @@ export default function App() {
     const trailer = entries.find((e) => e.id === id)?.trailerNumber ?? ''
     setNotice(
       loadingInspection.result === 'Pass'
-        ? `Inspection passed · trailer ${trailer} sent to Shipping for release`
+        ? `Inspection passed · trailer ${trailer} is ready to release to the gate`
         : `Inspection failed for trailer ${trailer} · re-check needed before it can leave`,
     )
   }
 
-  // Shipping releases a truck that passed its inspection to the gate. The confirmed seal and order
+  // The inspector releases a truck that passed its inspection to the gate (Loading & Inspection only;
+  // Shipping just sees the status). The confirmed seal and order
   // number go onto the visit, so the Gate's check-out starts with them.
   const handleRelease = (id, { orderNo, seal, paperwork, releasedBy, note }) => {
     setEntries((list) =>
@@ -180,8 +219,10 @@ export default function App() {
   }
 
   // Tab badges: what's waiting for each team.
-  const badges = { shipping: entries.filter(awaitingRelease).length, gate: entries.filter(isReleased).length }
-  const badgeWords = { shipping: 'awaiting release', gate: 'released to the gate' }
+  // Loading & Inspection: loaded trucks to inspect or re-check, and passed trucks to release.
+  const inspectorTodo = entries.filter((e) => !e.timeOut && e.dockDoor && (awaitingRelease(e) || ['inspect', 'failed'].includes(phaseOf(e)))).length
+  const badges = { docks: inspectorTodo, gate: entries.filter(isReleased).length }
+  const badgeWords = { docks: 'to inspect or release', gate: 'released to the gate' }
 
   // Sample visits are marked `sample: true` and go in by arrival time among the real entries;
   // loading again replaces the old samples.
@@ -201,15 +242,41 @@ export default function App() {
     if (editing?.id === id) setEditing(null)
   }
 
+  // Check In / Check Out switch, shown in the Gate page's top line.
+  const gateSwitch = (
+    <div role="tablist" aria-label="Gate form" className="inline-flex gap-1 rounded-xl border-[1.5px] border-line bg-field p-1">
+      {GATE_MODES.map((m) => (
+        <button
+          key={m.id}
+          role="tab"
+          aria-selected={gateMode === m.id}
+          onClick={() => openGate(m.id, null)}
+          className={
+            'inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-lg px-4 font-display text-[16px] font-bold ' +
+            (gateMode === m.id ? 'bg-signal text-signal-ink' : 'text-ink hover:bg-panel')
+          }
+        >
+          <Icon name={m.icon} size={22} />
+          {m.label}
+        </button>
+      ))}
+    </div>
+  )
+
   return (
     <>
-      <header ref={headerRef} className="sticky top-0 z-10 border-b-[6px] border-signal bg-chrome text-white">
+      <header ref={headerRef} className="sticky top-0 z-10 bg-chrome text-white shadow-raised">
         <div className="mx-auto flex max-w-[1400px] flex-wrap items-center gap-4 px-5 py-3">
-          {tab === 'gate' && <h1 className="font-display text-[28px] leading-none font-bold">Gate Check In</h1>}
+          {tab === 'gate' && (
+            <>
+              <h1 className="font-display text-[24px] leading-none font-bold">Gate</h1>
+              <GuardOnDuty guard={guard} onChange={changeGuard} />
+            </>
+          )}
           {/* ml-auto keeps the clock on the right when there's no title. */}
-          <span className="ml-auto font-display text-2xl font-semibold text-signal">{clock}</span>
+          <span className="ml-auto font-display text-xl font-semibold text-signal-bright">{clock}</span>
         </div>
-        <nav role="tablist" className="no-print mx-auto flex max-w-[1400px] gap-1.5 px-5">
+        <nav role="tablist" className="no-print mx-auto flex max-w-[1400px] gap-1 overflow-x-auto px-5">
           {TABS.map((t) => (
             <button
               key={t.id}
@@ -219,16 +286,20 @@ export default function App() {
               aria-controls={`panel-${t.id}`}
               onClick={() => setTab(t.id)}
               className={
-                'min-h-[52px] cursor-pointer rounded-t-lg px-[18px] font-display text-[21px] font-semibold ' +
-                (tab === t.id ? 'bg-signal text-signal-ink' : 'text-[#C9D0D5] hover:text-white')
+                // The active tab joins the page below it, marked by a slate strip along its top.
+                'relative inline-flex min-h-[52px] cursor-pointer items-center gap-2 whitespace-nowrap rounded-t-xl px-[18px] font-display text-[17px] font-semibold transition-colors duration-150 ' +
+                (tab === t.id
+                  ? 'bg-page text-ink before:absolute before:inset-x-[18px] before:top-0 before:h-[3px] before:rounded-b-sm before:bg-signal'
+                  : 'text-rail-text hover:bg-white/5 hover:text-white')
               }
             >
+              <Icon name={t.icon} />
               {t.label}
               {badges[t.id] > 0 && (
                 <span
                   className={
-                    'ml-2 inline-flex min-w-6 items-center justify-center rounded-full px-1.5 align-middle font-body text-[13px] font-bold tabular-nums ' +
-                    (tab === t.id ? 'bg-chrome text-white' : 'bg-signal text-signal-ink')
+                    'inline-flex min-w-6 items-center justify-center rounded-full px-1.5 align-middle font-body text-[13px] font-bold tabular-nums ' +
+                    (tab === t.id ? 'bg-signal text-signal-ink' : 'bg-signal-bright text-chrome')
                   }
                 >
                   {badges[t.id]}
@@ -240,16 +311,18 @@ export default function App() {
         </nav>
       </header>
 
-      <main className="mx-auto max-w-[1400px] space-y-5 px-4 py-5 sm:px-5">
+      <main className="mx-auto max-w-[1400px] space-y-6 px-4 py-6 sm:px-5">
         {storageError && (
-          <div role="alert" className="no-print rounded-md border-l-[6px] border-danger bg-danger-soft px-4 py-3 font-semibold text-danger">
+          <div role="alert" className="no-print flex items-start gap-3 rounded-2xl border border-danger/30 bg-danger-soft px-5 py-4 font-semibold text-danger shadow-card">
+            <Icon name="warning" className="mt-0.5" />
             Browser storage is full — the latest changes are NOT saved and will be lost when this page closes. Delete
             old entries to free up space.
           </div>
         )}
 
         {notice && (
-          <div role="status" className="no-print rounded-md border-l-[6px] border-signal bg-panel px-4 py-3 font-semibold text-ok">
+          <div role="status" className="no-print flex animate-pop items-center gap-3 rounded-2xl border border-hair bg-panel px-5 py-4 font-semibold text-ok shadow-raised">
+            <Icon name="done" />
             {notice}
           </div>
         )}
@@ -259,36 +332,28 @@ export default function App() {
             role="tabpanel"
             id="panel-gate"
             aria-labelledby="tab-gate"
-            className="mx-auto max-w-[620px]"
+            className="mx-auto max-w-[860px]"
           >
-            {/* The Check In / Check Out form, kept narrow and centered. */}
-            <div className="min-w-0 space-y-3">
-              <div role="tablist" aria-label="Gate form" className="no-print grid grid-cols-2 gap-2">
-                {GATE_MODES.map((m) => (
-                  <button
-                    key={m.id}
-                    role="tab"
-                    aria-selected={gateMode === m.id}
-                    onClick={() => openGate(m.id, null)}
-                    className={
-                      'min-h-14 cursor-pointer rounded-[10px] border-2 font-display text-[22px] font-bold ' +
-                      (gateMode === m.id ? 'border-signal bg-signal text-signal-ink' : 'border-line bg-panel text-ink')
-                    }
-                  >
-                    {m.label}
-                  </button>
-                ))}
-              </div>
-
-              {gateMode === 'out' && !editing ? (
-                <CheckOutPicker entries={entries} onPick={handleCheckOut} />
-              ) : (
-                <GuardForm
-                  key={`${gateMode}-${editing?.id ?? 'new'}`}
-                  mode={gateMode}
+            {/* The Check In / Check Out page: one column, at tablet width. */}
+            <div className="min-w-0">
+              {gateMode === 'out' ? (
+                <CheckOutPage
+                  key={editing?.id ?? 'list'}
+                  entries={entries}
                   initial={editing}
-                  defaultGuard={entries[0]?.guardOnDuty ?? ''}
-                  takenBays={takenBays(entries)}
+                  guard={guard}
+                  switcher={gateSwitch}
+                  onPick={handleCheckOut}
+                  onSave={handleSave}
+                  onCancel={() => setEditing(null)}
+                />
+              ) : (
+                <CheckInForm
+                  key={editing?.id ?? 'new'}
+                  initial={editing}
+                  entries={entries}
+                  guard={guard}
+                  switcher={gateSwitch}
                   onSave={handleSave}
                   onCancel={editing ? () => setEditing(null) : undefined}
                 />
@@ -299,18 +364,18 @@ export default function App() {
           <div role="tabpanel" id="panel-docks" aria-labelledby="tab-docks">
             <DockBoard
               entries={entries}
-              onAssignDock={handleAssignDock}
               onEdit={handleEdit}
               onCheckOut={handleCheckOut}
               onSaveInspection={handleSaveInspection}
-              wide
+              onSaveTrailerCheck={handleSaveTrailerCheck}
+              onLoading={handleLoading}
+              onRelease={handleRelease}
             />
           </div>
         ) : tab === 'analytics' ? (
           <div role="tabpanel" id="panel-analytics" aria-labelledby="tab-analytics">
-            <Analytics
+            <Overview
               entries={entries}
-              gateEvents={gateEvents}
               sampleCount={sampleCount}
               onLoadSample={handleLoadSample}
               onRemoveSample={handleRemoveSample}
@@ -323,7 +388,6 @@ export default function App() {
               onAssignDock={handleAssignDock}
               onEdit={handleEdit}
               onCheckOut={handleCheckOut}
-              onRelease={handleRelease}
               top={
                 <EntryLog entries={entries} onEdit={handleEdit} onCheckOut={handleCheckOut} onDelete={handleDelete} onAssignDock={handleAssignDock} />
               }

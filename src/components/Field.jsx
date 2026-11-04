@@ -1,7 +1,8 @@
 import * as ui from '../ui'
+import { Icon } from '../icons'
 
 // `disabledOptions` greys out individual choices (buttons or dropdown options) so they can't be picked;
-// `optionNotes` adds a note to a choice, e.g. { 'Bay 2': 'In use · 12345' };
+// `optionNotes` adds a note to a choice, e.g. { 'Dock 2': 'In use · 12345' };
 // `dangerOptions` are problem answers that show red once picked (e.g. No on a check);
 // `warning` flags a value that's allowed but out of range (red, without blocking the save).
 export default function Field({
@@ -107,8 +108,9 @@ export default function Field({
         </p>
       )}
       {warning && (
-        <p id={`${id}-warning`} className={ui.errorText}>
-          ⚠ {warning}
+        <p id={`${id}-warning`} className={ui.errorText + ' flex items-start gap-1.5'}>
+          <Icon name="warning" size={16} className="mt-0.5" />
+          {warning}
         </p>
       )}
       {error && (

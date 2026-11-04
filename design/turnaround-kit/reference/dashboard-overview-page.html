@@ -1,0 +1,1056 @@
+<meta name="dash-one-writer">
+<style>
+.tt{
+  --p-navy:#16324F; --p-navy-2:#3A6EA5; --p-sky:#8FB3D9; --p-yolk:#F2A900; --p-gold-1:#F7D27A; --p-amber:#D9731A;
+  --p-teal:#0E8A7E; --p-red:#C8102E; --p-green:#1E8E4E;
+  --p-cream:#FFF8EA; --p-hero:#16324F; --p-hero-2:#1F4770; --p-on-hero:#FFFFFF; --p-on-hero-muted:#C9D8EA; --p-surface:var(--color-panel);
+  --r-lg:calc(var(--cds-radius) * 2.2);
+  font-family:var(--font-anthropic-sans);color:var(--color-fg);display:flex;flex-direction:column;gap:calc(var(--cds-gap-xl) * 1.4)}
+.tt.is-dark{
+  --p-navy:#7AA7E3; --p-navy-2:#4F86C9; --p-sky:#A9C7EA; --p-yolk:#FFC233; --p-gold-1:#FFE29A; --p-amber:#FF9A45;
+  --p-teal:#2EC4B2; --p-red:#FF5468; --p-green:#3DD07F;
+  --p-cream:color-mix(in srgb,#FFC233 7%,var(--color-panel)); --p-hero:#0E2236; --p-hero-2:#173A5C; --p-on-hero-muted:#9FB6CF}
+.tt h1,.tt h2,.tt h3{margin:0}
+.tt-eyebrow{font-size:var(--cds-font-size-caption);letter-spacing:.12em;text-transform:uppercase;font-weight:var(--cds-font-weight-medium);color:var(--p-amber)}
+.tt-note{color:var(--color-fg-muted);font-size:var(--cds-font-size-caption);margin:0;line-height:1.45}
+.tt b{font-weight:var(--cds-font-weight-medium)}
+
+/* hero */
+.tt-hero{position:relative;overflow:hidden;border-radius:var(--r-lg);padding:calc(var(--cds-pad-lg) * 1.6) calc(var(--cds-pad-lg) * 1.6);
+  background:radial-gradient(120% 140% at 100% 0%,var(--p-hero-2) 0%,var(--p-hero) 60%);color:var(--p-on-hero);display:flex;flex-direction:column;gap:var(--cds-gap-sm)}
+.tt-hero::after{content:"";position:absolute;right:-60px;bottom:-60px;width:220px;height:220px;border-radius:50%;background:var(--p-yolk);opacity:.18}
+.tt-hero .tt-eyebrow{color:var(--p-yolk)}
+.tt-hero h1{font-family:var(--font-anthropic-serif);font-weight:400;font-size:calc(var(--cds-font-size-title) * 1.5);line-height:1.1}
+.tt-hero-sub{color:var(--p-on-hero-muted);font-size:var(--cds-font-size-caption);margin:0}
+.tt-take{position:relative;z-index:1;margin:var(--cds-gap-sm) 0 0;max-width:58rem;font-size:var(--cds-font-size-body);line-height:1.55;color:var(--p-on-hero);
+  padding-left:var(--cds-pad-md);border-left:3px solid var(--p-yolk)}
+
+/* KPI cards */
+.tt-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,16rem),1fr));gap:var(--cds-gap-md)}
+.tt-card{appearance:none;font:inherit;color:inherit;text-align:left;cursor:pointer;position:relative;display:flex;flex-direction:column;gap:var(--cds-gap-sm);
+  padding:var(--cds-pad-lg);background:var(--p-surface);border:1px solid var(--color-border-line);border-radius:var(--r-lg);
+  transition:transform var(--cds-dur-slow) var(--cds-ease-out),box-shadow var(--cds-dur-slow) var(--cds-ease-out),border-color var(--cds-dur-slow)}
+.tt-card:hover,.tt-card:focus-visible{transform:translateY(-3px);box-shadow:var(--cds-shadow-popover);border-color:var(--accent);outline:none}
+.tt-card-head{display:flex;align-items:center;gap:var(--cds-gap-sm)}
+.tt-ico{flex:none;width:34px;height:34px;border-radius:10px;display:grid;place-items:center;color:#fff;background:var(--accent)}
+.tt.is-dark .tt-ico{color:var(--p-hero)}
+.tt-ico svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.tt-card-label{font-weight:var(--cds-font-weight-medium);line-height:1.25}
+.tt-big{display:flex;align-items:baseline;gap:6px}
+.tt .tt-big b{font-family:var(--font-anthropic-serif);font-weight:400;font-size:calc(var(--cds-font-size-title) * 1.5);font-variant-numeric:tabular-nums;line-height:1}
+.tt .tt-big b.is-bad{color:var(--p-red)}
+.tt-unit{color:var(--color-fg-muted);font-size:var(--cds-font-size-caption)}
+.tt-meta{display:flex;flex-wrap:wrap;align-items:center;gap:6px var(--cds-gap-sm)}
+.tt-pill{display:inline-flex;align-items:center;gap:6px;font-size:var(--cds-font-size-caption);font-weight:var(--cds-font-weight-medium);padding:2px 10px;border-radius:999px;background:color-mix(in srgb,var(--pill,var(--color-fg-muted)) 14%,transparent);color:var(--pill,var(--color-fg-muted))}
+.tt-pill.ok{--pill:var(--p-green)} .tt-pill.bad{--pill:var(--p-red)}
+.tt-spark{display:block;height:44px;min-height:44px;margin-top:2px}
+.tt-more{font-size:var(--cds-font-size-caption);font-weight:var(--cds-font-weight-medium);color:var(--accent)}
+#card-g2g{--accent:var(--p-navy)} #card-dock{--accent:var(--p-yolk)} #card-ontime{--accent:var(--p-teal)}
+#card-trucks{--accent:var(--p-navy-2)} #card-within{--accent:var(--p-teal)} #card-detention{--accent:var(--p-red)}
+
+/* sections & panels */
+.tt-section{display:flex;flex-direction:column;gap:var(--cds-gap-md)}
+.tt-section-head{display:flex;flex-direction:column;gap:4px}
+.tt-section-head h2{font-family:var(--font-anthropic-serif);font-weight:400;font-size:var(--cds-font-size-title)}
+.tt-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,24rem),1fr));gap:var(--cds-gap-md)}
+.tt-panel{background:var(--p-surface);border:1px solid var(--color-border-line);border-radius:var(--r-lg);padding:calc(var(--cds-pad-lg) * 1.15);display:flex;flex-direction:column;gap:var(--cds-gap-sm);min-width:0}
+.tt-panel.warm{background:linear-gradient(180deg,var(--p-cream),var(--p-surface) 55%)}
+.tt-panel h3{font-size:var(--cds-font-size-heading);font-weight:var(--cds-font-weight-medium)}
+.tt-wide{grid-column:1/-1}
+.tt-chart{position:relative;min-height:240px}
+.tt-chart.short{min-height:200px}
+.tt-legend{display:flex;flex-wrap:wrap;gap:6px var(--cds-gap-md);font-size:var(--cds-font-size-caption);color:var(--color-fg-muted)}
+.tt-legend span{display:inline-flex;align-items:center;gap:6px}
+.tt-legend i{width:12px;height:12px;border-radius:4px;display:inline-block}
+.tt-legend .grp{color:var(--color-fg);font-weight:var(--cds-font-weight-medium)}
+.tt-tip{position:absolute;pointer-events:none;background:var(--cds-surface-popover);border:1px solid var(--cds-border);border-radius:var(--cds-radius);box-shadow:var(--cds-shadow-popover);padding:var(--cds-pad-xs) var(--cds-pad-sm);font-size:var(--cds-font-size-caption);white-space:nowrap;z-index:2;opacity:0;transition:opacity .12s}
+.tt-tip .h{color:var(--cds-text-secondary);margin-bottom:2px}
+.tt-tip .r{display:flex;align-items:center;gap:6px;font-variant-numeric:tabular-nums}
+.tt-tip .r i{width:8px;height:8px;border-radius:2px;display:inline-block}
+.tt-fail{display:flex;align-items:center;justify-content:center;gap:6px;min-height:inherit;height:100%;color:var(--color-fg-muted);font-size:var(--cds-font-size-caption)}
+.tt-fail i{width:.375rem;height:.375rem;border-radius:50%;background:var(--color-bad)}
+.tt svg text{font-family:var(--font-anthropic-sans);font-size:var(--cds-font-size-caption);fill:var(--color-fg-muted)}
+.tt svg text.v{fill:var(--color-fg);font-weight:var(--cds-font-weight-medium);font-variant-numeric:tabular-nums}
+.tt svg text.v.bad{fill:var(--p-red)}
+
+/* detail */
+.tt-top{display:flex;flex-wrap:wrap;align-items:center;gap:var(--cds-gap-xs)}
+.tt-back,.tt-tab{appearance:none;font:inherit;font-size:var(--cds-font-size-caption);font-weight:var(--cds-font-weight-medium);color:var(--color-fg);cursor:pointer;border:1px solid var(--color-border-line);background:var(--p-surface);border-radius:999px;padding:7px 14px;transition:background var(--cds-dur-slow),border-color var(--cds-dur-slow)}
+.tt-back{background:var(--p-hero);color:var(--p-on-hero);border-color:var(--p-hero);margin-right:var(--cds-gap-sm)}
+.tt-tab[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#fff}
+.tt.is-dark .tt-tab[aria-pressed="true"]{color:var(--p-hero)}
+.tt-tab:hover{border-color:var(--accent)}
+.tt-dhero{position:relative;overflow:hidden;display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:var(--cds-gap-lg);
+  padding:calc(var(--cds-pad-lg) * 1.6);border-radius:var(--r-lg);color:var(--p-on-hero);
+  background:radial-gradient(120% 160% at 100% 0%,var(--p-hero-2) 0%,var(--p-hero) 65%)}
+.tt-dhero::before{content:"";position:absolute;left:0;top:0;bottom:0;width:8px;background:var(--accent)}
+.tt-dhero .tt-eyebrow{color:var(--p-yolk)}
+.tt-dhero h1{font-family:var(--font-anthropic-serif);font-weight:400;font-size:calc(var(--cds-font-size-title) * 1.35);line-height:1.15}
+.tt-dhero .tt-note{color:var(--p-on-hero-muted);max-width:44rem}
+.tt-dhero-text{flex:1 1 20rem;display:flex;flex-direction:column;gap:var(--cds-gap-sm)}
+.tt-dhero .tt-line{margin:0;color:var(--p-on-hero)}
+.tt-dhero .tt-line b{color:var(--p-yolk)}
+.tt-dhero .tt-big b{font-size:calc(var(--cds-font-size-title) * 2.4);color:var(--p-yolk)}
+.tt-dhero .tt-big b.is-bad{color:#FF8A96}
+.tt-dhero .tt-unit{color:var(--p-on-hero-muted)}
+.tt-tablebox{max-height:28rem;overflow:auto;border-radius:var(--cds-radius)}
+.tt table{border-collapse:collapse;width:100%;font-size:var(--cds-font-size-caption);font-variant-numeric:tabular-nums}
+.tt th{position:sticky;top:0;background:var(--p-surface);text-align:left;font-weight:var(--cds-font-weight-medium);color:var(--color-fg-muted);padding:8px 10px;border-bottom:2px solid var(--accent);white-space:nowrap}
+.tt td{padding:8px 10px;border-bottom:1px solid var(--color-border-line);white-space:nowrap}
+.tt tbody tr:hover td{background:var(--p-cream)}
+.tt td.num,.tt th.num{text-align:right}
+.tt td.bad{color:var(--p-red);font-weight:var(--cds-font-weight-medium)}
+@media (max-width:640px){.tt .hide-narrow{display:none}}
+@media (prefers-reduced-motion:no-preference){
+  .tt-card{animation:tt-rise var(--cds-dur-slow) var(--cds-ease-out) both}
+  @keyframes tt-rise{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+}
+.tt-ihero{position:relative;overflow:hidden;border-radius:var(--r-lg);padding:calc(var(--cds-pad-lg) * 1.4);color:#fff;
+  background:linear-gradient(120deg,var(--p-teal) 0%,var(--p-hero) 85%);display:flex;flex-direction:column;gap:var(--cds-gap-xs)}
+.tt.is-dark .tt-ihero{color:var(--p-on-hero);background:linear-gradient(120deg,color-mix(in srgb,var(--p-teal) 55%,var(--p-hero)) 0%,var(--p-hero) 85%)}
+.tt-ihero .tt-eyebrow{color:var(--p-gold-1)}
+.tt-ihero h2{font-family:var(--font-anthropic-serif);font-weight:400;font-size:calc(var(--cds-font-size-title) * 1.25);line-height:1.15}
+.tt-ihero-sub{margin:0;max-width:56rem;font-size:var(--cds-font-size-caption);line-height:1.5;opacity:.92}
+.tt-itiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,15rem),1fr));gap:var(--cds-gap-md)}
+.tt-itile{display:flex;flex-direction:column;gap:6px;padding:var(--cds-pad-lg);border-radius:var(--r-lg);border:1px solid var(--color-border-line);
+  background:linear-gradient(160deg,color-mix(in srgb,var(--p-teal) 10%,var(--p-surface)),var(--p-surface) 70%)}
+.tt-itile.hot{background:linear-gradient(160deg,color-mix(in srgb,var(--p-yolk) 22%,var(--p-surface)),var(--p-surface) 75%);border-color:color-mix(in srgb,var(--p-yolk) 50%,var(--color-border-line))}
+.tt-itile-label{font-weight:var(--cds-font-weight-medium)}
+.tt-ibig{display:flex;align-items:baseline;gap:6px}
+.tt .tt-ibig b{font-family:var(--font-anthropic-serif);font-weight:400;font-size:calc(var(--cds-font-size-title) * 1.6);line-height:1;color:var(--p-teal);font-variant-numeric:tabular-nums}
+.tt .tt-itile.hot .tt-ibig b{color:var(--p-amber)}
+[data-dash-source-state=refreshing]{opacity:.5;transition:opacity var(--cds-dur-slow)}
+[data-dash-source-state=empty]{color:transparent}
+</style>
+
+<div class="tt" id="top">
+
+<!-- ================= OVERVIEW ================= -->
+<section data-view="overview" id="overview" class="tt-section" style="gap:calc(var(--cds-gap-xl) * 1.4)">
+  <header class="tt-hero" id="hero">
+    <span class="tt-eyebrow">Gate to gate · Sample week</span>
+    <h1>Truck turnaround overview</h1>
+    <p class="tt-hero-sub"><span data-draw="range" data-source="summary">—</span> · every truck measured from gate check-in to gate checkout, against its appointment</p>
+    <p class="tt-take" data-draw="takeaway" data-source="summary stages impact">—</p>
+  </header>
+
+  <div class="tt-cards" id="cards">
+    <button type="button" class="tt-card" id="card-g2g" data-pick="g2g">
+      <span class="tt-card-head"><span class="tt-ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span><span class="tt-card-label">Gate-to-gate turnaround</span></span>
+      <span class="tt-big"><b data-draw="val" data-source="summary" data-field="avg_g2g" data-where="group_kind=all&amp;group=all" data-fmt="min" data-metric="g2g">—</b><span class="tt-unit">min average</span></span>
+      <span class="tt-meta"><span class="tt-pill" data-draw="status" data-source="summary" data-metric="g2g">—</span><span class="tt-note">Target <span data-draw="target" data-metric="g2g">—</span></span></span>
+      <span class="tt-spark" data-draw="spark" data-source="summary" data-metric="g2g"></span>
+      <span class="tt-more">See details →</span>
+    </button>
+    <button type="button" class="tt-card" id="card-dock" data-pick="dock">
+      <span class="tt-card-head"><span class="tt-ico"><svg viewBox="0 0 24 24"><path d="M3 21V9l9-5 9 5v12"/><path d="M7 21v-8h10v8"/><path d="M7 17h10"/></svg></span><span class="tt-card-label">Dock handling time</span></span>
+      <span class="tt-big"><b data-draw="val" data-source="summary" data-field="avg_dock" data-where="group_kind=all&amp;group=all" data-fmt="min" data-metric="dock">—</b><span class="tt-unit">min average</span></span>
+      <span class="tt-meta"><span class="tt-pill" data-draw="status" data-source="summary" data-metric="dock">—</span><span class="tt-note">Target <span data-draw="target" data-metric="dock">—</span></span></span>
+      <span class="tt-spark" data-draw="spark" data-source="summary" data-metric="dock"></span>
+      <span class="tt-more">See details →</span>
+    </button>
+    <button type="button" class="tt-card" id="card-ontime" data-pick="ontime">
+      <span class="tt-card-head"><span class="tt-ico"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/><path d="M9 15l2 2 4-4"/></svg></span><span class="tt-card-label">On-time arrivals</span></span>
+      <span class="tt-big"><b data-draw="val" data-source="summary" data-field="on_time_rate" data-where="group_kind=all&amp;group=all" data-fmt="pct">—</b><span class="tt-unit">of trucks</span></span>
+      <span class="tt-meta"><span class="tt-note">On time = <span data-draw="target" data-metric="ontime">—</span></span></span>
+      <span class="tt-spark" data-draw="spark" data-source="summary" data-metric="ontime"></span>
+      <span class="tt-more">See details →</span>
+    </button>
+    <button type="button" class="tt-card" id="card-trucks" data-pick="trucks">
+      <span class="tt-card-head"><span class="tt-ico"><svg viewBox="0 0 24 24"><path d="M2 6h11v10H2zM13 10h4l4 4v2h-8"/><circle cx="6" cy="18" r="2"/><circle cx="17" cy="18" r="2"/></svg></span><span class="tt-card-label">Trucks handled</span></span>
+      <span class="tt-big"><b data-draw="val" data-source="summary" data-field="trucks" data-where="group_kind=all&amp;group=all" data-fmt="int">—</b><span class="tt-unit">this week</span></span>
+      <span class="tt-meta"><span class="tt-note">Deliveries, pickups and drop trailers</span></span>
+      <span class="tt-spark" data-draw="spark" data-source="summary" data-metric="trucks"></span>
+      <span class="tt-more">See details →</span>
+    </button>
+    <button type="button" class="tt-card" id="card-within" data-pick="within">
+      <span class="tt-card-head"><span class="tt-ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></svg></span><span class="tt-card-label">Within turnaround target</span></span>
+      <span class="tt-big"><b data-draw="val" data-source="summary" data-field="within_target_rate" data-where="group_kind=all&amp;group=all" data-fmt="pct">—</b><span class="tt-unit">of trucks</span></span>
+      <span class="tt-meta"><span class="tt-note">Gate to gate <span data-draw="target" data-metric="within">—</span></span></span>
+      <span class="tt-spark" data-draw="spark" data-source="summary" data-metric="within"></span>
+      <span class="tt-more">See details →</span>
+    </button>
+    <button type="button" class="tt-card" id="card-detention" data-pick="detention">
+      <span class="tt-card-head"><span class="tt-ico"><svg viewBox="0 0 24 24"><path d="M12 3v18"/><path d="M16.5 7.5c0-1.7-2-3-4.5-3s-4.5 1.3-4.5 3 2 2.7 4.5 3.2 4.5 1.6 4.5 3.3-2 3-4.5 3-4.5-1.3-4.5-3"/></svg></span><span class="tt-card-label">Detention risk</span></span>
+      <span class="tt-big"><b data-draw="val" data-source="summary" data-field="detention_usd" data-where="group_kind=all&amp;group=all" data-fmt="usd" data-metric="detention">—</b><span class="tt-unit">this week</span></span>
+      <span class="tt-meta"><span class="tt-pill" data-draw="status" data-source="summary" data-metric="detention">—</span><span class="tt-note"><span data-draw="target" data-metric="detention">—</span></span></span>
+      <span class="tt-spark" data-draw="spark" data-source="summary" data-metric="detention"></span>
+      <span class="tt-more">See details →</span>
+    </button>
+  </div>
+
+  <div class="tt-section" id="impact">
+    <div class="tt-ihero">
+      <span class="tt-eyebrow">Impact of going digital</span>
+      <h2>From paper and phone calls to one shared screen</h2>
+      <p class="tt-ihero-sub">Manual week (<span data-draw="brange" data-source="baseline_metrics">—</span>) vs digital week (<span data-draw="range" data-source="summary">—</span>). The gate, shipping, the docks and inspection now see the same live yard, so nobody waits on a phone call, a paper form or a walk around the yard to find a truck.</p>
+    </div>
+    <div class="tt-itiles">
+      <div class="tt-itile" id="impact-g2g">
+        <span class="tt-itile-label">Faster per truck</span>
+        <span class="tt-ibig"><b data-draw="val" data-source="impact" data-field="saved" data-where="kind=kpi&amp;key=g2g" data-fmt="min">—</b><span class="tt-unit">min saved</span></span>
+        <span class="tt-note"><span data-draw="val" data-source="impact" data-field="before" data-where="kind=kpi&amp;key=g2g" data-fmt="min">—</span> → <span data-draw="val" data-source="impact" data-field="after" data-where="kind=kpi&amp;key=g2g" data-fmt="min">—</span> min gate to gate (<span data-draw="val" data-source="impact" data-field="change_pct" data-where="kind=kpi&amp;key=g2g" data-fmt="spct">—</span>)</span>
+      </div>
+      <div class="tt-itile hot" id="impact-detention">
+        <span class="tt-itile-label">Detention avoided this week</span>
+        <span class="tt-ibig"><b data-draw="val" data-source="impact" data-field="saved" data-where="kind=kpi&amp;key=detention" data-fmt="usd">—</b></span>
+        <span class="tt-note">About <span data-draw="val" data-source="impact" data-field="saved" data-where="kind=kpi&amp;key=detention_year" data-fmt="usd">—</span> a year at this pace (<span data-draw="val" data-source="impact" data-field="before" data-where="kind=kpi&amp;key=detention" data-fmt="usd">—</span> → <span data-draw="val" data-source="impact" data-field="after" data-where="kind=kpi&amp;key=detention" data-fmt="usd">—</span> a week)</span>
+      </div>
+      <div class="tt-itile" id="impact-dock">
+        <span class="tt-itile-label">Shorter wait for a dock</span>
+        <span class="tt-ibig"><b data-draw="val" data-source="impact" data-field="saved" data-where="kind=kpi&amp;key=dock_wait" data-fmt="min">—</b><span class="tt-unit">min saved</span></span>
+        <span class="tt-note"><span data-draw="val" data-source="impact" data-field="before" data-where="kind=kpi&amp;key=dock_wait" data-fmt="min">—</span> → <span data-draw="val" data-source="impact" data-field="after" data-where="kind=kpi&amp;key=dock_wait" data-fmt="min">—</span> min: shipping sees each check-in the moment it happens</span>
+      </div>
+      <div class="tt-itile" id="impact-within">
+        <span class="tt-itile-label">Trucks within target</span>
+        <span class="tt-ibig"><b data-draw="val" data-source="impact" data-field="after" data-where="kind=kpi&amp;key=within" data-fmt="pct">—</b></span>
+        <span class="tt-note">Up from <span data-draw="val" data-source="impact" data-field="before" data-where="kind=kpi&amp;key=within" data-fmt="pct">—</span> in the manual week</span>
+      </div>
+      <div class="tt-itile" id="impact-calls">
+        <span class="tt-itile-label">Phone calls no longer needed</span>
+        <span class="tt-ibig"><b data-draw="val" data-source="impact" data-field="saved" data-where="kind=kpi&amp;key=phone_calls" data-fmt="int">—</b><span class="tt-unit">calls</span></span>
+        <span class="tt-note">plus <span data-draw="val" data-source="impact" data-field="saved" data-where="kind=kpi&amp;key=paper_handoffs" data-fmt="int">—</span> paper handoffs and <span data-draw="val" data-source="impact" data-field="saved" data-where="kind=kpi&amp;key=yard_search" data-fmt="int">—</span> hours of searching the yard</span>
+      </div>
+      <div class="tt-itile" id="impact-hours">
+        <span class="tt-itile-label">Truck hours freed up</span>
+        <span class="tt-ibig"><b data-draw="val" data-source="impact" data-field="saved" data-where="kind=kpi&amp;key=truck_hours" data-fmt="int">—</b><span class="tt-unit">hours</span></span>
+        <span class="tt-note"><span data-draw="val" data-source="impact" data-field="before" data-where="kind=kpi&amp;key=truck_hours" data-fmt="int">—</span> → <span data-draw="val" data-source="impact" data-field="after" data-where="kind=kpi&amp;key=truck_hours" data-fmt="int">—</span> hours of trucks on site this week</span>
+      </div>
+    </div>
+    <div class="tt-grid">
+      <div class="tt-panel tt-wide warm" id="impact-stages-panel">
+        <h3>Every stage, manual vs digital</h3>
+        <p class="tt-note">Average minutes per truck. The biggest gains are in the handoffs: check-in, waiting for a dock, finding the truck before loading, and paperwork at inspection and checkout.</p>
+        <div class="tt-legend"><span><i style="background:var(--cds-chart-muted)"></i>Manual week</span><span><i style="background:var(--p-teal)"></i>Digital week</span></div>
+        <div class="tt-chart" id="chart-impact-stages" data-draw="i-stages" data-source="impact"></div>
+      </div>
+      <div class="tt-panel" id="impact-week-panel">
+        <h3>Gate to gate by weekday</h3>
+        <p class="tt-note">Average minutes per truck. Red dashed line = the 130-minute maximum.</p>
+        <div class="tt-legend"><span><i style="background:var(--cds-chart-muted)"></i>Manual week</span><span><i style="background:var(--p-navy)"></i>Digital week</span></div>
+        <div class="tt-chart" id="chart-impact-week" data-draw="i-week" data-source="impact"></div>
+      </div>
+      <div class="tt-panel" id="impact-det-panel">
+        <h3>Detention by weekday</h3>
+        <p class="tt-note">Estimated carrier charges, $ per day.</p>
+        <div class="tt-legend"><span><i style="background:var(--cds-chart-muted)"></i>Manual week</span><span><i style="background:var(--p-yolk)"></i>Digital week</span></div>
+        <div class="tt-chart" id="chart-impact-det" data-draw="i-det" data-source="impact"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="tt-section" id="time">
+    <div class="tt-section-head"><span class="tt-eyebrow">Process</span><h2>Where the time goes</h2></div>
+    <div class="tt-grid">
+      <div class="tt-panel tt-wide" id="stack-panel">
+        <h3>Average minutes per stage, by day</h3>
+        <p class="tt-note">Each bar is one day’s average truck, stacked in the order a truck moves through the plant. The red dashed line is the gate-to-gate maximum.</p>
+        <div class="tt-legend">
+          <span class="grp">Gate &amp; yard</span>
+          <span><i style="background:var(--p-sky)"></i>Gate check-in</span><span><i style="background:var(--p-navy)"></i>Dock assignment</span><span><i style="background:var(--p-navy-2)"></i>Gate checkout</span>
+          <span class="grp">At the door</span>
+          <span><i style="background:var(--p-gold-1)"></i>Pre-loading</span><span><i style="background:var(--p-yolk)"></i>Loading / unloading</span><span><i style="background:var(--p-amber)"></i>Inspection</span>
+        </div>
+        <div class="tt-chart" id="chart-stack" data-draw="o-stack" data-source="summary"></div>
+      </div>
+      <div class="tt-panel tt-wide warm" id="stages-panel">
+        <h3>Each stage against its target</h3>
+        <p class="tt-note">Bar = average minutes this week. Green band = target range. Values in red are past the top of the range.</p>
+        <div class="tt-chart" id="chart-stages" data-draw="o-stages" data-source="stages"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="tt-section" id="arrivals">
+    <div class="tt-section-head"><span class="tt-eyebrow">Gate</span><h2>Arrivals and volume</h2></div>
+    <div class="tt-grid">
+      <div class="tt-panel" id="types-panel">
+        <h3>Trucks per day by visit type</h3>
+        <div class="tt-legend"><span><i style="background:var(--p-navy)"></i>Delivery</span><span><i style="background:var(--p-yolk)"></i>Pickup</span><span><i style="background:var(--p-teal)"></i>Drop trailer</span></div>
+        <div class="tt-chart" id="chart-types" data-draw="o-types" data-source="summary"></div>
+      </div>
+      <div class="tt-panel" id="arrival-panel">
+        <h3>Arrival vs appointment</h3>
+        <div class="tt-legend"><span><i style="background:var(--p-teal)"></i>Early (15+ min)</span><span><i style="background:var(--p-navy)"></i>On time (±15 min)</span><span><i style="background:var(--p-red)"></i>Late (15+ min)</span></div>
+        <div class="tt-chart" id="chart-arrival" data-draw="o-arrival" data-source="summary"></div>
+      </div>
+      <div class="tt-panel" id="hour-panel">
+        <h3>Arrivals by appointment hour</h3>
+        <div class="tt-legend"><span><i style="background:var(--p-teal)"></i>Faster hours</span><span><i style="background:var(--p-yolk)"></i>Average</span><span><i style="background:var(--p-red)"></i>Slowest hours</span></div>
+        <div class="tt-chart" id="chart-hour" data-draw="o-hour" data-source="summary"></div>
+      </div>
+      <div class="tt-panel" id="scatter-panel">
+        <h3>Does arriving late slow the whole visit?</h3>
+        <p class="tt-note">One dot per truck. Green band = on time. Above the red line = over the gate-to-gate maximum.</p>
+        <div class="tt-legend"><span><i style="background:var(--p-navy)"></i>Delivery</span><span><i style="background:var(--p-yolk)"></i>Pickup</span><span><i style="background:var(--p-teal)"></i>Drop trailer</span></div>
+        <div class="tt-chart" id="chart-scatter" data-draw="o-scatter" data-source="visit_metrics"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= DETAIL ================= -->
+<section data-view="detail" id="detail" class="tt-section" hidden>
+  <div class="tt-top">
+    <button type="button" class="tt-back" data-pick="overview">← Overview</button>
+    <button type="button" class="tt-tab" data-pick="g2g">Gate to gate</button>
+    <button type="button" class="tt-tab" data-pick="dock">Dock time</button>
+    <button type="button" class="tt-tab" data-pick="ontime">On-time</button>
+    <button type="button" class="tt-tab" data-pick="trucks">Trucks</button>
+    <button type="button" class="tt-tab" data-pick="within">Within target</button>
+    <button type="button" class="tt-tab" data-pick="detention">Detention</button>
+  </div>
+
+  <div class="tt-dhero" id="detail-hero">
+    <div class="tt-dhero-text">
+      <span class="tt-eyebrow">Detail · this week</span>
+      <h1 data-for="g2g" hidden>Gate-to-gate turnaround</h1>
+      <h1 data-for="dock" hidden>Dock handling time</h1>
+      <h1 data-for="ontime" hidden>On-time arrivals</h1>
+      <h1 data-for="trucks" hidden>Trucks handled</h1>
+      <h1 data-for="within" hidden>Within turnaround target</h1>
+      <h1 data-for="detention" hidden>Detention risk</h1>
+      <p class="tt-note" data-for="g2g" hidden>Minutes from gate check-in to gate checkout: check-in, dock assignment, pre-loading, loading or unloading, inspection and checkout. Target <span data-draw="target" data-metric="g2g">—</span>.</p>
+      <p class="tt-note" data-for="dock" hidden>Minutes the truck spends at the door: pre-loading, loading or unloading, and inspection. Target <span data-draw="target" data-metric="dock">—</span>.</p>
+      <p class="tt-note" data-for="ontime" hidden>Arrival time compared with the appointment time. On time = <span data-draw="target" data-metric="ontime">—</span>; trucks outside that window are early or late.</p>
+      <p class="tt-note" data-for="trucks" hidden>Every truck checked in at the gate shack: deliveries (unloading), pickups (loading) and drop trailers.</p>
+      <p class="tt-note" data-for="within" hidden>Share of trucks whose gate-to-gate time stayed <span data-draw="target" data-metric="within">—</span>.</p>
+      <p class="tt-note" data-for="detention" hidden>Estimate of what carriers could bill when we hold their trucks: <span data-draw="target" data-metric="detention">—</span>. Late trucks start the clock at arrival and early trucks at their appointment; trucks more than 15 minutes late aren’t charged.</p>
+      <p class="tt-line" data-for="g2g" hidden><b data-draw="val" data-source="summary" data-field="over_count" data-where="group_kind=all&amp;group=all" data-fmt="int">—</b> trucks went over the maximum this week.</p>
+      <p class="tt-line" data-for="dock" hidden><b data-draw="val" data-source="summary" data-field="dock_over_count" data-where="group_kind=all&amp;group=all" data-fmt="int">—</b> trucks spent longer at the door than the maximum.</p>
+      <p class="tt-line" data-for="ontime" hidden><b data-draw="val" data-source="summary" data-field="early" data-where="group_kind=all&amp;group=all" data-fmt="int">—</b> early · <b data-draw="val" data-source="summary" data-field="on_time" data-where="group_kind=all&amp;group=all" data-fmt="int">—</b> on time · <b data-draw="val" data-source="summary" data-field="late" data-where="group_kind=all&amp;group=all" data-fmt="int">—</b> late</p>
+      <p class="tt-line" data-for="trucks" hidden><b data-draw="val" data-source="summary" data-field="delivery" data-where="group_kind=all&amp;group=all" data-fmt="int">—</b> deliveries · <b data-draw="val" data-source="summary" data-field="pickup" data-where="group_kind=all&amp;group=all" data-fmt="int">—</b> pickups · <b data-draw="val" data-source="summary" data-field="drop" data-where="group_kind=all&amp;group=all" data-fmt="int">—</b> drop trailers</p>
+      <p class="tt-line" data-for="within" hidden><b data-draw="val" data-source="summary" data-field="over_count" data-where="group_kind=all&amp;group=all" data-fmt="int">—</b> of <b data-draw="val" data-source="summary" data-field="trucks" data-where="group_kind=all&amp;group=all" data-fmt="int">—</b> trucks missed it.</p>
+      <p class="tt-line" data-for="detention" hidden><b data-draw="val" data-source="summary" data-field="detained" data-where="group_kind=all&amp;group=all" data-fmt="int">—</b> trucks ran past their free time.</p>
+    </div>
+    <div class="tt-big" data-for="g2g" hidden><b data-draw="val" data-source="summary" data-field="avg_g2g" data-where="group_kind=all&amp;group=all" data-fmt="min" data-metric="g2g">—</b><span class="tt-unit">min avg</span></div>
+    <div class="tt-big" data-for="dock" hidden><b data-draw="val" data-source="summary" data-field="avg_dock" data-where="group_kind=all&amp;group=all" data-fmt="min" data-metric="dock">—</b><span class="tt-unit">min avg</span></div>
+    <div class="tt-big" data-for="ontime" hidden><b data-draw="val" data-source="summary" data-field="on_time_rate" data-where="group_kind=all&amp;group=all" data-fmt="pct">—</b><span class="tt-unit">on time</span></div>
+    <div class="tt-big" data-for="trucks" hidden><b data-draw="val" data-source="summary" data-field="trucks" data-where="group_kind=all&amp;group=all" data-fmt="int">—</b><span class="tt-unit">trucks</span></div>
+    <div class="tt-big" data-for="within" hidden><b data-draw="val" data-source="summary" data-field="within_target_rate" data-where="group_kind=all&amp;group=all" data-fmt="pct">—</b><span class="tt-unit">within</span></div>
+    <div class="tt-big" data-for="detention" hidden><b data-draw="val" data-source="summary" data-field="detention_usd" data-where="group_kind=all&amp;group=all" data-fmt="usd" data-metric="detention">—</b><span class="tt-unit">this week</span></div>
+  </div>
+
+  <div class="tt-grid">
+    <div class="tt-panel tt-wide" id="d-day-panel">
+      <h3>By day</h3>
+      <p class="tt-note">Green band = target range, where there is one. Red bars are over it.</p>
+      <div class="tt-chart" id="chart-d-day" data-draw="d-day" data-source="summary"></div>
+    </div>
+    <div class="tt-panel" id="d-type-panel">
+      <h3>By visit type</h3>
+      <div class="tt-chart short" id="chart-d-type" data-draw="d-type" data-source="summary"></div>
+    </div>
+    <div class="tt-panel" id="d-hour-panel">
+      <h3>By appointment hour</h3>
+      <div class="tt-chart short" id="chart-d-hour" data-draw="d-hour" data-source="summary"></div>
+    </div>
+    <div class="tt-panel" id="d-carrier-panel">
+      <h3>By carrier</h3>
+      <div class="tt-chart" id="chart-d-carrier" data-draw="d-carrier" data-source="summary"></div>
+    </div>
+    <div class="tt-panel warm" id="d-dist-panel" data-not-for="trucks">
+      <h3>Spread across trucks</h3>
+      <p class="tt-note">How many trucks fall in each range. Dashed lines mark the target.</p>
+      <div class="tt-chart" id="chart-d-dist" data-draw="d-dist" data-source="visit_metrics"></div>
+    </div>
+    <div class="tt-panel tt-wide" id="d-table-panel">
+      <h3>Trucks behind this number</h3>
+      <p class="tt-note" data-for="g2g" hidden>Slowest gate-to-gate first.</p>
+      <p class="tt-note" data-for="dock" hidden>Longest time at the door first.</p>
+      <p class="tt-note" data-for="ontime" hidden>Latest arrivals first (minutes after appointment; negative = early).</p>
+      <p class="tt-note" data-for="trucks" hidden>Slowest gate-to-gate first.</p>
+      <p class="tt-note" data-for="within" hidden>Slowest gate-to-gate first.</p>
+      <p class="tt-note" data-for="detention" hidden>Largest estimated charge first.</p>
+      <div class="tt-tablebox">
+        <table id="detail-table" data-source="visit_metrics" data-row-key="visit_id">
+          <thead><tr>
+            <th data-field="visit_id">Visit</th>
+            <th data-field="day">Day</th>
+            <th data-field="visit_type">Type</th>
+            <th data-field="carrier" class="hide-narrow">Carrier</th>
+            <th data-field="appt">Appt</th>
+            <th data-field="arrived">Arrived</th>
+            <th data-field="arrival_delta_min" class="num">vs appt (min)</th>
+            <th data-field="dock_assign_min" class="num hide-narrow">Dock wait (min)</th>
+            <th data-field="dock_min" class="num">At door (min)</th>
+            <th data-field="g2g_min" class="num">Gate to gate (min)</th>
+            <th data-field="detention_usd" class="num">Detention ($)</th>
+          </tr></thead>
+          <tbody data-draw="d-table"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>
+</div>
+
+<script>
+/* ---------- Calculations (readers can see these) ---------- */
+dash.calc('visit_metrics', {
+  inputs: ['visits'],
+  title: 'Per-truck times',
+  description: 'Each truck’s minutes vs appointment, time at the door, gate-to-gate time and estimated detention ($75/h after 2 h free time).',
+  fn: (visits) => visits.map((v) => {
+    const n = (k) => Number(v[k]);
+    const clock = (t) => { const [h, m] = String(t).split(':').map(Number); return h * 60 + m; };
+    const appt = clock(v.appt), arrived = clock(v.arrived);
+    const delta = arrived - appt;
+    const dock = n('preload_min') + n('load_min') + n('inspection_min');
+    const g2g = n('gate_in_min') + n('dock_assign_min') + dock + n('checkout_min');
+    const clockStart = Math.max(arrived, appt);
+    const onClock = arrived + g2g - clockStart;
+    const detention = delta > 15 ? 0 : Math.round(Math.max(0, onClock - 120) / 60 * 75);
+    return {
+      visit_id: v.visit_id, day: v.day, visit_type: v.visit_type, carrier: v.carrier, appt: v.appt, arrived: v.arrived,
+      appt_hour: Math.floor(appt / 60),
+      arrival_delta_min: delta, arrival_status: delta < -15 ? 'Early' : delta > 15 ? 'Late' : 'On time',
+      gate_in_min: n('gate_in_min'), dock_assign_min: n('dock_assign_min'), preload_min: n('preload_min'),
+      load_min: n('load_min'), inspection_min: n('inspection_min'), checkout_min: n('checkout_min'),
+      dock_min: dock, g2g_min: g2g, detention_usd: detention,
+    };
+  }),
+});
+
+dash.calc('summary', {
+  inputs: ['visit_metrics'],
+  title: 'Turnaround summary',
+  description: 'Averages, shares and counts for the whole week, and by day, visit type, appointment hour and carrier.',
+  fn: (visit_metrics) => {
+    const avg = (vs, k, d) => { const s = vs.reduce((a, v) => a + v[k], 0) / vs.length; const p = 10 ** d; return Math.round(s * p) / p; };
+    const count = (vs, f) => vs.filter(f).length;
+    const sum = (vs) => {
+      const n = vs.length;
+      return {
+        trucks: n,
+        delivery: count(vs, (v) => v.visit_type === 'Delivery'),
+        pickup: count(vs, (v) => v.visit_type === 'Pickup'),
+        drop: count(vs, (v) => v.visit_type === 'Drop trailer'),
+        avg_gate_in: avg(vs, 'gate_in_min', 1), avg_assign: avg(vs, 'dock_assign_min', 1), avg_preload: avg(vs, 'preload_min', 1),
+        avg_load: avg(vs, 'load_min', 1), avg_inspection: avg(vs, 'inspection_min', 1), avg_checkout: avg(vs, 'checkout_min', 1),
+        avg_dock: avg(vs, 'dock_min', 0), avg_g2g: avg(vs, 'g2g_min', 0),
+        early: count(vs, (v) => v.arrival_status === 'Early'),
+        on_time: count(vs, (v) => v.arrival_status === 'On time'),
+        late: count(vs, (v) => v.arrival_status === 'Late'),
+        on_time_rate: Math.round(count(vs, (v) => v.arrival_status === 'On time') / n * 1000) / 1000,
+        over_count: count(vs, (v) => v.g2g_min > 130),
+        dock_over_count: count(vs, (v) => v.dock_min > 85),
+        within_target_rate: Math.round(count(vs, (v) => v.g2g_min <= 130) / n * 1000) / 1000,
+        detained: count(vs, (v) => v.detention_usd > 0),
+        detention_usd: vs.reduce((a, v) => a + v.detention_usd, 0),
+      };
+    };
+    const by = (kind, key) => {
+      const m = new Map();
+      visit_metrics.forEach((v) => { const g = String(v[key]); if (!m.has(g)) m.set(g, []); m.get(g).push(v); });
+      return [...m].sort((a, b) => (a[0] < b[0] ? -1 : 1)).map(([g, vs]) => ({ group_kind: kind, group: g, ...sum(vs) }));
+    };
+    return [
+      { group_kind: 'all', group: 'all', ...sum(visit_metrics) },
+      ...by('day', 'day'), ...by('type', 'visit_type'), ...by('hour', 'appt_hour'), ...by('carrier', 'carrier'),
+    ];
+  },
+});
+
+dash.calc('stages', {
+  inputs: ['visit_metrics'],
+  title: 'Stage times vs targets',
+  description: 'Average minutes per stage this week, with each stage’s target range and the share of trucks inside it.',
+  fn: (visit_metrics) => {
+    const targets = [
+      ['Gate check-in', 'gate_in_min', 3, 5], ['Dock assignment', 'dock_assign_min', 15, 30], ['Pre-loading', 'preload_min', 5, 10],
+      ['Loading / unloading', 'load_min', 30, 60], ['Inspection', 'inspection_min', 10, 15], ['Gate checkout', 'checkout_min', 3, 5],
+    ];
+    return targets.map(([stage, k, lo, hi]) => {
+      const vs = visit_metrics.map((v) => v[k]);
+      return {
+        stage, target_lo: lo, target_hi: hi,
+        avg_min: Math.round(vs.reduce((a, b) => a + b, 0) / vs.length * 10) / 10,
+        within_rate: Math.round(vs.filter((x) => x <= hi).length / vs.length * 1000) / 1000,
+      };
+    });
+  },
+});
+
+dash.calc('baseline_metrics', {
+  inputs: ['baseline'],
+  title: 'Per-truck times, manual week',
+  description: 'The same per-truck times for the manual (paper and phone) week, plus its phone calls, paper handoffs and yard-search minutes.',
+  fn: (baseline) => baseline.map((v) => {
+    const n = (k) => Number(v[k]);
+    const clock = (t) => { const [h, m] = String(t).split(':').map(Number); return h * 60 + m; };
+    const appt = clock(v.appt), arrived = clock(v.arrived);
+    const delta = arrived - appt;
+    const dock = n('preload_min') + n('load_min') + n('inspection_min');
+    const g2g = n('gate_in_min') + n('dock_assign_min') + dock + n('checkout_min');
+    const onClock = arrived + g2g - Math.max(arrived, appt);
+    return {
+      visit_id: v.visit_id, day: v.day, visit_type: v.visit_type,
+      gate_in_min: n('gate_in_min'), dock_assign_min: n('dock_assign_min'), preload_min: n('preload_min'),
+      load_min: n('load_min'), inspection_min: n('inspection_min'), checkout_min: n('checkout_min'),
+      dock_min: dock, g2g_min: g2g, detention_usd: delta > 15 ? 0 : Math.round(Math.max(0, onClock - 120) / 60 * 75),
+      phone_calls: n('phone_calls'), paper_handoffs: n('paper_handoffs'), yard_search_min: n('yard_search_min'),
+    };
+  }),
+});
+
+dash.calc('impact', {
+  inputs: ['baseline_metrics', 'visit_metrics'],
+  title: 'Manual vs digital',
+  description: 'Manual week vs digital week: averages, totals, each stage and each weekday. The digital system passes updates on screen, so it counts no phone calls, paper handoffs or yard searches.',
+  fn: (baseline_metrics, visit_metrics) => {
+    const b = baseline_metrics, a = visit_metrics;
+    const avg = (vs, k) => vs.reduce((s, v) => s + v[k], 0) / vs.length;
+    const total = (vs, k) => vs.reduce((s, v) => s + (v[k] || 0), 0);
+    const share = (vs) => vs.filter((v) => v.g2g_min <= 130).length / vs.length;
+    const rd = (x, d) => Math.round(x * 10 ** d) / 10 ** d;
+    const row = (kind, key, label, before, after, d) => ({
+      kind, key, label, before: rd(before, d), after: rd(after, d), saved: rd(before - after, d),
+      change_pct: before ? rd((after - before) / before, 3) : null,
+    });
+    const out = [
+      row('kpi', 'g2g', 'Gate to gate, avg min', avg(b, 'g2g_min'), avg(a, 'g2g_min'), 0),
+      row('kpi', 'dock_wait', 'Dock assignment wait, avg min', avg(b, 'dock_assign_min'), avg(a, 'dock_assign_min'), 0),
+      row('kpi', 'gate_in', 'Gate check-in, avg min', avg(b, 'gate_in_min'), avg(a, 'gate_in_min'), 1),
+      row('kpi', 'within', 'Trucks within 130 min', share(b), share(a), 3),
+      row('kpi', 'detention', 'Detention, $ per week', total(b, 'detention_usd'), total(a, 'detention_usd'), 0),
+      row('kpi', 'detention_year', 'Detention, $ per year at this pace', total(b, 'detention_usd') * 52, total(a, 'detention_usd') * 52, 0),
+      row('kpi', 'truck_hours', 'Truck hours on site', total(b, 'g2g_min') / 60, total(a, 'g2g_min') / 60, 0),
+      row('kpi', 'phone_calls', 'Phone calls gate to shipping', total(b, 'phone_calls'), 0, 0),
+      row('kpi', 'paper_handoffs', 'Paper handoffs', total(b, 'paper_handoffs'), 0, 0),
+      row('kpi', 'yard_search', 'Hours searching the yard', total(b, 'yard_search_min') / 60, 0, 0),
+      row('kpi', 'trucks', 'Trucks', b.length, a.length, 0),
+    ];
+    [['gate_in_min', 'Gate check-in'], ['dock_assign_min', 'Dock assignment'], ['preload_min', 'Pre-loading'],
+      ['load_min', 'Loading / unloading'], ['inspection_min', 'Inspection'], ['checkout_min', 'Gate checkout']]
+      .forEach(([k, label]) => out.push(row('stage', k, label, avg(b, k), avg(a, k), 1)));
+    const names = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const wd = (v) => names[new Date(v.day + 'T00:00:00Z').getUTCDay()];
+    ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].forEach((d) => {
+      const bd = b.filter((v) => wd(v) === d), ad = a.filter((v) => wd(v) === d);
+      if (!bd.length || !ad.length) return;
+      out.push(row('weekday', d, d, avg(bd, 'g2g_min'), avg(ad, 'g2g_min'), 0));
+      out.push(row('weekday_detention', d, d, total(bd, 'detention_usd'), total(ad, 'detention_usd'), 0));
+    });
+    return out;
+  },
+});
+</script>
+
+<script>
+/* ---------- Constants: your targets ---------- */
+const G2G = [65, 130], DOCK = [45, 85], ON_TIME_WINDOW = 15, FREE_HOURS = 2, DETENTION_RATE = 75;
+const METRICS = {
+  g2g:       { col: 'navy', field: 'avg_g2g', visit: 'g2g_min', fmt: 'min', band: G2G },
+  dock:      { col: 'yolk', field: 'avg_dock', visit: 'dock_min', fmt: 'min', band: DOCK },
+  ontime:    { col: 'teal', field: 'on_time_rate', visit: 'arrival_delta_min', fmt: 'pct', distBand: [-ON_TIME_WINDOW, ON_TIME_WINDOW], sortVisit: 'arrival_delta_min' },
+  trucks:    { col: 'navy-2', field: 'trucks', fmt: 'int', sortVisit: 'g2g_min' },
+  within:    { col: 'teal', field: 'within_target_rate', visit: 'g2g_min', fmt: 'pct', distBand: G2G },
+  detention: { col: 'red', field: 'detention_usd', visit: 'detention_usd', fmt: 'usd' },
+};
+const STAGE_KEYS = ['avg_gate_in', 'avg_assign', 'avg_preload', 'avg_load', 'avg_inspection', 'avg_checkout'];
+const STAGE_NAMES = ['Gate check-in', 'Dock assignment', 'Pre-loading', 'Loading / unloading', 'Inspection', 'Gate checkout'];
+const TYPES = [['delivery', 'Delivery'], ['pickup', 'Pickup'], ['drop', 'Drop trailer']];
+const V = (n) => `var(--p-${n})`;
+const CRIT = V('red');
+const STAGE_COL = ['sky', 'navy', 'gold-1', 'yolk', 'amber', 'navy-2'].map(V);
+const TYPE_COL = ['navy', 'yolk', 'teal'].map(V);
+const mcol = (met) => V(met.col);
+
+const FMT = {
+  min: (v) => d3.format(',.0f')(v), min1: (v) => d3.format(',.1f')(v), pct: (v) => d3.format('.1%')(v),
+  int: (v) => d3.format(',')(v), usd: (v) => '$' + d3.format(',.0f')(v), spct: (v) => d3.format('+.0%')(v).replace('-', '−'),
+};
+const parseDay = (s) => new Date(s + 'T00:00:00Z');
+const dayLabel = (s) => d3.utcFormat('%a %-d')(parseDay(s));
+const dayLong = (s) => d3.utcFormat('%a %b %-d')(parseDay(s));
+const hourLabel = (h) => { h = +h; return (h % 12 || 12) + (h < 12 ? 'a' : 'p'); };
+const metricNow = () => { const m = dash.params().metric; return METRICS[m] ? m : 'overview'; };
+function computed(c, host) {
+  const probe = document.createElement('span'); probe.style.color = c; probe.hidden = true;
+  host.appendChild(probe);
+  const out = getComputedStyle(probe).color; probe.remove(); return out;
+}
+
+/* ---------- Data helpers ---------- */
+function load(el, ids) {
+  const ds = ids.map((id) => dash.data(id));
+  const bad = ds.find((d) => ['error', 'connect', 'declined', 'missing'].includes(d.status));
+  if (bad) {
+    el.classList.remove('dash-skeleton');
+    const f = document.createElement('div'); f.className = 'tt-fail';
+    const i = document.createElement('i'); const s = document.createElement('span'); s.textContent = 'Failed to load';
+    f.append(i, s); el.replaceChildren(f); return null;
+  }
+  if (ds.some((d) => d.status !== 'ok')) { el.replaceChildren(); el.classList.add('dash-skeleton'); return null; }
+  el.classList.remove('dash-skeleton');
+  return ds.map((d) => d.data);
+}
+const rowsOf = (summary, kind) => summary.filter((r) => r.group_kind === kind);
+const allRow = (summary) => summary.find((r) => r.group_kind === 'all');
+
+/* ---------- Tooltip ---------- */
+function makeTip(el) {
+  const t = document.createElement('div'); t.className = 'tt-tip'; el.appendChild(t);
+  return {
+    show(ev, head, lines) {
+      t.replaceChildren();
+      const h = document.createElement('div'); h.className = 'h'; h.textContent = head; t.appendChild(h);
+      lines.forEach(([color, name, value]) => {
+        const r = document.createElement('div'); r.className = 'r';
+        if (color) { const i = document.createElement('i'); i.style.background = color; r.appendChild(i); }
+        const s = document.createElement('span'); s.textContent = name ? name + ': ' + value : value; r.appendChild(s);
+        t.appendChild(r);
+      });
+      const b = el.getBoundingClientRect();
+      let x = ev.clientX - b.left + 12, y = ev.clientY - b.top - 10;
+      t.style.opacity = 1;
+      const w = t.offsetWidth, hgt = t.offsetHeight;
+      if (x + w > el.clientWidth) x = ev.clientX - b.left - w - 12;
+      x = Math.max(0, x); y = Math.max(0, Math.min(y, el.clientHeight - hgt));
+      t.style.left = x + 'px'; t.style.top = y + 'px';
+    },
+    hide() { t.style.opacity = 0; },
+  };
+}
+
+/* ---------- Chart builders ---------- */
+function svgIn(el, H) {
+  const W = Math.max(280, el.clientWidth || 600);
+  const svg = d3.select(el).append('svg').attr('width', '100%').attr('height', H).attr('viewBox', `0 0 ${W} ${H}`);
+  return { svg, W, H };
+}
+function textWidth(svg, strings) {
+  const t = svg.append('text'); let w = 0;
+  strings.forEach((s) => { t.text(s); w = Math.max(w, t.node().getComputedTextLength()); });
+  t.remove(); return w;
+}
+function yAxis(svg, y, x0, x1, fmt, n) {
+  const ticks = y.ticks(n || 4);
+  const g = svg.append('g');
+  g.selectAll('line').data(ticks).join('line').attr('x1', x0).attr('x2', x1).attr('y1', (d) => y(d)).attr('y2', (d) => y(d))
+    .style('stroke', (d) => (d === 0 ? 'var(--cds-chart-axis)' : 'var(--cds-chart-grid)')).attr('stroke-width', 1);
+  g.selectAll('text').data(ticks).join('text').attr('x', x0 - 6).attr('y', (d) => y(d)).attr('dy', '0.32em').attr('text-anchor', 'end').text(fmt);
+}
+function xLabels(svg, x, keys, label, yPos) {
+  const widest = textWidth(svg, keys.map(label));
+  const step = Math.max(1, Math.ceil((widest + 8) / x.step()));
+  svg.append('g').selectAll('text').data(keys.filter((_, i) => i % step === 0)).join('text')
+    .attr('x', (k) => x(k) + x.bandwidth() / 2).attr('y', yPos).attr('text-anchor', 'middle').text(label);
+}
+/* Vertical bars: o = {keys, label, value, color, fmt, band, ref, tipHead, tipLines, H} */
+function vbars(el, o) {
+  el.replaceChildren();
+  const H = o.H || 240;
+  const { svg, W } = svgIn(el, H);
+  const vals = o.keys.map(o.value);
+  const top = d3.max([...vals, o.band ? o.band[1] : 0, o.ref || 0]) || 1;
+  const y = d3.scaleLinear([0, top * 1.12], [H - 24, 10]).nice();
+  const ml = textWidth(svg, y.ticks(4).map(o.fmt)) + 12;
+  const x = d3.scaleBand(o.keys, [ml, W - 6]).padding(0.28);
+  if (o.band) svg.append('rect').attr('x', ml).attr('width', W - 6 - ml).attr('y', y(o.band[1])).attr('height', y(o.band[0]) - y(o.band[1]))
+    .style('fill', 'var(--p-green)').attr('opacity', 0.12);
+  yAxis(svg, y, ml, W - 6, o.fmt);
+  const bw = Math.min(x.bandwidth(), 40);
+  const tip = makeTip(el);
+  svg.append('g').selectAll('rect').data(o.keys).join('rect')
+    .attr('x', (k) => x(k) + (x.bandwidth() - bw) / 2).attr('width', bw)
+    .attr('y', (k) => y(o.value(k))).attr('height', (k) => Math.max(0, y(0) - y(o.value(k))))
+    .attr('rx', 6).style('fill', (k, i) => o.color(k, i)).style('cursor', 'default')
+    .on('mousemove', (ev, k) => tip.show(ev, o.tipHead(k), o.tipLines(k))).on('mouseleave', () => tip.hide());
+  if (o.ref) {
+    svg.append('line').attr('x1', ml).attr('x2', W - 6).attr('y1', y(o.ref)).attr('y2', y(o.ref))
+      .style('stroke', 'var(--cds-chart-reference)').attr('stroke-dasharray', '5 4').attr('stroke-width', 1.5);
+  }
+  xLabels(svg, x, o.keys, o.label, H - 6);
+}
+/* Horizontal bars: o = {keys, label, value, color, fmt, band, tipHead, tipLines} */
+function hbars(el, o) {
+  el.replaceChildren();
+  const rowH = 30, H = o.keys.length * rowH + 10;
+  const { svg, W } = svgIn(el, H);
+  const ml = textWidth(svg, o.keys.map(o.label)) + 12;
+  const mr = textWidth(svg, o.keys.map((k) => o.fmt(o.value(k)))) + 14;
+  const top = d3.max([...o.keys.map(o.value), o.band ? o.band[1] : 0]) || 1;
+  const x = d3.scaleLinear([0, top * 1.05], [ml, W - mr]);
+  const y = d3.scaleBand(o.keys, [4, H - 6]).padding(0.3);
+  const tip = makeTip(el);
+  svg.append('line').attr('x1', ml).attr('x2', ml).attr('y1', 0).attr('y2', H - 4).style('stroke', 'var(--cds-chart-axis)');
+  const g = svg.append('g').selectAll('g').data(o.keys).join('g');
+  g.append('text').attr('x', ml - 8).attr('y', (k) => y(k) + y.bandwidth() / 2).attr('dy', '0.32em').attr('text-anchor', 'end').text(o.label);
+  g.append('rect').attr('x', ml).attr('y', (k) => y(k)).attr('height', y.bandwidth()).attr('rx', 4)
+    .attr('width', (k) => Math.max(0, x(o.value(k)) - ml)).style('fill', (k, i) => o.color(k, i))
+    .on('mousemove', (ev, k) => tip.show(ev, o.tipHead(k), o.tipLines(k))).on('mouseleave', () => tip.hide());
+  g.append('text').attr('class', 'v').attr('x', (k) => x(o.value(k)) + 6).attr('y', (k) => y(k) + y.bandwidth() / 2).attr('dy', '0.32em').text((k) => o.fmt(o.value(k)));
+  return { svg, x, y };
+}
+
+/* ---------- Show the right view ---------- */
+document.querySelectorAll('[data-pick]').forEach((b) => b.addEventListener('click', () => {
+  const m = b.dataset.pick;
+  dash.setParams({ metric: m === 'overview' ? null : m });
+  dash.setLink(m === 'overview' ? 'overview' : 'detail');
+  document.querySelectorAll('#top').forEach((t) => t.scrollIntoView({ block: 'start' }));
+}));
+dash.onData(() => {
+  const m = metricNow();
+  document.querySelectorAll('[data-view]').forEach((s) => { s.hidden = (s.dataset.view === 'overview') !== (m === 'overview'); });
+  document.querySelectorAll('[data-for]').forEach((e) => { e.hidden = e.dataset.for !== m; });
+  document.querySelectorAll('[data-not-for]').forEach((e) => { e.hidden = e.dataset.notFor.split(' ').includes(m); });
+  document.querySelectorAll('.tt-tab').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.pick === m)));
+  document.querySelectorAll('[data-view="detail"]').forEach((s) => s.style.setProperty('--accent', V(METRICS[m] ? METRICS[m].col : 'navy')));
+  document.querySelectorAll('.tt').forEach((t) => {
+    const rgb = (getComputedStyle(t).color.match(/[\d.]+/g) || [0, 0, 0]).slice(0, 3).map(Number);
+    t.classList.toggle('is-dark', (0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2]) > 140);
+  });
+});
+
+/* ---------- Small drawings ---------- */
+dash.draw('val', (el) => {
+  const d = dash.data(el.dataset.source);
+  el.classList.remove('is-ok', 'is-bad');
+  if (d.status !== 'ok') { el.textContent = '—'; el.classList.toggle('dash-skeleton', d.status === 'loading'); return; }
+  el.classList.remove('dash-skeleton');
+  const where = Object.fromEntries(el.dataset.where.split('&').map((p) => p.split('=').map(decodeURIComponent)));
+  const row = d.data.find((r) => Object.entries(where).every(([k, v]) => String(r[k]) === v));
+  const v = row ? row[el.dataset.field] : null;
+  el.textContent = v == null ? '—' : FMT[el.dataset.fmt](v);
+  const met = METRICS[el.dataset.metric];
+  if (met && v != null) {
+    if (met.band) el.classList.add(v > met.band[1] ? 'is-bad' : 'is-ok');
+    if (el.dataset.metric === 'detention') el.classList.add(v > 0 ? 'is-bad' : 'is-ok');
+  }
+});
+dash.draw('target', (el) => {
+  const m = el.dataset.metric;
+  el.textContent = m === 'g2g' ? `${G2G[0]}–${G2G[1]} min`
+    : m === 'dock' ? `${DOCK[0]}–${DOCK[1]} min`
+    : m === 'ontime' ? `within ±${ON_TIME_WINDOW} min of appointment`
+    : m === 'within' ? `at or under ${G2G[1]} min`
+    : m === 'detention' ? `${FREE_HOURS} h free time, then $${DETENTION_RATE}/h` : '—';
+});
+dash.draw('range', (el) => {
+  const d = dash.data('summary');
+  if (d.status !== 'ok') { el.textContent = '—'; return; }
+  const days = rowsOf(d.data, 'day').map((r) => r.group);
+  el.textContent = days.length ? `${dayLong(days[0])} – ${dayLong(days[days.length - 1])}, 2026` : '—';
+});
+dash.draw('takeaway', (el) => {
+  const s = dash.data('summary'), st = dash.data('stages'), im = dash.data('impact');
+  if (s.status !== 'ok' || st.status !== 'ok' || im.status !== 'ok') { el.textContent = '—'; return; }
+  const k = (key) => im.data.find((r) => r.kind === 'kpi' && r.key === key);
+  const a = allRow(s.data);
+  const worst = st.data.slice().sort((p, q) => q.avg_min / q.target_hi - p.avg_min / p.target_hi)[0];
+  const day = rowsOf(s.data, 'day').slice().sort((p, q) => q.avg_g2g - p.avg_g2g)[0];
+  el.textContent = `Since going digital, trucks leave ${FMT.min(k('g2g').saved)} min sooner (${FMT.min(k('g2g').before)} → ${FMT.min(k('g2g').after)} min) and about ${FMT.usd(k('detention').saved)} a week of detention is avoided. `
+    + `This week ${FMT.int(a.trucks)} trucks averaged ${FMT.min(a.avg_g2g)} min gate to gate (target ${G2G[0]}–${G2G[1]}); `
+    + `${FMT.int(a.over_count)} went over ${G2G[1]} min, putting ${FMT.usd(a.detention_usd)} of detention at risk. `
+    + `The stage furthest past its target is ${worst.stage.toLowerCase()} at ${FMT.min1(worst.avg_min)} min (target ${worst.target_lo}–${worst.target_hi}), `
+    + `and ${dayLong(day.group)} was the slowest day at ${FMT.min(day.avg_g2g)} min.`;
+});
+dash.draw('spark', (el) => {
+  const got = load(el, ['summary']); if (!got) return;
+  el.replaceChildren();
+  const met = METRICS[el.dataset.metric];
+  const rows = rowsOf(got[0], 'day');
+  const W = Math.max(120, el.clientWidth || 200), H = 44;
+  const svg = d3.select(el).append('svg').attr('width', '100%').attr('height', H).attr('viewBox', `0 0 ${W} ${H}`);
+  const x = d3.scalePoint(rows.map((r) => r.group), [5, W - 5]);
+  const top = d3.max(rows, (r) => r[met.field]) || 1;
+  const y = d3.scaleLinear([0, top], [H - 2, 6]);
+  const gid = 'sg-' + el.dataset.metric;
+  const grad = svg.append('defs').append('linearGradient').attr('id', gid).attr('x1', 0).attr('x2', 0).attr('y1', 0).attr('y2', 1);
+  [[0, .32], [.5, .12], [1, 0]].forEach(([o, a]) => grad.append('stop').attr('offset', o).style('stop-color', mcol(met)).style('stop-opacity', a));
+  svg.append('path').datum(rows).attr('d', d3.area().x((r) => x(r.group)).y0(H).y1((r) => y(r[met.field]))).style('fill', `url(#${gid})`);
+  svg.append('path').datum(rows).attr('d', d3.line().x((r) => x(r.group)).y((r) => y(r[met.field])))
+    .style('fill', 'none').style('stroke', mcol(met)).attr('stroke-width', 2.5).attr('stroke-linecap', 'round').attr('stroke-linejoin', 'round');
+  svg.selectAll('circle').data(rows).join('circle').attr('cx', (r) => x(r.group)).attr('cy', (r) => y(r[met.field]))
+    .attr('r', (r, i) => (i === rows.length - 1 ? 4 : 2.5))
+    .style('fill', (r) => (met.band && r[met.field] > met.band[1]) || (el.dataset.metric === 'detention' && r[met.field] > 0) ? CRIT : mcol(met))
+    .style('stroke', 'var(--p-surface)').attr('stroke-width', 1.5);
+});
+dash.draw('status', (el) => {
+  const d = dash.data('summary'); const m = el.dataset.metric; const met = METRICS[m];
+  el.classList.remove('ok', 'bad');
+  if (d.status !== 'ok') { el.textContent = '—'; return; }
+  const v = allRow(d.data)[met.field];
+  const bad = m === 'detention' ? v > 0 : v > met.band[1];
+  el.classList.add(bad ? 'bad' : 'ok');
+  el.textContent = m === 'detention' ? (bad ? '● Money at risk' : '● No charges') : (bad ? '● Over target' : '● On target');
+});
+
+/* ---------- Overview charts ---------- */
+dash.draw('o-stack', (el) => {
+  const got = load(el, ['summary']); if (!got) return;
+  el.replaceChildren();
+  const rows = rowsOf(got[0], 'day');
+  const H = 260; const { svg, W } = svgIn(el, H);
+  const stacked = d3.stack().keys(STAGE_KEYS)(rows);
+  const top = Math.max(d3.max(rows, (r) => d3.sum(STAGE_KEYS, (k) => r[k])), G2G[1]);
+  const y = d3.scaleLinear([0, top * 1.1], [H - 24, 10]).nice();
+  const ml = textWidth(svg, y.ticks(5).map(FMT.min)) + 12;
+  const x = d3.scaleBand(rows.map((r) => r.group), [ml, W - 6]).padding(0.3);
+  yAxis(svg, y, ml, W - 6, FMT.min, 5);
+  const bw = Math.min(x.bandwidth(), 56);
+  const tip = makeTip(el);
+  svg.append('g').selectAll('g').data(stacked).join('g').style('fill', (s, i) => STAGE_COL[i])
+    .selectAll('rect').data((s) => s).join('rect')
+    .attr('x', (d) => x(d.data.group) + (x.bandwidth() - bw) / 2).attr('width', bw)
+    .attr('y', (d) => y(d[1])).attr('height', (d) => Math.max(0, y(d[0]) - y(d[1]) - 1.5))
+    .on('mousemove', (ev, d) => tip.show(ev, `${dayLong(d.data.group)} · ${FMT.int(d.data.trucks)} trucks`,
+      [...STAGE_KEYS.map((k, i) => [STAGE_COL[i], STAGE_NAMES[i], FMT.min1(d.data[k]) + ' min']).reverse(), [null, 'Gate to gate', FMT.min(d.data.avg_g2g) + ' min']]))
+    .on('mouseleave', () => tip.hide());
+  svg.append('line').attr('x1', ml).attr('x2', W - 6).attr('y1', y(G2G[1])).attr('y2', y(G2G[1]))
+    .style('stroke', CRIT).attr('stroke-dasharray', '6 4').attr('stroke-width', 1.5);
+  svg.append('text').attr('x', W - 8).attr('y', y(G2G[1]) - 6).attr('text-anchor', 'end').style('fill', CRIT).text(`Max ${G2G[1]} min`);
+  xLabels(svg, x, rows.map((r) => r.group), dayLabel, H - 6);
+});
+
+dash.draw('o-stages', (el) => {
+  const got = load(el, ['stages']); if (!got) return;
+  const rows = got[0];
+  const keys = rows.map((r) => r.stage);
+  const get = (k) => rows.find((r) => r.stage === k);
+  const { svg, x, y } = hbars(el, {
+    keys, label: (k) => k, value: (k) => get(k).avg_min, fmt: (v) => FMT.min1(v) + ' min',
+    band: [0, d3.max(rows, (r) => r.target_hi)],
+    color: (k, i) => STAGE_COL[i],
+    tipHead: (k) => k,
+    tipLines: (k) => [[null, 'Average', FMT.min1(get(k).avg_min) + ' min'], [null, 'Target', `${get(k).target_lo}–${get(k).target_hi} min`], [null, 'At or under max', FMT.pct(get(k).within_rate)]],
+  });
+  // target bands drawn behind the bars
+  svg.insert('g', ':first-child').selectAll('rect').data(rows).join('rect')
+    .attr('x', (r) => x(r.target_lo)).attr('width', (r) => x(r.target_hi) - x(r.target_lo))
+    .attr('y', (r) => y(r.stage) - 3).attr('height', y.bandwidth() + 6).attr('rx', 4)
+    .style('fill', 'var(--p-green)').attr('opacity', 0.18);
+  svg.selectAll('text.v').classed('bad', (k) => get(k).avg_min > get(k).target_hi);
+});
+
+dash.draw('o-types', (el) => {
+  const got = load(el, ['summary']); if (!got) return;
+  el.replaceChildren();
+  const rows = rowsOf(got[0], 'day');
+  const H = 240; const { svg, W } = svgIn(el, H);
+  const keys = TYPES.map((t) => t[0]);
+  const stacked = d3.stack().keys(keys)(rows);
+  const y = d3.scaleLinear([0, d3.max(rows, (r) => r.trucks) * 1.1], [H - 24, 10]).nice();
+  const ml = textWidth(svg, y.ticks(4).map(FMT.int)) + 12;
+  const x = d3.scaleBand(rows.map((r) => r.group), [ml, W - 6]).padding(0.3);
+  yAxis(svg, y, ml, W - 6, FMT.int);
+  const bw = Math.min(x.bandwidth(), 40);
+  const tip = makeTip(el);
+  svg.append('g')
+.selectAll('g').data(stacked).join('g').style('fill', (s, i) => TYPE_COL[i])
+    .selectAll('rect').data((s) => s).join('rect')
+    .attr('x', (d) => x(d.data.group) + (x.bandwidth() - bw) / 2).attr('width', bw)
+    .attr('y', (d) => y(d[1])).attr('height', (d) => Math.max(0, y(d[0]) - y(d[1]) - 1))
+    .on('mousemove', (ev, d) => tip.show(ev, `${dayLong(d.data.group)} · ${FMT.int(d.data.trucks)} trucks`, TYPES.map(([k, n], i) => [TYPE_COL[i], n, FMT.int(d.data[k])])))
+    .on('mouseleave', () => tip.hide());
+  xLabels(svg, x, rows.map((r) => r.group), dayLabel, H - 6);
+});
+
+dash.draw('o-arrival', (el) => {
+  const got = load(el, ['summary']); if (!got) return;
+  el.replaceChildren();
+  const a = allRow(got[0]);
+  const parts = [['Early', a.early, V('teal')], ['On time', a.on_time, V('navy')], ['Late', a.late, CRIT]];
+  const H = 240; const { svg, W } = svgIn(el, H);
+  const r = Math.min(W, H) / 2 - 8;
+  const g = svg.append('g').attr('transform', `translate(${W / 2},${H / 2})`);
+  const arcs = d3.pie().sort(null).value((p) => p[1])(parts);
+  const tip = makeTip(el);
+  g.selectAll('path').data(arcs).join('path').attr('d', d3.arc().innerRadius(r * 0.62).outerRadius(r).padAngle(0.02).cornerRadius(4))
+    .style('fill', (d) => d.data[2])
+    .on('mousemove', (ev, d) => tip.show(ev, d.data[0], [[d.data[2], 'Trucks', `${FMT.int(d.data[1])} (${FMT.pct(d.data[1] / a.trucks)})`]]))
+    .on('mouseleave', () => tip.hide());
+  g.append('text').attr('class', 'v').attr('text-anchor', 'middle').attr('dy', '-0.1em')
+    .style('font-family', 'var(--font-anthropic-serif)').style('font-size', 'var(--cds-font-size-title)').text(FMT.pct(a.on_time_rate));
+  g.append('text').attr('text-anchor', 'middle').attr('dy', '1.4em').text('on time');
+});
+
+dash.draw('o-hour', (el) => {
+  const got = load(el, ['summary']); if (!got) return;
+  const rows = rowsOf(got[0], 'hour').sort((p, q) => +p.group - +q.group);
+  const get = (k) => rows.find((r) => r.group === k);
+  const ext = d3.extent(rows, (r) => r.avg_g2g);
+  const ramp = d3.scaleLinear([0, 0.5, 1], [computed(V('teal'), el), computed(V('yolk'), el), computed(V('red'), el)]).interpolate(d3.interpolateRgb);
+  vbars(el, {
+    keys: rows.map((r) => r.group), label: hourLabel, value: (k) => get(k).trucks, fmt: FMT.int,
+    color: (k) => ramp((get(k).avg_g2g - ext[0]) / ((ext[1] - ext[0]) || 1)),
+    tipHead: (k) => `${hourLabel(k)} appointments`,
+    tipLines: (k) => [[null, 'Trucks', FMT.int(get(k).trucks)], [null, 'Avg gate to gate', FMT.min(get(k).avg_g2g) + ' min'], [null, 'Avg dock wait', FMT.min1(get(k).avg_assign) + ' min']],
+  });
+});
+
+dash.draw('o-scatter', (el) => {
+  const got = load(el, ['visit_metrics']); if (!got) return;
+  el.replaceChildren();
+  const rows = got[0];
+  const H = 260; const { svg, W } = svgIn(el, H);
+  const xe = d3.extent(rows, (r) => r.arrival_delta_min);
+  const y = d3.scaleLinear([0, Math.max(d3.max(rows, (r) => r.g2g_min), G2G[1]) * 1.05], [H - 30, 10]).nice();
+  const ml = textWidth(svg, y.ticks(5).map(FMT.min)) + 12;
+  const x = d3.scaleLinear([Math.min(xe[0], -30), Math.max(xe[1], 30)], [ml, W - 10]).nice();
+  svg.append('rect').attr('x', x(-ON_TIME_WINDOW)).attr('width', x(ON_TIME_WINDOW) - x(-ON_TIME_WINDOW)).attr('y', 10).attr('height', H - 40)
+    .style('fill', 'var(--p-green)').attr('opacity', 0.12);
+  yAxis(svg, y, ml, W - 10, FMT.min, 5);
+  const xt = x.ticks(Math.max(3, Math.floor((W - ml) / 70)));
+  svg.append('g').selectAll('text').data(xt).join('text').attr('x', x).attr('y', H - 14).attr('text-anchor', 'middle').text((d) => (d > 0 ? '+' : '') + d);
+  svg.append('text').attr('x', W - 10).attr('y', H - 1).attr('text-anchor', 'end').text('min vs appointment');
+  svg.append('line').attr('x1', ml).attr('x2', W - 10).attr('y1', y(G2G[1])).attr('y2', y(G2G[1])).style('stroke', CRIT).attr('stroke-dasharray', '6 4').attr('stroke-width', 1.5);
+  const ti = Object.fromEntries(TYPES.map(([, n], i) => [n, i]));
+  const tip = makeTip(el);
+  svg.append('g').selectAll('circle').data(rows).join('circle')
+    .attr('cx', (r) => x(r.arrival_delta_min)).attr('cy', (r) => y(r.g2g_min)).attr('r', 4.5)
+    .style('fill', (r) => TYPE_COL[ti[r.visit_type]]).attr('fill-opacity', 0.75).style('stroke', 'var(--color-panel)').attr('stroke-width', 1)
+    .on('mousemove', (ev, r) => tip.show(ev, `${r.visit_id} · ${r.carrier}`, [[TYPE_COL[ti[r.visit_type]], r.visit_type, `appt ${r.appt}, in ${r.arrived}`], [null, 'vs appointment', (r.arrival_delta_min > 0 ? '+' : '') + r.arrival_delta_min + ' min'], [null, 'Gate to gate', r.g2g_min + ' min']]))
+    .on('mouseleave', () => tip.hide());
+});
+
+/* ---------- Detail charts ---------- */
+function detailBars(el, kind, horizontal) {
+  const m = metricNow(); const met = METRICS[m]; if (!met) { el.replaceChildren(); return; }
+  const got = load(el, ['summary']); if (!got) return;
+  let rows = rowsOf(got[0], kind);
+  if (kind === 'hour') rows.sort((p, q) => +p.group - +q.group);
+  if (kind === 'carrier') rows.sort((p, q) => q[met.field] - p[met.field]);
+  const get = (k) => rows.find((r) => r.group === k);
+  const fmt = FMT[met.fmt];
+  const label = kind === 'day' ? dayLabel : kind === 'hour' ? hourLabel : (k) => k;
+  const o = {
+    keys: rows.map((r) => r.group), label, value: (k) => get(k)[met.field], fmt, band: met.band,
+    color: (k) => (met.band && get(k)[met.field] > met.band[1] ? CRIT : mcol(met)),
+    tipHead: (k) => (kind === 'day' ? dayLong(k) : kind === 'hour' ? `${hourLabel(k)} appointments` : k),
+    tipLines: (k) => [[mcol(met), null, fmt(get(k)[met.field])], [null, 'Trucks', FMT.int(get(k).trucks)]],
+  };
+  if (horizontal) hbars(el, o); else vbars(el, { ...o, H: kind === 'day' ? 260 : 200 });
+}
+dash.draw('d-day', (el) => detailBars(el, 'day', false));
+dash.draw('d-hour', (el) => detailBars(el, 'hour', false));
+dash.draw('d-type', (el) => detailBars(el, 'type', true));
+dash.draw('d-carrier', (el) => detailBars(el, 'carrier', true));
+
+dash.draw('d-dist', (el) => {
+  const m = metricNow(); const met = METRICS[m]; if (!met || !met.visit) { el.replaceChildren(); return; }
+  const got = load(el, ['visit_metrics']); if (!got) return;
+  el.replaceChildren();
+  let vals = got[0].map((r) => r[met.visit]);
+  if (m === 'detention') vals = vals.filter((v) => v > 0);
+  const H = 240; const { svg, W } = svgIn(el, H);
+  if (!vals.length) { svg.append('text').attr('x', W / 2).attr('y', H / 2).attr('text-anchor', 'middle').text('No trucks ran past free time'); return; }
+  const marks = met.band || met.distBand || [];
+  const ext = d3.extent([...vals, ...marks]);
+  const xs = d3.scaleLinear(ext, [0, 1]).nice(12);
+  const bins = d3.bin().domain(xs.domain()).thresholds(xs.ticks(12))(vals);
+  const y = d3.scaleLinear([0, d3.max(bins, (b) => b.length) * 1.1], [H - 30, 10]).nice();
+  const ml = textWidth(svg, y.ticks(4).map(FMT.int)) + 12;
+  const x = d3.scaleLinear(xs.domain(), [ml, W - 10]);
+  yAxis(svg, y, ml, W - 10, FMT.int);
+  const tip = makeTip(el);
+  const unit = m === 'detention' ? '' : ' min';
+  const f = m === 'detention' ? FMT.usd : (v) => d3.format(',')(v);
+  svg.append('g').selectAll('rect').data(bins).join('rect')
+    .attr('x', (b) => x(b.x0) + 1).attr('width', (b) => Math.max(0, x(b.x1) - x(b.x0) - 2))
+    .attr('y', (b) => y(b.length)).attr('height', (b) => y(0) - y(b.length)).attr('rx', 3)
+    .style('fill', (b) => (met.band && b.x0 >= met.band[1]) || (met.distBand && (b.x0 >= met.distBand[1] || b.x1 <= met.distBand[0])) || m === 'detention' ? CRIT : mcol(met))
+    .on('mousemove', (ev, b) => tip.show(ev, `${f(b.x0)} to ${f(b.x1)}${unit}`, [[null, 'Trucks', FMT.int(b.length)]]))
+    .on('mouseleave', () => tip.hide());
+  marks.forEach((v) => svg.append('line').attr('x1', x(v)).attr('x2', x(v)).attr('y1', 8).attr('y2', H - 30)
+    .style('stroke', 'var(--cds-chart-reference)').attr('stroke-dasharray', '5 4').attr('stroke-width', 1.5));
+  const xt = x.ticks(Math.max(3, Math.floor((W - ml) / 70)));
+  svg.append('g').selectAll('text').data(xt).join('text').attr('x', x).attr('y', H - 12).attr('text-anchor', 'middle').text(f);
+});
+
+dash.draw('d-table', (tb) => {
+  const m = metricNow(); const met = METRICS[m]; tb.replaceChildren(); if (!met) return;
+  const d = dash.data('visit_metrics'); if (d.status !== 'ok') return;
+  const key = met.sortVisit || met.visit;
+  const rows = d.data.slice().sort((p, q) => q[key] - p[key] || q.g2g_min - p.g2g_min).slice(0, 20);
+  const cols = [
+    ['visit_id'], ['day', dayLong], ['visit_type'], ['carrier', null, 'hide-narrow'], ['appt'], ['arrived'],
+    ['arrival_delta_min', null, 'num', (r) => r.arrival_delta_min > ON_TIME_WINDOW],
+    ['dock_assign_min', null, 'num hide-narrow', (r) => r.dock_assign_min > 30],
+    ['dock_min', null, 'num', (r) => r.dock_min > DOCK[1]],
+    ['g2g_min', null, 'num', (r) => r.g2g_min > G2G[1]],
+    ['detention_usd', null, 'num', (r) => r.detention_usd > 0],
+  ];
+  rows.forEach((r) => {
+    const tr = document.createElement('tr'); tr.dataset.key = r.visit_id;
+    cols.forEach(([k, f, cls, bad]) => {
+      const td = document.createElement('td');
+      td.textContent = f ? f(r[k]) : String(r[k]);
+      if (cls) td.className = cls;
+      if (bad && bad(r)) td.classList.add('bad');
+      tr.appendChild(td);
+    });
+    tb.appendChild(tr);
+  });
+});
+
+/* ---------- Digital impact ---------- */
+dash.draw('brange', (el) => {
+  const d = dash.data('baseline_metrics');
+  if (d.status !== 'ok') { el.textContent = '—'; return; }
+  const days = [...new Set(d.data.map((r) => r.day))].sort();
+  el.textContent = days.length ? `${dayLong(days[0])} – ${dayLong(days[days.length - 1])}` : '—';
+});
+function gbars(el, o) {
+  el.replaceChildren();
+  const H = 240; const { svg, W } = svgIn(el, H);
+  const top = d3.max([...o.rows.flatMap((r) => o.series.map((s) => r[s.field])), o.ref || 0]) || 1;
+  const y = d3.scaleLinear([0, top * 1.12], [H - 24, 10]).nice();
+  const ml = textWidth(svg, y.ticks(4).map(o.fmt)) + 12;
+  const x = d3.scaleBand(o.rows.map((r) => r.key), [ml, W - 6]).padding(0.25);
+  const xs = d3.scaleBand(o.series.map((s) => s.field), [0, x.bandwidth()]).padding(0.12);
+  yAxis(svg, y, ml, W - 6, o.fmt);
+  const tip = makeTip(el);
+  const g = svg.append('g').selectAll('g').data(o.rows).join('g').attr('transform', (r) => `translate(${x(r.key)},0)`);
+  g.selectAll('rect').data((r) => o.series.map((s) => ({ r, s }))).join('rect')
+    .attr('x', (d) => xs(d.s.field)).attr('width', xs.bandwidth()).attr('rx', 4)
+    .attr('y', (d) => y(d.r[d.s.field])).attr('height', (d) => Math.max(0, y(0) - y(d.r[d.s.field])))
+    .style('fill', (d) => d.s.color)
+    .on('mousemove', (ev, d) => tip.show(ev, d.r.label, [...o.series.map((s) => [s.color, s.name, o.fmt(d.r[s.field])]), [null, 'Saved', o.fmt(d.r.saved)]]))
+    .on('mouseleave', () => tip.hide());
+  if (o.ref) {
+    svg.append('line').attr('x1', ml).attr('x2', W - 6).attr('y1', y(o.ref)).attr('y2', y(o.ref)).style('stroke', CRIT).attr('stroke-dasharray', '6 4').attr('stroke-width', 1.5);
+  }
+  xLabels(svg, x, o.rows.map((r) => r.key), (k) => k, H - 6);
+}
+dash.draw('i-week', (el) => {
+  const got = load(el, ['impact']); if (!got) return;
+  gbars(el, { rows: got[0].filter((r) => r.kind === 'weekday'), fmt: FMT.min, ref: G2G[1],
+    series: [{ field: 'before', name: 'Manual', color: 'var(--cds-chart-muted)' }, { field: 'after', name: 'Digital', color: V('navy') }] });
+});
+dash.draw('i-det', (el) => {
+  const got = load(el, ['impact']); if (!got) return;
+  gbars(el, { rows: got[0].filter((r) => r.kind === 'weekday_detention'), fmt: FMT.usd,
+    series: [{ field: 'before', name: 'Manual', color: 'var(--cds-chart-muted)' }, { field: 'after', name: 'Digital', color: V('yolk') }] });
+});
+dash.draw('i-stages', (el) => {
+  const got = load(el, ['impact']); if (!got) return;
+  el.replaceChildren();
+  const rows = got[0].filter((r) => r.kind === 'stage');
+  const rowH = 40, H = rows.length * rowH + 30;
+  const { svg, W } = svgIn(el, H);
+  const ml = textWidth(svg, rows.map((r) => r.label)) + 14;
+  const mr = textWidth(svg, rows.map((r) => (r.saved >= 0 ? '−' : '+') + FMT.min1(Math.abs(r.saved)) + ' min')) + 16;
+  const x = d3.scaleLinear([0, d3.max(rows, (r) => Math.max(r.before, r.after)) * 1.05], [ml, W - mr]).nice();
+  const y = d3.scaleBand(rows.map((r) => r.key), [6, H - 26]).padding(0.2);
+  const ticks = x.ticks(Math.max(3, Math.floor((W - ml - mr) / 80)));
+  svg.append('g').selectAll('line').data(ticks).join('line').attr('x1', x).attr('x2', x).attr('y1', 0).attr('y2', H - 24).style('stroke', 'var(--cds-chart-grid)');
+  svg.append('g').selectAll('text').data(ticks).join('text').attr('x', x).attr('y', H - 8).attr('text-anchor', 'middle').text((t) => FMT.min(t) + (t === ticks[ticks.length - 1] ? ' min' : ''));
+  const tip = makeTip(el);
+  const g = svg.append('g').selectAll('g').data(rows).join('g').attr('transform', (r) => `translate(0,${y(r.key) + y.bandwidth() / 2})`)
+    .on('mousemove', (ev, r) => tip.show(ev, r.label, [['var(--cds-chart-muted)', 'Manual', FMT.min1(r.before) + ' min'], [V('teal'), 'Digital', FMT.min1(r.after) + ' min'], [null, 'Change', FMT.spct(r.change_pct)]]))
+    .on('mouseleave', () => tip.hide());
+  g.append('rect').attr('x', 0).attr('y', -rowH / 2).attr('width', W).attr('height', rowH).style('fill', 'transparent');
+  g.append('text').attr('x', ml - 10).attr('dy', '0.32em').attr('text-anchor', 'end').text((r) => r.label);
+  g.append('line').attr('x1', (r) => x(r.before)).attr('x2', (r) => x(r.after))
+    .style('stroke', (r) => (r.saved > 0 ? V('teal') : 'var(--cds-chart-muted)')).attr('stroke-width', 6).attr('stroke-linecap', 'round').attr('opacity', 0.35);
+  g.append('circle').attr('cx', (r) => x(r.before)).attr('r', 7).style('fill', 'var(--cds-chart-muted)');
+  g.append('circle').attr('cx', (r) => x(r.after)).attr('r', 8).style('fill', V('teal')).style('stroke', 'var(--p-surface)').attr('stroke-width', 2);
+  g.append('text').attr('class', 'v').attr('x', W - mr + 10).attr('dy', '0.32em')
+    .style('fill', (r) => (r.saved > 0 ? V('teal') : 'var(--color-fg-muted)'))
+    .text((r) => (r.saved >= 0 ? '−' : '+') + FMT.min1(Math.abs(r.saved)) + ' min');
+});
+</script>

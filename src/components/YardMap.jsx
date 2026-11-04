@@ -2,13 +2,15 @@ import { useState } from 'react'
 import * as ui from '../ui'
 import { arrivalMs, clockTime, duration } from '../time'
 import { yardStatus, isDrop } from '../metrics'
-import { DETENTION_FREE_MIN, DOCKS, STAGING_BAYS, STALE_WARN_H } from '../yard'
+import { DETENTION_FREE_MIN, DOCKS, STALE_WARN_H } from '../yard'
 import { GATES } from '../formConfig'
+import { Icon } from '../icons'
+import { detentionState } from '../detention'
 
 // Status colors shared by the map and its legend. The icon shape
 // (tractor + trailer, or trailer on landing gear) also tells trucks from dropped trailers.
 export const STATUS = {
-  waiting: { fill: 'var(--color-signal)', dot: 'bg-signal', label: 'Waiting for a dock' },
+  waiting: { fill: 'var(--color-warn-edge)', dot: 'bg-warn-edge', label: 'Waiting for a dock' },
   dock: { fill: 'var(--color-delivery)', dot: 'bg-delivery', label: 'At dock' },
   ready: { fill: 'var(--color-ok)', dot: 'bg-ok', label: 'Loaded, ready to leave' },
   drop: { fill: 'var(--color-drop)', dot: 'bg-drop', label: 'Dropped trailer' },
@@ -21,22 +23,26 @@ export const GATE_STYLE = {
   'Gate 2': { fill: 'var(--color-gate-out)', dot: 'bg-gate-out', tag: 'bg-gate-out-soft text-gate-out', label: 'Gate 2 · Out' },
 }
 
-// Why a truck or trailer needs attention, or '' if it doesn't.
+// Why a truck or trailer needs attention, or '' if it doesn't. Detention follows the same rule as
+// everywhere else (detention.js).
 export function attention(e, now) {
-  const ms = now - arrivalMs(e)
-  if (isDrop(e)) return ms > STALE_WARN_H * 3600000 ? `In the yard over ${STALE_WARN_H}h` : ''
-  return ms > DETENTION_FREE_MIN * 60000 ? `Detention: over ${DETENTION_FREE_MIN} min` : ''
+  if (isDrop(e)) return now - arrivalMs(e) > STALE_WARN_H * 3600000 ? `In the yard over ${STALE_WARN_H}h` : ''
+  return detentionState(e, now)?.level === 'over' ? `Detention: over ${DETENTION_FREE_MIN} min` : ''
 }
 
-// Map geometry (SVG units). Docks and bays share columns.
-const COLS = Math.max(DOCKS.length, STAGING_BAYS)
+// Map geometry (SVG units). Docks share the warehouse width; the yard lane below holds LANE_SLOTS
+// trucks side by side (no numbered spots), and any more are listed under the map.
+const COLS = DOCKS.length
 const colX = (i) => 60 + (880 / COLS) * (i + 0.5)
+const LANE_SLOTS = 10
+const SLOT_W = 860 / LANE_SLOTS
+const laneX = (i) => 70 + SLOT_W * i + (SLOT_W - 44) / 2
 const W = 44
 const TRAILER = 92
 const CAB = 24
 const GAP = 2
 const DOCK_Y = 116
-const BAY_Y = 336
+const LANE_Y = 336
 const GATE_X = [300, 700]
 
 const short = (s, n) => (s && s.length > n ? s.slice(0, n - 1) + '…' : s || '')
@@ -170,16 +176,9 @@ function Grounds({ gateCounts }) {
       <text x={500} y={287} textAnchor="middle" fontSize={13} fontWeight={600} letterSpacing={2} fill="var(--color-muted)">
         DRIVE LANE →
       </text>
-      {Array.from({ length: STAGING_BAYS }, (_, i) => (
-        <g key={i}>
-          <rect x={colX(i) - 54} y={306} width={108} height={190} rx={4} fill="var(--color-bay)" stroke="var(--color-line)" strokeWidth={2} />
-          <text x={colX(i) - 46} y={326} fontSize={13} fontWeight={700} fill="var(--color-muted)">
-            BAY {i + 1}
-          </text>
-        </g>
-      ))}
-      <text x={40} y={404} textAnchor="middle" fontSize={12} fontWeight={600} letterSpacing={2} fill="var(--color-muted)" transform="rotate(-90 40 404)">
-        STAGING
+      <rect x={60} y={306} width={880} height={190} rx={4} fill="var(--color-lane)" stroke="var(--color-line)" strokeWidth={2} />
+      <text x={70} y={326} fontSize={13} fontWeight={700} letterSpacing={1} fill="var(--color-muted)">
+        YARD · WAITING FOR A DOCK, THEN DROPPED TRAILERS
       </text>
       <line x1={0} y1={530} x2={1000} y2={530} stroke="var(--color-ink)" strokeWidth={3} />
       {GATES.map((gate, i) => {
@@ -212,7 +211,7 @@ function Grounds({ gateCounts }) {
 
 function Legend() {
   const items = [
-    ['waiting', false, 'Waiting for a dock', 'In a staging bay'],
+    ['waiting', false, 'Waiting for a dock', 'In the yard lane'],
     ['dock', false, 'At dock', 'Loading or unloading'],
     ['ready', false, 'Loaded, ready to leave', 'Loading inspection passed'],
     ['drop', true, 'Dropped trailer', 'No tractor, landing gear down'],
@@ -255,7 +254,7 @@ function Detail({ e, place, at, clock, live, onEdit, onCheckOut, onInspect }) {
   if (status === 'departed') {
     return (
       <p className="text-sm">
-        <b className="font-display text-[20px]">{e.trailerNumber}</b> <span className="text-muted">{e.truckName}</span>
+        <b className="font-display text-[18px]">{e.trailerNumber}</b> <span className="text-muted">{e.truckName}</span>
         <span className="mt-1 block text-muted">Left at {e.timeOut}.</span>
       </p>
     )
@@ -263,7 +262,7 @@ function Detail({ e, place, at, clock, live, onEdit, onCheckOut, onInspect }) {
   const alert = attention(e, clock)
   return (
     <div>
-      <div className="font-display text-[20px] leading-tight font-bold break-words">
+      <div className="font-display text-[18px] leading-tight font-bold break-words">
         {e.trailerNumber} <span className="font-body text-sm font-normal text-muted">{e.truckName}</span>
       </div>
       <div className="mt-1 flex items-center gap-1.5 font-semibold">
@@ -275,7 +274,12 @@ function Detail({ e, place, at, clock, live, onEdit, onCheckOut, onInspect }) {
           .filter(Boolean)
           .join(' · ')}
       </p>
-      {alert && <p className="mt-1 text-sm font-bold text-danger">⚠ {alert}</p>}
+      {alert && (
+        <p className="mt-1 flex items-center gap-1.5 text-sm font-bold text-danger">
+          <Icon name="warning" size={16} />
+          {alert}
+        </p>
+      )}
       {/* Actions only make sense on the live yard, not a replayed moment. */}
       <div className={'mt-2 flex flex-wrap gap-2' + (live ? '' : ' hidden')}>
         {onInspect && (
@@ -332,7 +336,7 @@ function InspectLegend({ count }) {
   )
 }
 
-// Schematic of the grounds with every truck and trailer on site at its door or bay, at moment `at`
+// Schematic of the grounds with every truck and trailer on site at its dock or in the yard lane, at moment `at`
 // (Infinity = live). `clock` is the time durations are measured to. `compact` draws a small map to fit
 // a narrow column, with a short legend; the whole map is one button that calls `onExpand`.
 // Inspection view: `focus(e)` says which trucks need inspecting; they're highlighted and everything
@@ -348,17 +352,18 @@ export default function YardMap({ yard, gateCounts, at, clock, live, onEdit, onC
     const e = yard.atDock.get(d)
     if (e) units.push({ e, x: colX(i) - W / 2, y: DOCK_Y, place: `Dock ${d}` })
   })
-  yard.bays.forEach((e, i) => {
-    if (e) units.push({ e, x: colX(i) - W / 2, y: BAY_Y, place: `Bay ${i + 1}` })
-  })
+  // Waiting trucks and dropped trailers line up in the yard lane; past its width they're listed below.
+  const inYard = (e) => (isDrop(e) ? 'Parked in the yard' : 'Waiting in the yard')
+  yard.lane.slice(0, LANE_SLOTS).forEach((e, i) => units.push({ e, x: laneX(i), y: LANE_Y, place: inYard(e) }))
+  const extra = yard.lane.slice(LANE_SLOTS)
   const selected = units.find((u) => u.e.id === selectedId) ??
-    [...yard.overflow, ...yard.otherDocks].map((e) => ({ e, place: e.dockDoor ? `Dock ${e.dockDoor}` : 'No bay free' })).find((u) => u.e.id === selectedId)
+    [...extra, ...yard.otherDocks].map((e) => ({ e, place: e.dockDoor ? `Dock ${e.dockDoor}` : inYard(e) })).find((u) => u.e.id === selectedId)
 
   const map = (
     <svg
       viewBox="0 0 1000 660"
       role={compact && !inspectTap ? undefined : 'group'}
-      aria-label={compact && !inspectTap ? undefined : focus ? 'Inspection map: trucks at docks that need their loading inspection' : 'Yard map: docks, staging bays and gates'}
+      aria-label={compact && !inspectTap ? undefined : focus ? 'Inspection map: trucks at docks that need their loading inspection' : 'Yard map: docks, yard lane and gates'}
       aria-hidden={(compact && !inspectTap) || undefined}
       className={'block h-auto w-full' + (compact ? '' : ' min-w-[700px]')}
     >
@@ -370,12 +375,10 @@ export default function YardMap({ yard, gateCounts, at, clock, live, onEdit, onC
           </text>
         ),
       )}
-      {yard.bays.map((e, i) =>
-        e ? null : (
-          <text key={i} x={colX(i)} y={410} textAnchor="middle" fontSize={14} fontWeight={700} fill="var(--color-ok)">
-            ✓ Open
-          </text>
-        ),
+      {yard.lane.length === 0 && (
+        <text x={500} y={410} textAnchor="middle" fontSize={14} fontWeight={600} fill="var(--color-muted)">
+          No trucks waiting or trailers parked in the yard
+        </text>
       )}
       {units.map((u) => (
         <Unit
@@ -397,10 +400,10 @@ export default function YardMap({ yard, gateCounts, at, clock, live, onEdit, onC
 
   // Compact inspection view: highlighted trucks are the buttons; Enlarge stays in the card header.
   if (inspectTap) {
-    const count = units.filter((u) => focus(u.e)).length + [...yard.overflow, ...yard.otherDocks].filter(focus).length
+    const count = units.filter((u) => focus(u.e)).length + [...extra, ...yard.otherDocks].filter(focus).length
     return (
-      <div className="mt-3">
-        <div className="overflow-hidden rounded-lg">{map}</div>
+      <div>
+        <div className="overflow-hidden rounded-xl">{map}</div>
         <InspectLegend count={count} />
         {yard.otherDocks.some(focus) && (
           <p className="mt-2 text-[13px] text-muted">
@@ -414,19 +417,17 @@ export default function YardMap({ yard, gateCounts, at, clock, live, onEdit, onC
 
   if (compact) {
     return (
-      <div className="mt-3">
+      <div>
         <button
           type="button"
           onClick={onExpand}
-          aria-label={`Enlarge the yard map: ${yard.atDock.size} at docks, ${yard.bays.filter(Boolean).length} in staging bays`}
-          className="block w-full cursor-zoom-in overflow-hidden rounded-lg focus-visible:outline-3 focus-visible:outline-signal"
+          aria-label={`Enlarge the yard map: ${yard.atDock.size} at docks, ${yard.lane.length} in the yard`}
+          className="block w-full cursor-zoom-in overflow-hidden rounded-xl focus-visible:outline-3 focus-visible:outline-signal"
         >
           {map}
         </button>
         <MiniLegend />
-        {yard.overflow.length > 0 && (
-          <p className="mt-2 text-[13px] font-semibold text-danger">⚠ {yard.overflow.length} more without a bay</p>
-        )}
+        {extra.length > 0 && <p className="mt-2 text-[13px] font-semibold">+{extra.length} more in the yard: {extra.map((e) => e.trailerNumber).join(', ')}</p>}
         <p className="mt-2 text-[12px] text-muted">Tap the map to enlarge it. Updated {clockTime(clock)}.</p>
       </div>
     )
@@ -435,11 +436,11 @@ export default function YardMap({ yard, gateCounts, at, clock, live, onEdit, onC
   return (
     <div className="mt-3.5 grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_260px]">
       <div>
-        <div className="overflow-x-auto rounded-lg">{map}</div>
-        {yard.overflow.length > 0 && (
-          <p className="mt-2 text-sm font-semibold text-danger">
-            ⚠ {yard.overflow.length} more without a bay:{' '}
-            {yard.overflow.map((e, i) => (
+        <div className="overflow-x-auto rounded-xl">{map}</div>
+        {extra.length > 0 && (
+          <p className="mt-2 text-sm font-semibold">
+            +{extra.length} more in the yard:{' '}
+            {extra.map((e, i) => (
               <span key={e.id}>
                 {i > 0 && ', '}
                 <button type="button" onClick={() => setSelectedId(e.id)} className="cursor-pointer underline">
@@ -457,7 +458,7 @@ export default function YardMap({ yard, gateCounts, at, clock, live, onEdit, onC
       </div>
       <aside>
         <Legend />
-        <div className="mt-4 min-h-[92px] rounded-lg bg-page p-3">
+        <div className="mt-4 min-h-[92px] rounded-xl border border-hair bg-signal-tint p-3.5">
           <Detail
             e={selected?.e}
             place={selected?.place}
@@ -470,7 +471,7 @@ export default function YardMap({ yard, gateCounts, at, clock, live, onEdit, onC
           />
         </div>
         <p className="mt-2 text-[12px] text-muted">
-          {live ? `Updated ${clockTime(clock)}.` : `Yard as it was at ${clockTime(clock)}.`} Trucks sit in the bay picked at check-in; any without one fill free bays in arrival order.
+          {live ? `Updated ${clockTime(clock)}.` : `Yard as it was at ${clockTime(clock)}.`} Trucks waiting for a dock, then dropped trailers, line up in the yard lane in arrival order.
         </p>
       </aside>
     </div>

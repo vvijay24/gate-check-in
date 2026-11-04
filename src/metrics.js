@@ -1,7 +1,7 @@
-// Numbers for the Overview tab, the yard map and the staging-bay boards, worked out from the gate entries.
+// Numbers for the Overview tab, the yard map and the Shipping boards, worked out from the gate entries.
 import { EARLY_GRACE_MIN, LATE_GRACE_MIN, arrivalMs, departureMs, minutesLate } from './time'
 import { dockKey } from './components/AssignDock'
-import { BAY_NAMES, DETENTION_FREE_MIN, DOCKS, STAGING_BAYS } from './yard'
+import { DETENTION_FREE_MIN, DOCKS } from './yard'
 import { GATES } from './formConfig'
 
 const MIN = 60000
@@ -39,41 +39,18 @@ function groupBy(items, nameOf) {
   return [...groups.values()]
 }
 
-// Trucks and dropped trailers on site without a dock sit in the bay picked at check-in. Those without
-// one (older entries, or a bay someone else already holds) fill the free bays in arrival order;
-// any left over are overflow.
-export function stagingBays(entries, at = Infinity) {
-  const staging = entries
-    .filter((e) => onSiteAt(e, at) && ['waiting', 'drop'].includes(yardStatus(e, at)))
-    .sort((a, b) => arrivalMs(a) - arrivalMs(b))
-  const bays = Array(STAGING_BAYS).fill(null)
-  const unplaced = []
-  for (const e of staging) {
-    const i = BAY_NAMES.indexOf(e.waitingLocation)
-    if (i >= 0 && !bays[i]) bays[i] = e
-    else unplaced.push(e)
-  }
-  const overflow = []
-  for (const e of unplaced) {
-    const i = bays.indexOf(null)
-    if (i >= 0) bays[i] = e
-    else overflow.push(e)
-  }
-  return { bays, overflow, used: staging.length }
-}
-
-// Bays in use right now, keyed by bay name ("Bay 2") → the truck in it. The Check In form
-// can't pick these.
-export function takenBays(entries) {
-  return new Map(stagingBays(entries).bays.map((e, i) => e && [BAY_NAMES[i], e]).filter(Boolean))
+// Everything on site without a dock, for the yard lane on the map: trucks waiting for a dock first,
+// then dropped trailers parked in the yard, each in arrival order. The yard has no numbered spots.
+function yardLane(onSite, at) {
+  const byArrival = (a, b) => arrivalMs(a) - arrivalMs(b)
+  const of = (status) => onSite.filter((e) => yardStatus(e, at) === status).sort(byArrival)
+  return [...of('waiting'), ...of('drop')]
 }
 
 // Yard state at `at` (ms): everything on site at that moment. Waits and detention are measured to
 // `clock`; the live view passes at = Infinity (the saved state) with clock = now.
 export function yardMetrics(entries, at, clock = at) {
   const onSite = entries.filter((e) => onSiteAt(e, at))
-  const { bays, overflow, used } = stagingBays(entries, at)
-  const bayOf = new Map(bays.map((e, i) => e && [e.id, i + 1]).filter(Boolean))
   const atDock = new Map(onSite.filter((e) => ['dock', 'ready'].includes(yardStatus(e, at))).map((e) => [dockKey(e.dockDoor), e]))
   const waiting = onSite.filter((e) => yardStatus(e, at) === 'waiting')
   const drops = onSite.filter(isDrop).sort((a, b) => arrivalMs(a) - arrivalMs(b))
@@ -95,11 +72,7 @@ export function yardMetrics(entries, at, clock = at) {
     .sort((a, b) => b.ms - a.ms)
 
   return {
-    bays,
-    overflow,
-    bayOf,
-    capacityPct: Math.round((used / STAGING_BAYS) * 100),
-    bayCount: used,
+    lane: yardLane(onSite, at),
     atDock,
     otherDocks: [...atDock].filter(([k]) => !DOCKS.includes(k)).map(([, e]) => e),
     waiting,

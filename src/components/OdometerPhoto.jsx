@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import * as ui from '../ui'
+import { Icon } from '../icons'
 
 // Photos are stored as data URLs in localStorage, so keep them small.
 const MAX_SIZE = 1024
@@ -97,7 +98,7 @@ export default function OdometerPhoto({ value, onChange, required, error: requir
 
       <div
         className={
-          'flex min-h-48 items-center justify-center overflow-hidden rounded-[10px] border-2 border-dashed bg-field ' +
+          'flex min-h-48 items-center justify-center overflow-hidden rounded-2xl border-[1.5px] border-dashed bg-field ' +
           (requiredError ? 'border-danger' : 'border-line')
         }
       >
@@ -107,10 +108,9 @@ export default function OdometerPhoto({ value, onChange, required, error: requir
           <img src={value} alt="Truck odometer" className="max-h-80 w-full object-contain" />
         ) : (
           <div className="p-6 text-center text-muted">
-            <svg viewBox="0 0 24 24" className="mx-auto mb-2 h-10 w-10" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
-              <path d="M3 8a2 2 0 0 1 2-2h2l1.5-2h7L17 6h2a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8Z" />
-              <circle cx="12" cy="13" r="4" />
-            </svg>
+            <span className="mx-auto mb-3 grid size-14 place-items-center rounded-2xl bg-panel text-signal shadow-card">
+              <Icon name="photo" size={28} />
+            </span>
             No photo yet. Take or upload a clear picture of the odometer reading.
           </div>
         )}
@@ -131,6 +131,7 @@ export default function OdometerPhoto({ value, onChange, required, error: requir
         ) : (
           <>
             <button id="field-odometerPhoto" type="button" onClick={startCamera} className={btn}>
+              <Icon name="photo" />
               {value ? 'Retake Photo' : 'Take Photo'}
             </button>
             <button type="button" onClick={() => fileRef.current?.click()} className={btn}>
