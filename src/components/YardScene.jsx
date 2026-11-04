@@ -21,7 +21,7 @@ export const at = (x, y, z = 0) => {
 export const LOT_W = 180
 export const LOT_D = 178
 const BUILDING = { x: 4, y: -40, w: 172, d: 40, h: 28 }
-const SLOT = 24
+const SLOT = 22
 const MARGIN = (LOT_W - SLOT * Math.max(DOCKS.length, STAGING_BAYS)) / 2
 // Center of dock door / staging bay column i.
 export const colWX = (i) => MARGIN + SLOT * (i + 0.5)
@@ -33,7 +33,7 @@ export const BAY_WY = 84
 // Gates sit at the lot's two edges, so trucks run in along the left side and out along the right.
 export const GATE_WX = [10, 170]
 const GATE_HALF = 8
-export const SHACK = { x: 22, y: 160 }
+export const SHACK = { x: 84, y: 166 }
 const BAY_FRONT = BAY_WY + RIG_L + 3
 
 // Text laid on a face or on the ground: the matrix maps the text's x axis onto the face.
@@ -232,13 +232,25 @@ function rigKit(K, th) {
     const [x, y] = map(a, RIG_W / 2)
     return x + y
   }
-  return { map, frontShows, rearShows, box, side, sideLine, wheel, sideText, across, quad, depth }
+  return { map, raw, frontShows, rearShows, leftShows: nineFaces, box, side, sideLine, wheel, sideText, across, quad, depth }
 }
 
 // One rig, posed by `art` (default: parked, facing south from the origin). `drop` draws the trailer
 // alone on its landing gear; `reefer` adds the refrigeration unit; `glow` (selected) surrounds the rig
 // with a glow in its carrier's paint.
-export function Rig({ carrier, trailerNumber, drop, reefer, glow, art = PARKED_ART }) {
+// A lamp lit on a rig: a bright core in a soft halo, at world point `w` (blinking if `blink`).
+function Lamp({ w, color, r = 2, blink }) {
+  const [x, y] = P(...w)
+  return (
+    <g className={blink ? 'rig-blink' : undefined} pointerEvents="none">
+      <circle cx={r1(x)} cy={r1(y)} r={r * 3} fill={color} opacity={0.3} />
+      <circle cx={r1(x)} cy={r1(y)} r={r} fill={color} opacity={0.95} />
+    </g>
+  )
+}
+
+// `lights` (a driving rig): { brake, reverse, left, right } — the lamps the driver has on.
+export function Rig({ carrier, trailerNumber, drop, reefer, glow, art = PARKED_ART, lights }) {
   const paint = paintOf(carrier)
   // `k` places trailer parts, `t` tractor parts.
   const k = rigKit(art.K, art.tr)
@@ -263,8 +275,22 @@ export function Rig({ carrier, trailerNumber, drop, reefer, glow, art = PARKED_A
           {k.box(27.2, 28.8, 1.2, 7.8, 0, 0.4, { color: 'var(--color-iso-tire)', shade: false })}
         </>
       )}
+      {!drop && (
+        <>
+          {/* Landing gear, cranked up for the road. */}
+          {k.box(27.6, 28.4, 6.8, 7.6, 1.6, 2.6, { color: 'var(--color-iso-steel)' })}
+          {k.box(27.6, 28.4, 1.4, 2.2, 1.6, 2.6, { color: 'var(--color-iso-steel)' })}
+        </>
+      )}
+      {/* Rear underride bar and mud flaps behind the tandem. */}
+      {k.box(0.2, 0.9, 0.8, 8.2, 1.3, 0.6, { color: 'var(--color-iso-steel)', shade: false })}
+      {k.side(1.7, 2, 0.2, 2.8, { fill: 'var(--color-iso-tire)' }, RIG_W - 0.3)}
       {/* Body, ribs, carrier stripe and lettering, marker lights. */}
       {k.box(0, 34, 0, RIG_W, Z, H, { color: 'var(--color-iso-trailer)', line: 'var(--color-iso-steel)' })}
+      {/* Side skirt between the landing gear and the tandem. */}
+      {k.side(10, 26.6, 1.3, Z, { fill: 'var(--color-iso-tire)', opacity: 0.75 })}
+      {k.side(32.6, 33.4, Z + 1.2, Z + 1.8, { fill: '#f59e0b' })}
+      {k.side(0.6, 1.4, Z + 1.2, Z + 1.8, { fill: 'var(--color-paint-1)' })}
       {Array.from({ length: 12 }, (_, i) =>
         k.sideLine(i, 1.4 + i * 2.8, Z + 0.2, Z + H - 0.2, { stroke: 'var(--color-iso-steel)', strokeWidth: 0.35, opacity: 0.55 }),
       )}
@@ -320,6 +346,7 @@ export function Rig({ carrier, trailerNumber, drop, reefer, glow, art = PARKED_A
             {t.box(29, 48.4, 1.6, 7.4, 1.4, 1.6, { color: 'var(--color-iso-tire)', shade: false })}
             {t.wheel(31.2, 'd1')}
             {t.wheel(34.4, 'd2')}
+            {t.side(29.2, 29.5, 0.2, 2.8, { fill: 'var(--color-iso-tire)' }, RIG_W - 0.3)}
             {t.wheel(45.4, 'f1')}
             {t.box(37.2, 40.8, RIG_W - 0.6, RIG_W + 0.4, 1.8, 1.8, { color: 'var(--color-iso-chrome)', line: 'var(--color-iso-steel)' })}
           </g>,
@@ -367,8 +394,20 @@ export function Rig({ carrier, trailerNumber, drop, reefer, glow, art = PARKED_A
         [48.7, <g key="bumper">{t.box(48.3, 49.1, 0.6, 8.4, 2.2, 1.3, { color: 'var(--color-iso-chrome)', line: 'var(--color-iso-steel)' })}</g>],
       ]
 
-  // Back to front: farther parts (smaller x + y) first.
-  const parts = [[k.depth(17), trailer], [k.depth(34.7), reeferUnit], ...tractor.map(([a, el]) => [t.depth(a), el])].filter(([, el]) => el)
+  // Back to front: farther parts (smaller x + y) first. The tractor goes as one piece: its chassis
+  // and wheels underneath first, then cab, stack, hood and bumper by depth (otherwise the low
+  // chassis, drawn after a farther-but-higher cab, would paint over it).
+  const [chassis, ...upper] = tractor
+  const tractorEl = !drop && (
+    <g key="tractor">
+      {chassis[1]}
+      {upper
+        .map(([a, el]) => [t.depth(a), el])
+        .sort((p, q) => p[0] - q[0])
+        .map(([, el]) => el)}
+    </g>
+  )
+  const parts = [[k.depth(17), trailer], [k.depth(34.7), reeferUnit], [t.depth(40), tractorEl]].filter(([, el]) => el)
   parts.sort((p, q) => p[0] - q[0])
 
   // Shadow: each body's footprint, nudged toward the lower left.
@@ -380,8 +419,42 @@ export function Rig({ carrier, trailerNumber, drop, reefer, glow, art = PARKED_A
         {!drop && <polygon points={foot(t, 33, len)} />}
       </g>
       <g filter={glow ? `url(#iso-glow-${paint.index})` : undefined}>{parts.map(([, el]) => el)}</g>
+      {lights && !drop && <RigLights k={k} t={t} lights={lights} />}
     </g>
   )
+}
+
+// The lamps a driving rig has on, on the faces the viewer can see. `raw` places points by the rig's
+// own left (c = 9) and right (c = 0), whichever side is showing.
+function RigLights({ k, t, lights }) {
+  const Z = 4.2
+  const RED = '#ff3b30'
+  const AMBER = '#ffb020'
+  const WHITE = '#fffbe8'
+  const lamps = []
+  const sides = [lights.left && 'L', lights.right && 'R'].filter(Boolean)
+  if (k.rearShows) {
+    if (lights.brake) lamps.push(<Lamp key="bl" w={k.raw(0, 8, Z - 0.6)} color={RED} />, <Lamp key="br" w={k.raw(0, 1, Z - 0.6)} color={RED} />)
+    if (lights.reverse) lamps.push(<Lamp key="rl" w={k.raw(0, 6.4, Z - 0.6)} color={WHITE} />, <Lamp key="rr" w={k.raw(0, 2.6, Z - 0.6)} color={WHITE} />)
+    for (const sd of sides) lamps.push(<Lamp key={'tr' + sd} w={k.raw(0, sd === 'L' ? 8.6 : 0.4, Z + 0.2)} color={AMBER} blink />)
+  }
+  for (const sd of sides) {
+    // Side markers flash along with the blinker on the side that shows.
+    if (k.leftShows === (sd === 'L')) lamps.push(<Lamp key={'ts' + sd} w={k.raw(33, sd === 'L' ? RIG_W : 0, Z + 1.5)} color={AMBER} r={1.5} blink />)
+    if (t.leftShows === (sd === 'L')) lamps.push(<Lamp key={'tf' + sd} w={t.raw(46.4, sd === 'L' ? RIG_W : 0, 4.2)} color={AMBER} r={1.5} blink />)
+    if (t.frontShows) lamps.push(<Lamp key={'tt' + sd} w={t.raw(48.4, sd === 'L' ? 8.2 : 0.8, 6.8)} color={AMBER} blink />)
+  }
+  if (lights.reverse) {
+    // Amber beacon on the cab roof, turning while the rig backs up.
+    const [x, y] = P(...t.raw(38, RIG_W / 2, 13))
+    lamps.push(
+      <g key="beacon" pointerEvents="none">
+        <rect x={r1(x - 1.4)} y={r1(y - 3)} width={2.8} height={3} rx={0.8} fill={AMBER} />
+        <Lamp w={t.raw(38, RIG_W / 2, 14.2)} color={AMBER} r={2.4} blink />
+      </g>,
+    )
+  }
+  return <g>{lamps}</g>
 }
 
 // Dock door on the building's front face. `open` raises it (a truck is backed in) and lights the dock light.
@@ -478,7 +551,7 @@ function Gate({ cx, color }) {
   )
 }
 
-// Guard shack just inside Gate 1, where the guards check trucks in.
+// Guard shack on the front apron between the gates, clear of the trucks' turns.
 function GuardShack({ night = 0 }) {
   const { x, y } = SHACK
   const glass = night > 0.4 ? 'var(--color-iso-light)' : 'var(--color-iso-glass)'

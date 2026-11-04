@@ -153,6 +153,7 @@ function Unit({ e, pose, driving, at, clock, selected, onSelect, focus, motion }
       reefer={e.reefer === 'Yes'}
       glow={selected && !driving}
       art={driving ? pose.art : undefined}
+      lights={driving ? pose.lights : undefined}
     />
   )
   if (driving) {

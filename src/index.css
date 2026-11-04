@@ -306,11 +306,17 @@ body {
   60% { opacity: 1; transform: scale(1.03); }
   100% { transform: none; }
 }
+/* A driving rig's blinkers and beacon: on, off, on (left steady with reduced motion). */
+@keyframes rig-blink {
+  0%, 55% { opacity: 1; }
+  56%, 100% { opacity: 0.12; }
+}
+.rig-blink { animation: rig-blink 0.9s steps(1, end) infinite; }
 .toast-in { animation: toast-in 0.25s ease-out; }
 .draw { stroke-dasharray: 30; stroke-dashoffset: 30; animation: draw-stroke 0.45s 0.15s ease-out forwards; }
 .pop-in { animation: pop-in 0.35s ease-out; }
 @media (prefers-reduced-motion: reduce) {
-  .toast-in, .pop-in { animation: none; }
+  .toast-in, .pop-in, .rig-blink { animation: none; }
   .draw { animation: none; stroke-dashoffset: 0; }
 }
 
