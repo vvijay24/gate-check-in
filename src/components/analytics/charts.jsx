@@ -23,10 +23,10 @@ export const minutesToDur = (m) => duration(m * 60000)
 export const th = 'px-3 py-2.5 whitespace-nowrap'
 export const td = 'px-3 py-2.5'
 
-const tooltipCls = 'pointer-events-none absolute z-10 rounded-md bg-chrome px-2.5 py-1.5 text-[13px] whitespace-nowrap text-white'
+export const tooltipCls = 'pointer-events-none absolute z-10 rounded-md bg-chrome px-2.5 py-1.5 text-[13px] whitespace-nowrap text-white'
 
 // A round step (1, 2, 5 × 10ⁿ) so `ticks` steps cover `max`.
-function niceStep(max, ticks = 4) {
+export function niceStep(max, ticks = 4) {
   const raw = Math.max(max, 1) / ticks
   const mag = 10 ** Math.floor(Math.log10(raw))
   return [1, 2, 5, 10].map((m) => m * mag).find((s) => s >= raw)
@@ -67,6 +67,7 @@ export function TableView({ head, rows }) {
   return (
     <details className="mt-3">
       <summary className="cursor-pointer text-sm font-semibold">Show as table</summary>
+      <div className="overflow-x-auto">
       <table className="mt-2 w-full max-w-md text-sm">
         <thead className="text-muted">
           <tr>
@@ -89,6 +90,7 @@ export function TableView({ head, rows }) {
           ))}
         </tbody>
       </table>
+      </div>
     </details>
   )
 }
@@ -266,7 +268,9 @@ export function HourGrid({ days, field, noun }) {
   const max = Math.max(1, ...days.flatMap((d) => d[field]))
   const byHour = Array.from({ length: 24 }, (_, h) => days.reduce((s, d) => s + d[field][h], 0))
   const peak = byHour.indexOf(Math.max(...byHour))
-  const grid = { gridTemplateColumns: '64px repeat(24, minmax(0, 1fr))' }
+  const grid = { gridTemplateColumns: '64px repeat(24, minmax(0, 1fr)) 72px' }
+  const hourMax = Math.max(1, ...byHour)
+  const rowMax = Math.max(1, ...days.map((d) => d[field].reduce((a, b) => a + b, 0)))
 
   return (
     <div className="px-5 pb-5">
@@ -274,30 +278,50 @@ export function HourGrid({ days, field, noun }) {
         {byHour[peak] ? `Busiest hour overall: ${hourLabel(peak)}–${hourLabel((peak + 1) % 24)} (${byHour[peak]} ${noun})` : `No ${noun} in this range`}
       </p>
       <div className="mt-3 overflow-x-auto">
-        <div className="min-w-[560px]">
-          {days.map((d) => (
-            <div key={d.date} className="grid gap-0.5 pb-0.5" style={grid}>
-              <span className="pr-2 text-right text-[12px] leading-[18px] whitespace-nowrap text-muted">{shortDate(d.date)}</span>
-              {d[field].map((n, h) => (
-                <div
-                  key={h}
-                  tabIndex={0}
-                  aria-label={`${weekdayDate(d.date)}, ${hourLabel(h)}: ${n} ${noun}`}
-                  onMouseEnter={() => setHover({ d, h, n })}
-                  onMouseLeave={() => setHover(null)}
-                  onFocus={() => setHover({ d, h, n })}
-                  onBlur={() => setHover(null)}
-                  className={'h-[18px] rounded-[3px]' + (hover?.d === d && hover?.h === h ? ' ring-2 ring-ink' : '')}
-                  style={{ background: shade(n, max) }}
-                />
-              ))}
-            </div>
-          ))}
+        <div className="min-w-[600px]">
+          {/* All days together, per hour: the shape of a typical day. */}
+          <div className="grid items-end gap-0.5 pb-1" style={grid} aria-hidden="true">
+            <span className="pr-2 text-right text-[11px] leading-none text-muted">All days</span>
+            {byHour.map((n, h) => (
+              <div key={h} className="flex h-9 items-end">
+                <div className={'w-full rounded-t-[3px]' + (h === peak && n ? '' : ' opacity-60')} style={{ height: `${(n / hourMax) * 100}%`, background: 'var(--color-chart-live)' }} />
+              </div>
+            ))}
+            <span />
+          </div>
+          {days.map((d) => {
+            const total = d[field].reduce((a, b) => a + b, 0)
+            return (
+              <div key={d.date} className="grid gap-0.5 pb-0.5" style={grid}>
+                <span className="pr-2 text-right text-[12px] leading-[18px] whitespace-nowrap text-muted">{shortDate(d.date)}</span>
+                {d[field].map((n, h) => (
+                  <div
+                    key={h}
+                    tabIndex={0}
+                    aria-label={`${weekdayDate(d.date)}, ${hourLabel(h)}: ${n} ${noun}`}
+                    onMouseEnter={() => setHover({ d, h, n })}
+                    onMouseLeave={() => setHover(null)}
+                    onFocus={() => setHover({ d, h, n })}
+                    onBlur={() => setHover(null)}
+                    className={'h-[18px] rounded-[3px]' + (hover?.d === d && hover?.h === h ? ' ring-2 ring-ink' : '')}
+                    style={{ background: shade(n, max) }}
+                  />
+                ))}
+                <span className="flex items-center gap-1.5 pl-2 text-[12px] font-semibold tabular-nums">
+                  <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-track">
+                    <span className="block h-full rounded-full bg-chart-live" style={{ width: `${(total / rowMax) * 100}%` }} />
+                  </span>
+                  <span className="w-6 text-right">{total}</span>
+                </span>
+              </div>
+            )
+          })}
           <div className="grid gap-0.5 pt-1 text-center text-[12px] text-muted" style={grid}>
             <span />
             {byHour.map((_, h) => (
               <span key={h}>{h % 3 === 0 ? `${h % 12 || 12}${h < 12 ? 'a' : 'p'}` : ''}</span>
             ))}
+            <span className="pl-2 text-left">per day</span>
           </div>
         </div>
       </div>
@@ -394,7 +418,7 @@ export function StageBar({ stages }) {
         </div>
         {/* Free-time marker */}
         <div className="absolute -top-6 bottom-0 border-l-2 border-dashed border-danger" style={{ left: w(freeMs) }}>
-          <span className="absolute -top-0.5 left-1.5 text-[12px] font-semibold whitespace-nowrap text-danger">Free time {DETENTION_FREE_MIN / 60} h</span>
+          <span className={'absolute -top-0.5 text-[12px] font-semibold whitespace-nowrap text-danger ' + (freeMs / scale > 0.7 ? 'right-1.5' : 'left-1.5')}>Free time {DETENTION_FREE_MIN / 60} h</span>
         </div>
       </div>
       <ul className="mt-4 grid gap-2 sm:grid-cols-2 2xl:grid-cols-4">
@@ -414,6 +438,16 @@ export function StageBar({ stages }) {
   )
 }
 
+// A thin in-cell bar so a column's values compare at a glance. `danger` marks costs.
+function DataBar({ value, max, danger }) {
+  if (!max || value == null) return null
+  return (
+    <span className="mt-1 ml-auto block h-1 w-full max-w-24 overflow-hidden rounded-full bg-track" aria-hidden="true">
+      <span className={'ml-auto block h-full rounded-full ' + (danger ? 'bg-danger/80' : 'bg-chart-live')} style={{ width: `${(value / max) * 100}%` }} />
+    </span>
+  )
+}
+
 // A table whose headers sort it; `columns` give each column's value (for sorting) and how it shows.
 export function SortTable({ columns, rows, initial, empty, rowKey = (r) => r.name, minWidth = 640 }) {
   const [sort, setSort] = useState(initial)
@@ -427,6 +461,8 @@ export function SortTable({ columns, rows, initial, empty, rowKey = (r) => r.nam
     const cmp = typeof va === 'string' ? va.localeCompare(vb) : va - vb
     return sort.dir === 'asc' ? cmp : -cmp
   })
+  // Columns with `bar` get a thin bar under the number, scaled to the column's largest value.
+  const maxOf = Object.fromEntries(columns.filter((c) => c.bar).map((c) => [c.id, Math.max(0, ...rows.map((r) => c.value(r) ?? 0))]))
   const toggle = (c) => setSort((s) => (s.id === c.id ? { id: c.id, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { id: c.id, dir: c.numeric ? 'desc' : 'asc' }))
 
   return (
@@ -455,10 +491,11 @@ export function SortTable({ columns, rows, initial, empty, rowKey = (r) => r.nam
             </tr>
           ) : (
             sorted.map((r) => (
-              <tr key={rowKey(r)}>
+              <tr key={rowKey(r)} className="hover:bg-field/70">
                 {columns.map((c) => (
                   <td key={c.id} className={td + (c.numeric ? ' text-right tabular-nums' : '')}>
                     {c.render ? c.render(r) : c.value(r)}
+                    {c.bar && <DataBar value={c.value(r)} max={maxOf[c.id]} danger={c.bar === 'danger'} />}
                   </td>
                 ))}
               </tr>

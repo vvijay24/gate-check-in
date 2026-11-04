@@ -77,6 +77,13 @@ moment shown when it isn't live.
 Load the **`dataviz`** skill before writing any chart. In this app:
 - Draw charts with plain HTML/SVG like `src/components/analytics/charts.jsx` (`DayBars`, `DayLine`,
   `HourGrid`, `StageBar`, `BarList`) — reuse those before writing a new one. No chart library.
+- Operational views live in `analytics/viz.jsx` (figures from `src/ops.js`): `Spark` (via `Tile`'s
+  `spark` prop), `YardLoad` (trucks on site by yard state through a day), `DockGantt` (each dock's
+  trucks on a time line), `Histogram` (distributions with shaded regions and p50/p90 markers),
+  `StageSpread` (p50–p90 per handoff against its target) and `OnSiteQueue`. Prefer a distribution or
+  p50/p90 over a bare average when the slow trucks are what cost money. `DayView` in
+  `analytics/control.jsx` puts yard load and docks on one shared time axis (`DAY_GRID`).
+- Sortable table columns can take `bar: true` (or `'danger'` for costs) for an in-cell data bar.
 - Run the palette validator for any new color set, in light **and** dark. Current sets:
   - live / drop = `chart-live` (blue) / `chart-drop` (magenta-purple, near the app's Drop purple). Light
     mode is borderline for color-blind readers (ΔE 7), so drops are also **striped**: use the `DROP`

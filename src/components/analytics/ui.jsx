@@ -19,11 +19,14 @@ export function Card({ title, sub, badge, legend, children, className = '' }) {
   )
 }
 
+import { Spark } from './viz'
+
 // `size`: 'lead' is the section's main figure (big, fills its row's height); 'compact' is for the
-// smaller figures under it; omitted is the regular tile.
-export function Tile({ label, value, note, tone, trend, size }) {
+// smaller figures under it; omitted is the regular tile. `spark` ({ values, label }) adds a small
+// trend line, one value per day of the range.
+export function Tile({ label, value, note, tone, trend, size, spark }) {
   const border = { alert: 'border-t-danger', warn: 'border-t-signal', good: 'border-t-ok' }[tone] ?? 'border-t-line'
-  const box = { lead: 'flex h-full flex-col justify-center px-6 py-5', compact: 'px-4 py-3' }[size] ?? 'px-4 py-3.5'
+  const box = { lead: 'flex h-full flex-col px-6 py-5 ' + (spark ? 'justify-between' : 'justify-center'), compact: 'flex flex-col px-4 py-3' }[size] ?? 'px-4 py-3.5'
   const number =
     { lead: 'mt-1 mb-1 text-[46px] sm:text-[56px]', compact: 'mt-0.5 text-[26px]' }[size] ?? 'mt-1 mb-0.5 text-[30px] sm:text-[34px]'
   return (
@@ -32,6 +35,15 @@ export function Tile({ label, value, note, tone, trend, size }) {
       <div className={number + ' leading-tight font-bold tabular-nums'}>{value}</div>
       <div className={(size === 'lead' ? 'text-[15px] ' : 'text-[13px] ') + (tone === 'alert' ? 'font-bold text-danger' : 'text-muted')}>{note}</div>
       {trend}
+      {spark && size !== 'lead' && <div className="min-h-2 flex-1" />}
+      {spark && (
+        <Spark
+          values={spark.values}
+          label={spark.label}
+          color={tone === 'alert' ? 'var(--color-danger)' : undefined}
+          className={size === 'lead' ? 'mt-4 h-16 w-full' : 'h-8 w-full'}
+        />
+      )}
     </div>
   )
 }

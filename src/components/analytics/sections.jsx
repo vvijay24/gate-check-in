@@ -2,6 +2,7 @@ import { duration } from '../../time'
 import { DETENTION_FREE_MIN, DETENTION_RATE_PER_HOUR } from '../../yard'
 import { GATE_STYLE } from '../YardMap'
 import { Card, Meter, Tile } from './ui'
+import { ArrivalHistogram, DayView, StayHistogram } from './control'
 import {
   BarList,
   DROP,
@@ -84,20 +85,20 @@ const VISIT_COLUMNS = [
   { id: 'visit', label: 'Visit', value: (s) => s.e.truckName ?? '', render: visitCell },
   ...stageColumns,
   { id: 'total', label: 'Time on site', numeric: true, value: (s) => s.onSiteMs, render: (s) => <>{dur(s.onSiteMs)}{s.onSite && <span className="block text-[13px] text-muted">still on site</span>}</> },
-  { id: 'cost', label: 'Est. detention', numeric: true, value: (s) => s.cost, render: (s) => (s.cost ? money(s.cost) : '—') },
+  { id: 'cost', label: 'Est. detention', numeric: true, value: (s) => s.cost, render: (s) => (s.cost ? money(s.cost) : '—'), bar: 'danger' },
 ]
 
 const partnerColumns = (extra = []) => [
   { id: 'name', label: 'Name', value: (r) => r.name, render: (r) => <b>{r.name}</b> },
-  { id: 'visits', label: 'Visits', value: (r) => r.visits, numeric: true },
+  { id: 'visits', label: 'Visits', value: (r) => r.visits, numeric: true, bar: true },
   { id: 'turn', label: 'Avg turnaround', value: (r) => r.avgTurnMs, render: (r) => dur(r.avgTurnMs), numeric: true },
   ...extra,
   { id: 'ontime', label: 'On time', value: (r) => r.onTimePct, render: (r) => pct(r.onTimePct), numeric: true },
   { id: 'over', label: `Over ${FREE_H} h`, value: (r) => r.overFree, numeric: true },
-  { id: 'cost', label: 'Est. detention', value: (r) => r.detentionCost, render: (r) => money(r.detentionCost), numeric: true },
+  { id: 'cost', label: 'Est. detention', value: (r) => r.detentionCost, render: (r) => money(r.detentionCost), numeric: true, bar: 'danger' },
 ]
 
-export function OverviewSection({ r, prev, trend }) {
+export function OverviewSection({ r, prev, trend, ops }) {
   const t = r.totals
   const p = prev.totals
   return (
@@ -111,6 +112,7 @@ export function OverviewSection({ r, prev, trend }) {
             note={`${t.overFree} of ${t.live} live visits went past ${FREE_H} h free time · $${DETENTION_RATE_PER_HOUR}/h after that`}
             tone={t.detentionCost ? 'alert' : 'good'}
             trend={trend(t.detentionCost, p.detentionCost, money, true)}
+            spark={{ values: r.days.map((d) => d.detentionCost), label: 'Est. detention per day' }}
           />
         }
       >
@@ -127,10 +129,32 @@ export function OverviewSection({ r, prev, trend }) {
           note={`of ${t.live} live visits`}
           tone={t.overFree ? 'warn' : 'good'}
           trend={trend(t.overFree, p.overFree, count, true)}
+          spark={{ values: r.days.map((d) => d.overFree), label: 'Visits past free time per day' }}
         />
-        <Tile size="compact" label="Avg time on site" value={dur(t.avgOnSiteMs)} note="Check-in to check-out" trend={trend(t.avgOnSiteMs, p.avgOnSiteMs, duration, true)} />
-        <Tile size="compact" label="Avg wait for dock" value={dur(t.avgWaitDockMs)} note="Check-in to dock assigned" trend={trend(t.avgWaitDockMs, p.avgWaitDockMs, duration, true)} />
-        <Tile size="compact" label="Avg dock → inspected" value={dur(t.avgToInspectMs)} note="Includes loading" trend={trend(t.avgToInspectMs, p.avgToInspectMs, duration, true)} />
+        <Tile
+          size="compact"
+          label="Typical stay (p50)"
+          value={dur(ops.stays.p50)}
+          note={`Slow end (p90) ${dur(ops.stays.p90)} · average ${dur(t.avgOnSiteMs)}`}
+          trend={trend(t.avgOnSiteMs, p.avgOnSiteMs, duration, true)}
+          spark={{ values: ops.days.map((d) => d.medianStayMs), label: 'Typical stay per day' }}
+        />
+        <Tile
+          size="compact"
+          label="Avg wait for dock"
+          value={dur(t.avgWaitDockMs)}
+          note="Check-in to dock assigned"
+          trend={trend(t.avgWaitDockMs, p.avgWaitDockMs, duration, true)}
+          spark={{ values: r.days.map((d) => d.avgWaitDockMs), label: 'Average wait for a dock per day' }}
+        />
+        <Tile
+          size="compact"
+          label="Avg dock → inspected"
+          value={dur(t.avgToInspectMs)}
+          note="Includes loading"
+          trend={trend(t.avgToInspectMs, p.avgToInspectMs, duration, true)}
+          spark={{ values: r.days.map((d) => d.avgToInspectMs), label: 'Average dock to inspected per day' }}
+        />
         <Tile
           size="compact"
           label="Inspections passed"
@@ -141,9 +165,14 @@ export function OverviewSection({ r, prev, trend }) {
         />
       </Tiles>
 
-      <Card title="Est. Detention Cost per Day" sub={`Live visits checked in each day · time past ${DETENTION_FREE_MIN} min × $${DETENTION_RATE_PER_HOUR}/h`}>
-        <DayBars days={r.days} series={[{ key: 'detentionCost', label: 'Est. detention', color: LIVE }]} format={money} />
-      </Card>
+      <Pair>
+        <Card title="Time on Site" sub={`Departed live visits, in 20-minute steps · ${pct(ops.stays.overFreePct)} stayed past ${FREE_H} h free time`}>
+          <StayHistogram stays={ops.stays} />
+        </Card>
+        <Card title="Est. Detention Cost per Day" sub={`Live visits checked in each day · time past ${DETENTION_FREE_MIN} min × $${DETENTION_RATE_PER_HOUR}/h`}>
+          <DayBars days={r.days} series={[{ key: 'detentionCost', label: 'Est. detention', color: LIVE }]} format={money} />
+        </Card>
+      </Pair>
 
       <Card title="Longest Stays" sub="The longest live visits in this range. The longest stage of each is in red. Click a heading to sort.">
         <SortTable columns={VISIT_COLUMNS} rows={r.longest} rowKey={(s) => s.e.id} initial={{ id: 'total', dir: 'desc' }} minWidth={860} empty="No live visits in this range." />
@@ -152,7 +181,7 @@ export function OverviewSection({ r, prev, trend }) {
   )
 }
 
-export function GateSection({ r, prev, trend }) {
+export function GateSection({ r, prev, trend, ops }) {
   const t = r.totals
   const p = prev.totals
   const a = r.arrivals
@@ -167,6 +196,7 @@ export function GateSection({ r, prev, trend }) {
             note={t.scheduled ? `${t.onTime} of ${t.scheduled} appointments arrived no more than 15 min late` : 'No appointments'}
             tone={t.onTimePct == null ? undefined : t.onTimePct >= 0.8 ? 'good' : 'warn'}
             trend={trend(t.onTimePct, p.onTimePct, ptsDiff)}
+            spark={{ values: r.days.map((d) => d.onTimePct), label: 'On-time arrival per day' }}
           />
         }
       >
@@ -182,7 +212,14 @@ export function GateSection({ r, prev, trend }) {
       </LeadRow>
 
       <Tiles>
-        <Tile size="compact" label="Visits" value={t.visits} note={`${t.live} live · ${t.drops} drop`} trend={trend(t.visits, p.visits, count)} />
+        <Tile
+          size="compact"
+          label="Visits"
+          value={t.visits}
+          note={`${t.live} live · ${t.drops} drop`}
+          trend={trend(t.visits, p.visits, count)}
+          spark={{ values: r.days.map((d) => d.visits), label: 'Visits per day' }}
+        />
         <Tile size="compact" label="Late arrivals" value={a.late} note="Over 15 min after appointment" trend={trend(a.late, prev.arrivals.late, count, true)} />
         <Tile size="compact" label="Avg gate dwell" value={dur(t.avgGateDwellMs)} note={`${t.departedLive} live visits checked out`} trend={trend(t.avgGateDwellMs, p.avgGateDwellMs, duration, true)} />
         {Object.entries(r.gates).map(([gate, c]) => (
@@ -194,15 +231,11 @@ export function GateSection({ r, prev, trend }) {
         <Card title="Visits per Day" sub="Checked in each day" legend={<Legend items={[['Live', LIVE], ['Drop', DROP]]} />}>
           <DayBars days={r.days} series={[{ key: 'live', label: 'Live', color: LIVE }, { key: 'drops', label: 'Drop', color: DROP }]} />
         </Card>
-        <Card title="Arrival Timing" sub="Against the appointment time · 15 min grace either way">
-          <BarList
-            rows={[
-              { label: 'Early', value: a.early },
-              { label: 'On time', value: a.onTime },
-              { label: 'Late', value: a.late },
-              { label: 'Unscheduled', value: a.unscheduled, note: 'no appointment' },
-            ]}
-          />
+        <Card
+          title="Arrivals vs Appointment"
+          sub={`Minutes early (−) or late (+) · ${a.early} early, ${a.onTime} on time, ${a.late} late · ${a.unscheduled} without an appointment aren't shown`}
+        >
+          <ArrivalHistogram arrival={ops.arrival} />
         </Card>
       </Pair>
 
@@ -240,7 +273,14 @@ export function ShippingSection({ r, prev, trend }) {
       </LeadRow>
 
       <Tiles>
-        <Tile size="compact" label="Pickups" value={s.pickups} note="Live visits with Pickup ticked" trend={trend(s.pickups, p.pickups, count)} />
+        <Tile
+          size="compact"
+          label="Pickups"
+          value={s.pickups}
+          note="Live visits with Pickup ticked"
+          trend={trend(s.pickups, p.pickups, count)}
+          spark={{ values: r.days.map((d) => d.pickups), label: 'Pickups per day' }}
+        />
         <Tile size="compact" label="Avg turnaround" value={dur(s.avgTurnMs)} note="Check-in to check-out" trend={trend(s.avgTurnMs, p.avgTurnMs, duration, true)} />
         <Tile
           size="compact"
@@ -269,7 +309,7 @@ export function ShippingSection({ r, prev, trend }) {
 
 const DOCK_COLUMNS = [
   { id: 'dock', label: 'Dock', value: (d) => Number(d.dock), render: (d) => <b>Dock {d.dock}</b>, numeric: true },
-  { id: 'loads', label: 'Loads', value: (d) => d.loads, numeric: true },
+  { id: 'loads', label: 'Loads', value: (d) => d.loads, numeric: true, bar: true },
   {
     id: 'util',
     label: 'Utilization',
@@ -287,10 +327,10 @@ const DOCK_COLUMNS = [
   { id: 'wait', label: 'Avg wait for dock', value: (d) => d.avgWaitMs, render: (d) => dur(d.avgWaitMs), numeric: true },
   { id: 'inspect', label: 'Avg dock → inspected', value: (d) => d.avgToInspectMs, render: (d) => dur(d.avgToInspectMs), numeric: true },
   { id: 'dwell', label: 'Avg time at dock', value: (d) => d.avgDwellMs, render: (d) => dur(d.avgDwellMs), numeric: true },
-  { id: 'cost', label: 'Est. detention', value: (d) => d.detentionCost, render: (d) => money(d.detentionCost), numeric: true },
+  { id: 'cost', label: 'Est. detention', value: (d) => d.detentionCost, render: (d) => money(d.detentionCost), numeric: true, bar: 'danger' },
 ]
 
-export function DockSection({ r, prev, trend, impact }) {
+export function DockSection({ r, prev, trend, impact, ops, prevOps, entries, now }) {
   // The wait split into capacity (no dock free for the truck) and response (a dock free, not assigned).
   const g = impact?.gateShipping
   const split = g?.docked ? ` · ${dur(g.avgNoDockMs)} with no dock free · ${dur(g.avgFreeDockMs)} with a dock free` : ''
@@ -311,6 +351,7 @@ export function DockSection({ r, prev, trend, impact }) {
             note={`Check-in to dock assigned${split} · ${waitingLong} day${waitingLong === 1 ? '' : 's'} averaged over 30 min`}
             tone={waitingLong ? 'warn' : 'good'}
             trend={trend(t.avgWaitDockMs, p.avgWaitDockMs, duration, true)}
+            spark={{ values: r.days.map((d) => d.avgWaitDockMs), label: 'Average wait for a dock per day' }}
           />
         }
       >
@@ -325,19 +366,28 @@ export function DockSection({ r, prev, trend, impact }) {
       </LeadRow>
 
       <Tiles>
-        <Tile size="compact" label="Dock utilization" value={pct(t.dockUtilization)} note="Average across docks and days" trend={trend(t.dockUtilization, p.dockUtilization, ptsDiff)} />
+        <Tile
+          size="compact"
+          label="Docks in use"
+          value={pct(ops.dockUse)}
+          note="Share of operating hours, all docks"
+          trend={trend(ops.dockUse, prevOps.dockUse, ptsDiff)}
+          spark={{ values: ops.days.map((d) => d.dockUse), label: 'Dock use per day' }}
+        />
         <Tile size="compact" label="Loads at docks" value={loads} note={`Across ${r.docks.length} docks`} trend={trend(loads, prev.docks.reduce((s, d) => s + d.loads, 0), count)} />
         <Tile size="compact" label="Avg dock → inspected" value={dur(t.avgToInspectMs)} note="Includes loading" trend={trend(t.avgToInspectMs, p.avgToInspectMs, duration, true)} />
         <Tile size="compact" label="Days with long waits" value={waitingLong} note="Avg wait for a dock over 30 min" tone={waitingLong ? 'warn' : 'good'} />
         <Tile size="compact" label="Est. detention" value={money(cost)} note="Live visits by dock assigned" tone={cost ? 'alert' : 'good'} trend={trend(cost, prevCost, money, true)} />
       </Tiles>
 
+      <DayView entries={entries} now={now} dates={r.days.map((d) => d.date)} docksOnly />
+
       <Card title="Dock Assignments by Hour" sub="When trucks got a dock">
         <HourGrid days={r.days} field="dockHourly" noun="dock assignments" />
       </Card>
 
-      <Card title="Dock Performance" sub="Docks assigned in this range · utilization is the share of each day a dock was in use · click a heading to sort">
-        <SortTable columns={DOCK_COLUMNS} rows={r.docks} rowKey={(d) => d.dock} initial={{ id: 'dock', dir: 'asc' }} minWidth={820} empty="No docks assigned in this range." />
+      <Card title="Dock Performance" sub="Docks assigned in this range · utilization is the share of operating hours a dock was in use · click a heading to sort">
+        <SortTable columns={DOCK_COLUMNS} rows={r.docks.map((d) => ({ ...d, utilization: ops.dockUseByDock[d.dock] ?? d.utilization }))} rowKey={(d) => d.dock} initial={{ id: 'dock', dir: 'asc' }} minWidth={820} empty="No docks assigned in this range." />
       </Card>
     </>
   )
@@ -345,7 +395,7 @@ export function DockSection({ r, prev, trend, impact }) {
 
 const INSPECTOR_COLUMNS = [
   { id: 'name', label: 'Inspected by', value: (r) => r.name, render: (r) => <b>{r.name}</b> },
-  { id: 'visits', label: 'Inspections', value: (r) => r.visits, numeric: true },
+  { id: 'visits', label: 'Inspections', value: (r) => r.visits, numeric: true, bar: true },
   { id: 'pass', label: 'Passed', value: (r) => r.passPct, render: (r) => pct(r.passPct), numeric: true },
   { id: 'inspect', label: 'Avg dock → inspected', value: (r) => r.avgToInspectMs, render: (r) => dur(r.avgToInspectMs), numeric: true },
   { id: 'over', label: `Over ${FREE_H} h`, value: (r) => r.overFree, numeric: true },
@@ -399,7 +449,14 @@ export function InspectionSection({ r, prev, trend }) {
       </LeadRow>
 
       <Tiles>
-        <Tile size="compact" label="Inspections" value={i.count} note="Loading inspections saved" trend={trend(i.count, p.count, count)} />
+        <Tile
+          size="compact"
+          label="Inspections"
+          value={i.count}
+          note="Loading inspections saved"
+          trend={trend(i.count, p.count, count)}
+          spark={{ values: r.days.map((d) => d.inspections), label: 'Inspections per day' }}
+        />
         <Tile
           size="compact"
           label="Passed"

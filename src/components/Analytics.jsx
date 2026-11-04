@@ -3,11 +3,13 @@ import * as ui from '../ui'
 import { dayKey } from '../time'
 import { DETENTION_FREE_MIN } from '../yard'
 import { impactMetrics, previousRange, rangeMetrics, shiftDate } from '../analytics'
+import { opsMetrics } from '../ops'
 import { loadImpactSettings, saveImpactSettings } from '../impactSettings'
 import { Card } from './analytics/ui'
 import { Trend, shortDate } from './analytics/charts'
 import { HandoffSection, IMPACT_SUMMARY, ImpactSection, QualitySection, SettingsDialog } from './analytics/impact'
 import { REPLAY_SUMMARY, ReplaySection } from './analytics/replay'
+import { CONTROL_SUMMARY, ControlSection } from './analytics/control'
 import {
   DockSection,
   GateSection,
@@ -27,6 +29,7 @@ import {
 const PRESETS = [7, 14, 30, 'golive']
 
 const SECTIONS = [
+  { id: 'control', label: 'Operations Control', sub: 'The yard right now and through the day: load, docks, flow and where time is lost', View: ControlSection },
   { id: 'impact', label: 'Digitization Impact', sub: "What going digital is saving, and the money still on the table", View: ImpactSection },
   { id: 'overview', label: 'Detention & Wait Time', sub: 'Where trucks lose time on site, and what it costs in detention', View: OverviewSection },
   { id: 'handoffs', label: 'Handoffs', sub: 'How quickly each team picks up a truck from the one before', View: HandoffSection },
@@ -37,7 +40,7 @@ const SECTIONS = [
   { id: 'inspections', label: 'Inspections', sub: 'Loading inspections: results, timing and who did them', View: InspectionSection },
   { id: 'quality', label: 'Data Quality', sub: 'Are the records complete, logged live, and catching mistakes?', View: QualitySection },
 ]
-const ALL_SUMMARIES = { ...SUMMARY, ...IMPACT_SUMMARY, replay: REPLAY_SUMMARY }
+const ALL_SUMMARIES = { ...SUMMARY, ...IMPACT_SUMMARY, replay: REPLAY_SUMMARY, control: CONTROL_SUMMARY }
 
 // One toolbar for the whole tab: the range presets, the chosen dates (Custom… opens From / To),
 // what the ▲/▼ compare against, and Export.
@@ -149,7 +152,7 @@ const percent = (v) => (v == null ? '' : Math.round(v * 1000) / 10)
 const dollars = (v) => Math.round(v ?? 0)
 
 // One workbook for the range. Durations in minutes, costs in dollars.
-async function exportAnalytics(r, impact) {
+async function exportAnalytics(r, impact, ops) {
   const XLSX = await import('xlsx')
   const book = XLSX.utils.book_new()
   const add = (name, rows) => XLSX.utils.book_append_sheet(book, XLSX.utils.aoa_to_sheet(rows), name)
@@ -195,6 +198,16 @@ async function exportAnalytics(r, impact) {
     [],
     ['Guard', 'Check-ins', 'Logged live %', 'Corrected later'],
     ...q.guards.map((g) => [g.name, g.checkIns, percent(g.livePct), g.edited]),
+  ])
+  add('Spread', [
+    ['Handoff', 'Typical p50 (min)', 'Slow end p90 (min)', 'Target (min)', 'On target %', 'Trucks'],
+    ...ops.stages.map((s) => [s.label, minutes(s.p50), minutes(s.p90), minutes(s.target), percent(s.onTargetPct), s.n]),
+    [],
+    ['Time on site from (min)', 'to (min)', 'Departed live visits'],
+    ...ops.stays.bins.map((b) => [minutes(b.from), b.to == null ? 'or more' : minutes(b.to), b.count]),
+    [],
+    ['Docks in use, share of operating hours %', percent(ops.dockUse)],
+    ...Object.entries(ops.dockUseByDock).map(([d, u]) => [`  Dock ${d}`, percent(u)]),
   ])
   add('Summary', [
     ['Range', `${r.from} to ${r.to}`],
@@ -254,7 +267,7 @@ async function exportAnalytics(r, impact) {
 export default function Analytics({ entries, gateEvents = [], sampleCount, onLoadSample, onRemoveSample }) {
   const [now, setNow] = useState(Date.now)
   const today = dayKey(new Date(now))
-  const [section, setSection] = useState('impact')
+  const [section, setSection] = useState('control')
   const [preset, setPreset] = useState(7)
   const [range, setRange] = useState(() => ({ from: shiftDate(today, -6), to: today }))
   const [exporting, setExporting] = useState(false)
@@ -299,6 +312,12 @@ export default function Analytics({ entries, gateEvents = [], sampleCount, onLoa
     return impactMetrics(entries, p.from, p.to, now, effective, gateEvents)
   }, [entries, range, now, effective, gateEvents])
 
+  const ops = useMemo(() => opsMetrics(entries, range.from, range.to, now, effective.targets), [entries, range, now, effective])
+  const prevOps = useMemo(() => {
+    const p = previousRange(range.from, range.to)
+    return opsMetrics(entries, p.from, p.to, now, effective.targets)
+  }, [entries, range, now, effective])
+
   // The ▲/▼ line under a tile; blank when the previous period had no visits.
   const trend = (value, base, format, lowerIsBetter) => (
     <Trend value={value} base={prev.totals.visits ? base : null} format={format} lowerIsBetter={lowerIsBetter} days={r.dayCount} />
@@ -308,7 +327,7 @@ export default function Analytics({ entries, gateEvents = [], sampleCount, onLoa
     setExportError('')
     setExporting(true)
     try {
-      await exportAnalytics(r, impact)
+      await exportAnalytics(r, impact, ops)
     } catch {
       setExportError('Export failed. Try again.')
     } finally {
@@ -320,7 +339,7 @@ export default function Analytics({ entries, gateEvents = [], sampleCount, onLoa
   const View = current.View
   const hasData = r.totals.visits > 0
   // Sidebar figure and takeaway for every section (none when the range is empty).
-  const extra = { impact, prevImpact }
+  const extra = { impact, prevImpact, ops }
   const summaries = hasData ? Object.fromEntries(SECTIONS.map((s) => [s.id, ALL_SUMMARIES[s.id](r, prev, r.dayCount, extra)])) : {}
   const settingsControl = (colors = 'text-muted hover:text-ink') => (
     <button type="button" onClick={() => setSettingsOpen(true)} className={'min-h-11 cursor-pointer text-sm font-semibold underline ' + colors}>
@@ -401,6 +420,9 @@ export default function Analytics({ entries, gateEvents = [], sampleCount, onLoa
               onOpenSettings={() => setSettingsOpen(true)}
               entries={entries}
               range={range}
+              ops={ops}
+              prevOps={prevOps}
+              now={now}
             />
           </>
         )}

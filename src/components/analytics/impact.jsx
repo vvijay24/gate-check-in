@@ -5,6 +5,7 @@ import { BASELINE_FIELDS, DEFAULT_TARGETS, DOCK_RESPONSE, HANDOFFS } from '../..
 import { Card, Meter, Tile } from './ui'
 import { BarList, DayBars, DayLine, LIVE, SortTable, count, dur, money, pct, ptsDiff, shortDate } from './charts'
 import { LeadRow, Pair, Tiles, visitCell } from './sections'
+import { StageSpread } from './viz'
 
 // The Overview sections about the digitization itself: what it is saving and what's still on the table
 // (Digitization Impact), how fast the teams hand trucks on (Handoffs), and whether the records are
@@ -61,6 +62,7 @@ export function ImpactSection({ r, prev, trend, impact, prevImpact, settings, on
             note={`Est. detention avoidable if every handoff met its target · ${money(impact.allOpportunity)} in this range`}
             tone={impact.allOpportunity > 0 ? 'alert' : 'good'}
             trend={trend(impact.allOpportunityPerWeek, prevImpact.allOpportunityPerWeek, money, true)}
+            spark={{ values: impact.weeks.map((w) => w.detention), label: 'Est. detention per week' }}
           />
         }
       >
@@ -300,7 +302,7 @@ function trendWords(value, base) {
   )
 }
 
-export function HandoffSection({ trend, impact, prevImpact, onOpenSettings }) {
+export function HandoffSection({ trend, impact, prevImpact, onOpenSettings, ops }) {
   return (
     <>
       <LeadRow
@@ -312,6 +314,7 @@ export function HandoffSection({ trend, impact, prevImpact, onOpenSettings }) {
             note="Share of team handoffs (dock, inspection, release, gate) done within their target"
             tone={impact.onTargetPct == null ? undefined : impact.onTargetPct >= 0.8 ? 'good' : 'warn'}
             trend={trend(impact.onTargetPct, prevImpact.onTargetPct, ptsDiff)}
+            spark={{ values: impact.handoffDays.map((d) => d.onTargetPct), label: 'Handoffs on target per day' }}
           />
         }
       >
@@ -327,6 +330,10 @@ export function HandoffSection({ trend, impact, prevImpact, onOpenSettings }) {
       </LeadRow>
 
       <GateShippingCard impact={impact} prevImpact={prevImpact} onOpenSettings={onOpenSettings} />
+
+      <Card title="Handoff Times vs Target" sub="Typical (p50) and slow-end (p90) time for each handoff, departed trucks in this range · averages hide the slow trucks that cost detention">
+        <StageSpread stages={ops.stages} />
+      </Card>
 
       <Card
         title="Each Handoff"
