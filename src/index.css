@@ -1,130 +1,153 @@
 @import "tailwindcss";
+@import "./turnaround/theme.css";
 
-/* Palette and type from guard-shack-log.html. Utilities read these variables,
-   so the dark-mode overrides below restyle everything automatically. */
+/* Palette, type, depth and motion. Utilities read these variables (bg-panel, shadow-card,
+   animate-pop …). Colors follow the truck turnaround kit (design/turnaround-kit/theme.css); dark mode
+   follows the system setting, or data-theme on <html>. A new color token goes in all three places:
+   here, the prefers-color-scheme block and the [data-theme="dark"] block below. */
 @theme {
-  --font-body: "Barlow", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  --font-display: "Barlow Condensed", "Arial Narrow", "Roboto Condensed", sans-serif;
+  --font-body: "DM Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  /* Buttons, chips and labels: the same sans, bold. Headings that use it switch to the serif (below). */
+  --font-display: "DM Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-serif: "Source Serif 4", Georgia, "Times New Roman", serif;
 
-  --color-page: #eceeef;
+  /* Kit palette: navy #16324F, navy-2 #3A6EA5, sky #8FB3D9, yolk #F2A900, teal #0E8A7E, red #C8102E */
+  --color-page: #F6F7F9;
   --color-panel: #ffffff;
-  --color-ink: #1b1e21;
-  --color-muted: #5e666d;
-  --color-line: #d3d7da;
-  --color-field: #f5f6f7;
-  --color-chrome: #1b1e21;
-  --color-signal-ink: #1b1e21;
-  --color-signal: #FFE8A3;
+  --color-ink: #1A2230;
+  --color-muted: #5E6878;
+  --color-line: #D6DBE2;
+  --color-field: #F9FAFB;
+  --color-chrome: #16324F;
+  /* Faint border on cards and table rows; the shadow does most of the separating */
+  --color-hair: rgba(22, 50, 79, 0.09);
+  /* Actions and selection: primary buttons, active tabs/filters, focus outline */
+  --color-signal: #16324F;
+  --color-signal-hover: #1F4770;
+  --color-signal-ink: #ffffff;
+  /* Tints: card headers, table headers, hover rows (tint); chat bubbles and small-text chips (soft) */
+  --color-signal-tint: #F0F4F9;
+  --color-signal-soft: #DCE6F2;
+  /* Sky: selected small toggles (with text-chrome), badges and the clock on the navy header */
+  --color-signal-bright: #8FB3D9;
+  /* "Needs attention" status pills (Waiting, Not inspected, near detention) - kept apart from signal */
+  --color-warn: #FCEBC0;
+  --color-warn-ink: #6E4B00;
+  /* Deeper amber (3:1 on white and on the yard asphalt) for warn bars, meters and waiting trucks */
+  --color-warn-edge: #B07800;
 
-  --color-delivery: #1f6fb2;
-  --color-delivery-soft: #e3eef8;
-  --color-pickup: #2b7d52;
-  --color-pickup-soft: #e2f2e9;
-  --color-drop: #7a4fa0;
-  --color-drop-soft: #efe7f6;
-  --color-ok: #2b7d52;
-  --color-ok-soft: #e2f2e9;
-  --color-danger: #b3261e;
-  --color-danger-soft: #fbe9e7;
+  /* Visit types, as in the kit's charts: delivery navy-2, pickup yolk, drop teal */
+  --color-delivery: #2F5F95;
+  --color-delivery-soft: #E3ECF6;
+  --color-pickup: #8A5A00;
+  --color-pickup-soft: #FDF1D2;
+  --color-drop: #0B7A70;
+  --color-drop-soft: #DFF2EF;
+  --color-ok: #1A7A43;
+  --color-ok-soft: #E3F3EA;
+  --color-danger: #C8102E;
+  --color-danger-soft: #FBE7EA;
 
   /* Gates: Gate 1 (in) green, Gate 2 (out) rose, kept apart from the warning red */
-  --color-gate-in: #2b7d52;
-  --color-gate-in-soft: #e2f2e9;
-  --color-gate-out: #b8406a;
-  --color-gate-out-soft: #fbe6ee;
+  --color-gate-in: #1A7A43;
+  --color-gate-in-soft: #E3F3EA;
+  --color-gate-out: #A8385F;
+  --color-gate-out-soft: #FBE6EE;
 
-  /* Analytics charts. Live visits blue; drops magenta-purple, near the app's Drop purple. Checked for
-     color-blind separation: light mode is borderline (ΔE 7), so drop marks also carry stripes. */
-  --color-chart-live: #1f6fb2;
-  --color-chart-drop: #a3478f;
-  /* Visit stages in order (dock wait → inspection → release → check-out): one blue, light → dark */
-  --color-stage-1: #a9cdee;
-  --color-stage-2: #5f9fd8;
-  --color-stage-3: #1f6fb2;
-  --color-stage-4: #0f3f6b;
+  /* Shipping desk live charts */
+  --color-chart-live: #3A6EA5;
+  /* Live yard on Loading & Inspection: waiting for a dock, loading, inspection, ready to leave.
+     Validated with the dataviz palette check (light on #FFF, dark on #171D26). */
+  --color-yard-wait: #4A86D0;
+  --color-yard-load: #C98F00;
+  --color-yard-insp: #8E5BC9;
+  --color-yard-ready: #13998A;
 
-  /* Overview sidebar: a dark rail joined to the header. The text colors are for use on the rail and
-     stay the same in dark mode; only the rail itself gets deeper there (see below). */
-  --color-rail: #1b1e21;
-  --color-rail-text: #c9d0d5;
-  --color-rail-muted: #9aa3aa;
-  --color-rail-alert: #f08080;
+  /* Navy header: text colors for use on it */
+  --color-rail-text: #C9D8EA;
+  --color-rail-alert: #FF8A98;
 
   /* Yard map and meter tracks */
-  --color-asphalt: #dde1e4;
-  --color-bay: #f5f6f7;
-  --color-building: #c9ced2;
-  --color-track: #e3e6e8;
-}
+  --color-asphalt: #E2E6EC;
+  --color-lane: #F9FAFB;
+  --color-building: #C9CFD8;
+  --color-track: #E6E9EE;
 
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --color-page: #16191c;
-    --color-panel: #20252a;
-    --color-ink: #eceff1;
-    --color-muted: #9aa3aa;
-    --color-line: #343b42;
-    --color-field: #181c20;
-    --color-delivery: #5ca4e3;
-    --color-delivery-soft: #1c2c3b;
-    --color-pickup: #5bbf86;
-    --color-pickup-soft: #1b3127;
-    --color-drop: #b48fd8;
-    --color-drop-soft: #2c2238;
-    --color-ok: #5bbf86;
-    --color-ok-soft: #1b3127;
-    --color-danger: #f08080;
-    --color-danger-soft: #3a1f1f;
-    --color-gate-in: #5bbf86;
-    --color-gate-in-soft: #1b3127;
-    --color-gate-out: #ee8fb0;
-    --color-gate-out-soft: #3a2130;
-    --color-chart-live: #4a90d0;
-    --color-chart-drop: #cc5e98;
-    --color-stage-1: #1f4f7a;
-    --color-stage-2: #2f78bd;
-    --color-stage-3: #5ca4e3;
-    --color-stage-4: #a9cdee;
-    --color-rail: #0d0f11;
-    --color-asphalt: #2a3036;
-    --color-bay: #1d2226;
-    --color-building: #3a4148;
-    --color-track: #2c3238;
+  /* Depth: cards and tiles; primary buttons and hovered tiles; dialogs and pop-overs */
+  --shadow-card: 0 1px 2px rgba(15, 30, 58, 0.06), 0 4px 16px rgba(15, 30, 58, 0.06);
+  --shadow-raised: 0 2px 4px rgba(15, 30, 58, 0.12), 0 8px 20px rgba(15, 30, 58, 0.14);
+  --shadow-overlay: 0 24px 64px rgba(15, 30, 58, 0.28);
+
+  /* Motion: short and calm. Turned off below for people who ask for reduced motion. */
+  --animate-fade: fade 0.2s ease-out;
+  --animate-pop: pop 0.2s ease-out;
+  --animate-fresh: fresh 2.4s ease-out;
+  @keyframes fade {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes pop {
+    from { opacity: 0; transform: translateY(8px) scale(0.98); }
+    to { opacity: 1; transform: none; }
+  }
+  /* A row that was just added: starts tinted, fades to normal */
+  @keyframes fresh {
+    from { background-color: rgba(58, 110, 165, 0.2); }
+    to { background-color: transparent; }
   }
 }
-:root[data-theme="dark"] {
-  --color-page: #16191c;
-  --color-panel: #20252a;
-  --color-ink: #eceff1;
-  --color-muted: #9aa3aa;
-  --color-line: #343b42;
-  --color-field: #181c20;
-  --color-delivery: #5ca4e3;
-  --color-delivery-soft: #1c2c3b;
-  --color-pickup: #5bbf86;
-  --color-pickup-soft: #1b3127;
-  --color-drop: #b48fd8;
-  --color-drop-soft: #2c2238;
-  --color-ok: #5bbf86;
-  --color-ok-soft: #1b3127;
-  --color-danger: #f08080;
-  --color-danger-soft: #3a1f1f;
-  --color-gate-in: #5bbf86;
-  --color-gate-in-soft: #1b3127;
-  --color-gate-out: #ee8fb0;
-  --color-gate-out-soft: #3a2130;
-  --color-chart-live: #4a90d0;
-  --color-chart-drop: #cc5e98;
-  --color-stage-1: #1f4f7a;
-  --color-stage-2: #2f78bd;
-  --color-stage-3: #5ca4e3;
-  --color-stage-4: #a9cdee;
-  --color-rail: #0d0f11;
-  --color-asphalt: #2a3036;
-  --color-bay: #1d2226;
-  --color-building: #3a4148;
-  --color-track: #2c3238;
+
+/* Overview deep dive colors (turnaround/deepDives.js): the six stages in order (gate check-in, dock
+   assignment, pre-loading, loading, inspection, checkout) and blue / gold / purple / teal for categories,
+   matching the Live yard. Validated light on #FFF and dark on #171D26; red stays for problems only. */
+:root {
+  --dive-s1: #E0763A; --dive-s2: #4A86D0; --dive-s3: #D9559A; --dive-s4: #C99300; --dive-s5: #8E5BC9; --dive-s6: #13998A;
+  --dive-blue: #4A86D0; --dive-gold: #C99300; --dive-purple: #8E5BC9; --dive-teal: #13998A;
 }
+/* Deep dive panels in two columns (wide ones span both); one column on narrow screens. */
+.tt .tt-grid.dive-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (max-width: 900px) { .tt .tt-grid.dive-grid { grid-template-columns: minmax(0, 1fr); } }
+.tt .dive-grid .tt-chart svg { overflow: visible; }
+
+/* Dark mode: the same roles, stepped for a dark surface (kit dark values). */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { color-scheme: dark;
+    --color-page: #0F141B; --color-panel: #171D26; --color-ink: #E8ECF2; --color-muted: #9AA4B4;
+    --color-line: #2E3744; --color-field: #1C232D; --color-chrome: #0E2236; --color-hair: rgba(255, 255, 255, 0.07);
+    --color-signal: #7AA7E3; --color-signal-hover: #9BBEEB; --color-signal-ink: #0F141B;
+    --color-signal-tint: #1B2330; --color-signal-soft: #22314A; --color-signal-bright: #A9C7EA;
+    --color-warn: #3A2F12; --color-warn-ink: #FFE29A; --color-warn-edge: #FFC233;
+    --color-delivery: #7AA7E3; --color-delivery-soft: #1C2A3D; --color-pickup: #FFC233; --color-pickup-soft: #33290F;
+    --color-drop: #2EC4B2; --color-drop-soft: #0F2E2B; --color-ok: #3DD07F; --color-ok-soft: #12301F;
+    --color-danger: #FF5468; --color-danger-soft: #3A1820;
+    --color-gate-in: #3DD07F; --color-gate-in-soft: #12301F; --color-gate-out: #F08AAE; --color-gate-out-soft: #3A1A27;
+    --color-chart-live: #7AA7E3; --color-rail-text: #9FB6CF;
+    --color-yard-wait: #5B95DE; --color-yard-load: #BF8700; --color-yard-insp: #9B6BD6; --color-yard-ready: #1FA594;
+    --dive-s1: #D9763B; --dive-s2: #5B95DE; --dive-s3: #CF5A9B; --dive-s4: #BF8700; --dive-s5: #9B6BD6; --dive-s6: #1FA594;
+    --dive-blue: #5B95DE; --dive-gold: #BF8700; --dive-purple: #9B6BD6; --dive-teal: #1FA594;
+    --color-asphalt: #1C232D; --color-lane: #242C38; --color-building: #2E3846; --color-track: #2A323E;
+    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4), 0 4px 16px rgba(0, 0, 0, 0.25);
+    --shadow-raised: 0 2px 4px rgba(0, 0, 0, 0.45), 0 8px 20px rgba(0, 0, 0, 0.35);
+    --shadow-overlay: 0 24px 64px rgba(0, 0, 0, 0.6); }
+}
+:root[data-theme="dark"] { color-scheme: dark;
+    --color-page: #0F141B; --color-panel: #171D26; --color-ink: #E8ECF2; --color-muted: #9AA4B4;
+    --color-line: #2E3744; --color-field: #1C232D; --color-chrome: #0E2236; --color-hair: rgba(255, 255, 255, 0.07);
+    --color-signal: #7AA7E3; --color-signal-hover: #9BBEEB; --color-signal-ink: #0F141B;
+    --color-signal-tint: #1B2330; --color-signal-soft: #22314A; --color-signal-bright: #A9C7EA;
+    --color-warn: #3A2F12; --color-warn-ink: #FFE29A; --color-warn-edge: #FFC233;
+    --color-delivery: #7AA7E3; --color-delivery-soft: #1C2A3D; --color-pickup: #FFC233; --color-pickup-soft: #33290F;
+    --color-drop: #2EC4B2; --color-drop-soft: #0F2E2B; --color-ok: #3DD07F; --color-ok-soft: #12301F;
+    --color-danger: #FF5468; --color-danger-soft: #3A1820;
+    --color-gate-in: #3DD07F; --color-gate-in-soft: #12301F; --color-gate-out: #F08AAE; --color-gate-out-soft: #3A1A27;
+    --color-chart-live: #7AA7E3; --color-rail-text: #9FB6CF;
+    --color-yard-wait: #5B95DE; --color-yard-load: #BF8700; --color-yard-insp: #9B6BD6; --color-yard-ready: #1FA594;
+    --dive-s1: #D9763B; --dive-s2: #5B95DE; --dive-s3: #CF5A9B; --dive-s4: #BF8700; --dive-s5: #9B6BD6; --dive-s6: #1FA594;
+    --dive-blue: #5B95DE; --dive-gold: #BF8700; --dive-purple: #9B6BD6; --dive-teal: #1FA594;
+    --color-asphalt: #1C232D; --color-lane: #242C38; --color-building: #2E3846; --color-track: #2A323E;
+    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4), 0 4px 16px rgba(0, 0, 0, 0.25);
+    --shadow-raised: 0 2px 4px rgba(0, 0, 0, 0.45), 0 8px 20px rgba(0, 0, 0, 0.35);
+    --shadow-overlay: 0 24px 64px rgba(0, 0, 0, 0.6); }
 
 body {
   background: var(--color-page);
@@ -134,9 +157,25 @@ body {
   line-height: 1.45;
 }
 
+/* Headings in the display font use the kit serif; buttons and labels stay sans. */
+:is(h1, h2, h3).font-display { font-family: var(--font-serif); font-weight: 600; }
+
 :focus-visible {
   outline: 3px solid var(--color-signal);
   outline-offset: 2px;
+}
+
+/* On the navy header the focus ring turns sky so it stays visible. */
+header :focus-visible, .on-chrome :focus-visible, .on-chrome:focus-visible { outline-color: var(--color-signal-bright); }
+
+/* Dialogs fade their backdrop in with the pop-in of the dialog itself. */
+dialog[open]::backdrop { animation: var(--animate-fade); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after, ::backdrop {
+    animation: none !important;
+    transition: none !important;
+  }
 }
 
 /* Yard map icons: SVG groups don't draw an outline, so the hit area shows focus instead. */
@@ -145,6 +184,8 @@ body {
 
 @media print {
   .no-print { display: none !important; }
+  /* Flat on paper: no shadows */
+  * { box-shadow: none !important; }
 
   /* Entry Log "Print": show only that section, full width, without the sideways-scroll limits. */
   body[data-print="entry-log"] * { visibility: hidden; }

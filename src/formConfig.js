@@ -1,5 +1,3 @@
-import { BAY_NAMES } from './yard'
-
 // Field layout mirrors the paper guard sheet: left column / right column, row by row.
 export const EMPTY_FORM = {
   guardOnDuty: '',
@@ -16,7 +14,6 @@ export const EMPTY_FORM = {
   dateOut: '',
   appointmentTime: '',
   truckName: '',
-  waitingLocation: '',
   driverPhone: '',
   driverPhoneOut: '',
   emptyPallets: '',
@@ -43,10 +40,10 @@ export const REQUIRED_IN = [
   'timeIn',
   'gateIn',
   'visitPurpose',
+  'appointmentTime',
   'truckName',
   'trailerNumber',
   'truckerNameIn',
-  'waitingLocation',
   'pickupNumber',
   'customerPickupFor',
   'incomingSeals',
@@ -73,74 +70,31 @@ export const isRequired = (name, form, mode = 'in') =>
   (!PICKUP_ONLY.includes(name) || (form.visitPurpose ?? []).includes('Pickup')) &&
   isShown(name, form)
 
-const FUEL_LEVELS = ['Empty', '1/4', '1/2', '3/4', 'Full']
-
-// Form sections, grouped like guard-shack-log.html. `wide` fields span the full row;
-// `newRow` fields start a new row, leaving the rest of the row above empty;
-// `pickupOnly` fields are disabled (and saved empty) unless Pickup is ticked.
-export const SECTIONS_IN = [
-  {
-    title: 'Truck and Driver',
-    purpose: true,
-    fields: [
-      { name: 'appointmentTime', label: 'Appointment Time', type: 'time', pickupOnly: true },
-      { name: 'truckName', label: 'Carrier', newRow: true },
-      { name: 'trailerNumber', label: 'Trailer #' },
-      { name: 'truckerNameIn', label: 'Trucker Name Coming In' },
-      { name: 'driverPhone', label: 'Driver Phone # (In)', type: 'tel' },
-      { name: 'waitingLocation', label: 'Waiting Location (Staging Bay)', type: 'select', options: BAY_NAMES, placeholder: 'Select a free bay' },
-    ],
-    odometer: true,
-  },
-  {
-    title: 'Load',
-    fields: [
-      { name: 'pickupNumber', label: 'Order No' },
-      { name: 'customerPickupFor', label: 'Customer' },
-      { name: 'emptyPallets', label: 'How Many Empty Pallets', type: 'number', min: 0 },
-      { name: 'incomingSeals', label: 'Incoming Seals #', newRow: true },
-      { name: 'sealIntact', label: 'Seal Intact?', type: 'choice', options: ['Yes', 'No'] },
-      { name: 'shipmentContents', label: 'Shipment Contents', type: 'textarea', wide: true },
-    ],
-  },
-  {
-    title: 'Reefer',
-    fields: [
-      { name: 'reefer', label: 'Refrigerated Trailer?', type: 'choice', options: ['Yes', 'No'], wide: true },
-      { name: 'tempSet', label: 'Set Point °F', type: 'number', step: 0.1 },
-      { name: 'tempActual', label: 'Actual Temp °F', type: 'number', step: 0.1 },
-      { name: 'fuelIn', label: 'Reefer Fuel Coming In', type: 'choice', options: FUEL_LEVELS, wide: true },
-    ],
-  },
-]
-
-// Check Out sections. `times` puts Date Out / Time Out at the top of the section;
-// `emptyNote` is shown instead of fields when none apply (e.g. a dry van has no reefer readings).
-// The Guard on Duty section is added by the form after these.
-export const SECTIONS_OUT = [
-  {
-    title: 'Truck and Driver',
-    times: true,
-    fields: [
-      { name: 'truckerNameOut', label: 'Trucker Name Going Out' },
-      { name: 'driverPhoneOut', label: 'Driver Phone # (Out)', type: 'tel' },
-    ],
-  },
-  {
-    title: 'Load',
-    fields: [
-      { name: 'outgoingSeals', label: 'Outgoing Seals #' },
-      { name: 'greenSeal', label: 'Green Seal #' },
-      { name: 'lockLoads', label: 'Lock Loads' },
-      { name: 'padLocks', label: 'Pad Locks' },
-    ],
-  },
-  {
-    title: 'Reefer',
-    emptyNote: 'Not a refrigerated trailer, so there are no reefer readings to record.',
-    fields: [{ name: 'fuelOut', label: 'Fuel Going Out', type: 'choice', options: FUEL_LEVELS, wide: true }],
-  },
-]
+// On-screen names of the Gate fields, also used by the error list ('Fix: Carrier, Trailer #').
+export const FIELD_NAMES = {
+  appointmentTime: 'Appointment Time',
+  truckName: 'Carrier',
+  trailerNumber: 'Trailer #',
+  truckerNameIn: 'Trucker Name Coming In',
+  driverPhone: 'Driver Phone # (In)',
+  pickupNumber: 'Order No',
+  customerPickupFor: 'Customer',
+  emptyPallets: 'How Many Empty Pallets',
+  incomingSeals: 'Incoming Seals #',
+  sealIntact: 'Seal Intact?',
+  shipmentContents: 'Shipment Contents',
+  reefer: 'Refrigerated Trailer?',
+  tempSet: 'Set Point °F',
+  tempActual: 'Actual Temp °F',
+  fuelIn: 'Reefer Fuel Coming In',
+  truckerNameOut: 'Trucker Name Going Out',
+  driverPhoneOut: 'Driver Phone # (Out)',
+  outgoingSeals: 'Outgoing Seals #',
+  greenSeal: 'Green Seal #',
+  lockLoads: 'Lock Loads',
+  padLocks: 'Pad Locks',
+  fuelOut: 'Fuel Going Out',
+}
 
 export const VISIT_PURPOSES = ['Delivery', 'Pickup', 'Drop Trailer']
 

@@ -23,25 +23,25 @@ export default function LogTab({ entries }) {
 
   return (
     <section className="space-y-4">
-      <h2 className="font-display text-[26px] leading-tight font-bold">Gate Log</h2>
+      <h2 className="font-display text-[24px] leading-tight font-bold">Gate Log</h2>
 
       <p className="text-muted" role="status">
         {entries.length} {entries.length === 1 ? 'entry' : 'entries'}
         {exportError && <span className="ml-2 font-semibold text-danger">{exportError}</span>}
       </p>
 
-      <div className="overflow-x-auto rounded-[10px] border border-line bg-panel">
+      <div className="overflow-x-auto rounded-2xl border border-hair bg-panel shadow-card">
         <table className="w-full border-collapse text-left text-[14px]">
-          <thead className="text-[13px] font-semibold text-muted">
-            <tr className="border-b border-line">
+          <thead className="bg-field text-[13px] font-semibold text-muted">
+            <tr className="border-b border-hair">
               {LOG_COLUMNS.map((c) => (
-                <th key={c.header} className="whitespace-nowrap px-3 py-2.5">
+                <th key={c.header} className="whitespace-nowrap px-3.5 py-3">
                   {c.header}
                 </th>
               ))}
             </tr>
           </thead>
-          <tbody className="divide-y divide-line">
+          <tbody className="divide-y divide-hair">
             {rows.length === 0 ? (
               <tr>
                 <td colSpan={LOG_COLUMNS.length} className="px-3 py-6 text-muted">
@@ -50,21 +50,21 @@ export default function LogTab({ entries }) {
               </tr>
             ) : (
               rows.map((e) => (
-                <tr key={e.id} className="align-top">
+                <tr key={e.id} className="align-top transition-colors duration-150 hover:bg-signal-tint">
                   {LOG_COLUMNS.map((c) => {
                     const value = c.get(e)
                     if (c.header === 'Status') {
                       return (
-                        <td key={c.header} className="px-3 py-2">
-                          <span className={ui.tag + (e.timeOut ? ' bg-ok-soft text-ok' : ' bg-signal text-signal-ink')}>{value}</span>
+                        <td key={c.header} className="px-3.5 py-3">
+                          <span className={ui.tag + (e.timeOut ? ' bg-ok-soft text-ok' : ' bg-warn text-warn-ink')}>{value}</span>
                         </td>
                       )
                     }
                     if (c.header === 'Odometer Photo') {
                       return (
-                        <td key={c.header} className="px-3 py-2">
+                        <td key={c.header} className="px-3.5 py-3">
                           {e.odometerPhoto ? (
-                            <img src={e.odometerPhoto} alt={`Odometer for ${e.truckName}`} className="h-10 w-14 rounded border border-line object-cover" />
+                            <img src={e.odometerPhoto} alt={`Odometer for ${e.truckName}`} className="h-10 w-14 rounded-md border border-hair object-cover" />
                           ) : (
                             <span className="text-muted">—</span>
                           )}
@@ -72,7 +72,7 @@ export default function LogTab({ entries }) {
                       )
                     }
                     return (
-                      <td key={c.header} className={'max-w-56 px-3 py-2 break-words' + (c.number ? ' text-right' : '')}>
+                      <td key={c.header} className={'max-w-56 px-3.5 py-3 break-words' + (c.number ? ' text-right' : '')}>
                         {value === '' || value == null ? <span className="text-muted">—</span> : value}
                       </td>
                     )

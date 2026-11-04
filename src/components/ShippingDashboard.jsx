@@ -3,17 +3,20 @@ import { flushSync } from 'react-dom'
 import * as ui from '../ui'
 import { LATE_GRACE_MIN, arrivalMs, clockTime, dayKey, departureMs, duration, minutesLate } from '../time'
 import { exportToExcel } from '../logColumns'
-import { DETENTION_TAG, detentionState } from '../detention'
+import { DETENTION_ICON, DETENTION_TAG, detentionState } from '../detention'
+import { Icon } from '../icons'
+import CardHead from './CardHead'
 import { awaitingRelease, isReleased } from '../handoff'
 import AssignDock, { occupiedDocks } from './AssignDock'
-import Dashboard from './Dashboard'
-import ReleaseDialog from './ReleaseDialog'
+import ShippingBoard from './ShippingBoard'
+import { LiveYard } from './Dashboard'
 
-// Shipping tab: the yard dock board on top, then the outbound (Pickup) shipments table.
-// After the inspection passes, Shipping releases the truck to the gate; until it leaves it is only
-// adding detention.
+// Shipping tab: the Shipping desk board on top (who needs a dock, which dock is free, what has passed
+// inspection, with a timer on every truck and live charts), then one tabbed area for the outbound (Pickup)
+// shipments table, the Entry Log and the yard map. After the inspection passes, the inspector releases the
+// truck to the gate on Loading & Inspection; Shipping sees the status but can't release.
 const STATUS_TAG = {
-  Waiting: 'bg-signal text-signal-ink',
+  Waiting: 'bg-warn text-warn-ink',
   Loading: 'bg-ink text-panel',
   'Awaiting release': 'bg-ok text-panel',
   'Released to gate': 'bg-delivery-soft text-delivery',
@@ -79,7 +82,12 @@ const COLUMNS = [
 ]
 
 const Sub = ({ children }) => <span className="block text-[13px] text-muted">{children}</span>
-const Warn = ({ children }) => <span className="block text-[13px] font-semibold text-danger">⚠ {children}</span>
+const Warn = ({ children }) => (
+  <span className="flex items-center gap-1 text-[13px] font-semibold text-danger">
+    <Icon name="warning" size={14} />
+    {children}
+  </span>
+)
 const Dash = () => <span className="text-muted">—</span>
 
 // Prints only this table: index.css hides everything else while body has data-print="outbound".
@@ -93,13 +101,17 @@ function printOutbound() {
   window.print()
 }
 
-// `top` renders above the outbound table (the Gate Log); `children` render below it.
-export default function ShippingDashboard({ entries, onAssignDock, onEdit, onCheckOut, onRelease, top, children }) {
+const MORE_TABS = [
+  { id: 'out', label: 'Outbound shipments', icon: 'truck' },
+  { id: 'log', label: 'Entry log', icon: 'log' },
+  { id: 'map', label: 'Yard map', icon: 'yard' },
+]
+
+// `top` is the Entry Log (its tab); `children` render below everything.
+export default function ShippingDashboard({ entries, onAssignDock, onEdit, onCheckOut, top, children }) {
   const [now, setNow] = useState(Date.now)
-  // The truck whose Release to gate pop-up is open.
-  const [releasingId, setReleasingId] = useState(null)
-  const releasing = entries.find((e) => e.id === releasingId && awaitingRelease(e)) ?? null
-  const startRelease = (e) => setReleasingId(e.id)
+  // Which table (or the map) shows under the board.
+  const [more, setMore] = useState('out')
   // Header dropdown choices by column id; '' = All.
   const [filters, setFilters] = useState({})
   // The table shows the first MAX_ROWS rows until "Show all" is clicked.
@@ -149,154 +161,176 @@ export default function ShippingDashboard({ entries, onAssignDock, onEdit, onChe
   }
 
   return (
-    <Dashboard
-      entries={entries}
-      onAssignDock={onAssignDock}
-      onEdit={onEdit}
-      onCheckOut={onCheckOut}
-      onStartRelease={startRelease}
-    >
-      <ReleaseDialog
-        entry={releasing}
-        onClose={() => setReleasingId(null)}
-        onRelease={(id, data) => {
-          onRelease(id, data)
-          setReleasingId(null)
-        }}
-      />
-      {top}
+    <div className="grid gap-6">
+      <ShippingBoard entries={entries} onAssignDock={onAssignDock} onEdit={onEdit} />
 
-      <section id="outbound" className="rounded-[10px] border border-line bg-panel">
-        <div className="flex flex-wrap items-center justify-between gap-3 px-5 pt-5 pb-3">
-          <h2 className="font-display text-[26px] leading-tight font-bold">
-            Outbound Shipments <span className="text-muted">({rows.length})</span>
-          </h2>
-          {active.length > 0 && (
-            <button type="button" onClick={() => setFilters({})} className="no-print cursor-pointer font-semibold underline">
-              Clear filters
-            </button>
-          )}
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[760px] border-collapse text-left text-[14px]">
-            <thead className="text-[13px] font-semibold text-muted">
-              <tr className="border-y border-line">
-                {COLUMNS.map((c) => (
-                  <th key={c.id} className="px-3 py-2.5 align-top">
-                    <span className="block">{c.label}</span>
-                    <select
-                      aria-label={`Filter by ${c.label}`}
-                      value={filters[c.id] ?? ''}
-                      onChange={(ev) => setFilter(c.id, ev.target.value)}
-                      className={
-                        'no-print mt-1 w-full max-w-[170px] cursor-pointer rounded-md border bg-panel px-1.5 py-1 text-[13px] font-normal text-ink ' +
-                        (filters[c.id] ? 'border-signal' : 'border-line')
-                      }
-                    >
-                      <option value="">All</option>
-                      {c.options(todays).map((o) => (
-                        <option key={o.value} value={o.value}>
-                          {o.label}
-                        </option>
-                      ))}
-                    </select>
-                  </th>
-                ))}
-                <th className="no-print px-3 py-2.5 align-top">Options</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-line">
-              {rows.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="px-3 py-6 text-muted">
-                    {active.length
-                      ? 'No pickups match these filters.'
-                      : 'No pickups today and none still on site. Visits with Pickup ticked on the Gate form appear here.'}
-                  </td>
-                </tr>
-              ) : (
-                shown.map((e) => {
-                  const s = statusOf(e)
-                  const late = minutesLate(e)
-                  const det = detentionState(e, now)
-                  return (
-                    <tr key={e.id} className="align-top">
-                      <td className="px-3 py-2.5 font-semibold">{e.pickupNumber || <Dash />}</td>
-                      <td className="px-3 py-2.5">{e.customerPickupFor || <Dash />}</td>
-                      {/* Assign dock only for pickups still on site without a dock. */}
-                      <td className="whitespace-nowrap px-3 py-2.5 font-semibold">
-                        {e.dockDoor ? (
-                          e.dockDoor
-                        ) : e.timeOut ? (
-                          <Dash />
-                        ) : (
-                          <span className="no-print font-normal">
-                            <AssignDock entry={e} occupied={occupied} onAssignDock={onAssignDock} compact />
-                          </span>
-                        )}
-                      </td>
-                      <td className="whitespace-nowrap px-3 py-2.5">
-                        {e.appointmentTime ? `Appt ${e.appointmentTime}` : 'No appt'}
-                        <Sub>
-                          In {e.timeIn || '—'}
-                          {e.dateIn !== today && ` · ${e.dateIn}`}
-                        </Sub>
-                        {late !== null && late > LATE_GRACE_MIN && <Warn>{duration(late * 60000)} late</Warn>}
-                      </td>
-                      <td className="whitespace-nowrap px-3 py-2.5">
-                        {duration(onSiteMs(e, now))}
-                        {det && <span className={ui.tag + ' mt-1 block w-fit ' + DETENTION_TAG[det.level]}>{det.text}</span>}
-                        {e.timeOut && <Sub>Left {e.timeOut}</Sub>}
-                        {e.dockAssignedAt && <Sub>Docked {clockTime(e.dockAssignedAt)}</Sub>}
-                      </td>
-                      <td className="px-3 py-2.5">
-                        <span className={ui.tag + ' ' + STATUS_TAG[s]}>{s}</span>
-                      </td>
-                      <td className="no-print whitespace-nowrap px-3 py-2.5">
-                        {/* Always shows "Options"; picking a choice runs it and the select snaps back. */}
-                        <select
-                          aria-label={`Options for ${e.truckName} ${e.trailerNumber}`}
-                          value=""
-                          onChange={(ev) => {
-                            const choice = ev.target.value
-                            if (choice === 'release') startRelease(e)
-                            else if (choice === 'checkout') onCheckOut(e)
-                            else onEdit(e)
-                          }}
-                          className="cursor-pointer rounded-md border border-line bg-panel px-2 py-1.5 text-[14px] font-semibold text-ink"
-                        >
-                          <option value="" disabled>
-                            Options
+      {/* Tables and map, one at a time */}
+      <div role="tablist" aria-label="Tables and map" className="no-print flex flex-wrap gap-1 rounded-2xl border border-hair bg-panel p-1.5 shadow-card">
+        {MORE_TABS.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            role="tab"
+            aria-selected={more === t.id}
+            onClick={() => setMore(t.id)}
+            className={
+              'inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-xl px-4 font-display text-[15px] font-bold transition-colors duration-150 ' +
+              (more === t.id ? 'bg-signal text-signal-ink shadow-card' : 'text-muted hover:bg-signal-tint hover:text-ink')
+            }
+          >
+            <Icon name={t.icon} size={18} />
+            {t.label}
+            {t.id === 'out' && <span className="font-body text-[13px] font-semibold opacity-80">{rows.length}</span>}
+          </button>
+        ))}
+      </div>
+      {more === 'log' && top}
+      {more === 'map' && <LiveYard entries={entries} onEdit={onEdit} onCheckOut={onCheckOut} />}
+
+      {more === 'out' && (
+        <section id="outbound" className="rounded-2xl border border-hair bg-panel shadow-card">
+          <CardHead
+            icon="truck"
+            title={
+              <>
+                Outbound Shipments <span className="font-semibold text-muted">({rows.length})</span>
+              </>
+            }
+            sub="Today's pickups and any still on site"
+          >
+            {active.length > 0 && (
+              <button type="button" onClick={() => setFilters({})} className={'no-print ' + ui.btnGhost}>
+                <Icon name="close" size={18} />
+                Clear filters
+              </button>
+            )}
+          </CardHead>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[760px] border-collapse text-left text-[14px]">
+              <thead className="bg-field text-[13px] font-semibold text-muted">
+                <tr className="border-b border-hair">
+                  {COLUMNS.map((c) => (
+                    <th key={c.id} className="px-3.5 py-3 align-top">
+                      <span className="block">{c.label}</span>
+                      <select
+                        aria-label={`Filter by ${c.label}`}
+                        value={filters[c.id] ?? ''}
+                        onChange={(ev) => setFilter(c.id, ev.target.value)}
+                        className={
+                          'no-print mt-1 w-full max-w-[170px] cursor-pointer rounded-lg border-[1.5px] bg-panel px-1.5 py-1 text-[13px] font-normal text-ink transition-colors ' +
+                          (filters[c.id] ? 'border-signal' : 'border-line hover:border-signal-bright')
+                        }
+                      >
+                        <option value="">All</option>
+                        {c.options(todays).map((o) => (
+                          <option key={o.value} value={o.value}>
+                            {o.label}
                           </option>
-                          {awaitingRelease(e) && <option value="release">Release to gate</option>}
-                          <option value="checkout">{e.timeOut ? 'Edit Check Out' : 'Check Out'}</option>
-                          <option value="edit">Edit Check In</option>
-                        </select>
-                      </td>
-                    </tr>
-                  )
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
+                        ))}
+                      </select>
+                    </th>
+                  ))}
+                  <th className="no-print px-3.5 py-3 align-top">Options</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-hair">
+                {rows.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="px-5 py-8 text-center text-muted">
+                      {active.length
+                        ? 'No pickups match these filters.'
+                        : 'No pickups today and none still on site. Visits with Pickup ticked on the Gate form appear here.'}
+                    </td>
+                  </tr>
+                ) : (
+                  shown.map((e) => {
+                    const s = statusOf(e)
+                    const late = minutesLate(e)
+                    const det = detentionState(e, now)
+                    return (
+                      <tr key={e.id} className="align-top transition-colors duration-150 hover:bg-signal-tint">
+                        <td className="px-3.5 py-3 font-semibold">{e.pickupNumber || <Dash />}</td>
+                        <td className="px-3.5 py-3">{e.customerPickupFor || <Dash />}</td>
+                        {/* Assign dock only for pickups still on site without a dock. */}
+                        <td className="whitespace-nowrap px-3.5 py-3 font-semibold">
+                          {e.dockDoor ? (
+                            e.dockDoor
+                          ) : e.timeOut ? (
+                            <Dash />
+                          ) : (
+                            <span className="no-print font-normal">
+                              <AssignDock entry={e} occupied={occupied} onAssignDock={onAssignDock} compact />
+                            </span>
+                          )}
+                        </td>
+                        <td className="whitespace-nowrap px-3.5 py-3">
+                          {e.appointmentTime ? `Appt ${e.appointmentTime}` : 'No appt'}
+                          <Sub>
+                            In {e.timeIn || '—'}
+                            {e.dateIn !== today && ` · ${e.dateIn}`}
+                          </Sub>
+                          {late !== null && late > LATE_GRACE_MIN && <Warn>{duration(late * 60000)} late</Warn>}
+                        </td>
+                        <td className="whitespace-nowrap px-3.5 py-3">
+                          {duration(onSiteMs(e, now))}
+                          {det && (
+                            <span className={ui.tag + ' mt-1 flex w-fit ' + DETENTION_TAG[det.level]}>
+                              <Icon name={DETENTION_ICON[det.level]} size={14} />
+                              {det.text}
+                            </span>
+                          )}
+                          {e.timeOut && <Sub>Left {e.timeOut}</Sub>}
+                          {e.dockAssignedAt && <Sub>Docked {clockTime(e.dockAssignedAt)}</Sub>}
+                        </td>
+                        <td className="px-3.5 py-3">
+                          <span className={ui.tag + ' ' + STATUS_TAG[s]}>{s}</span>
+                        </td>
+                        <td className="no-print whitespace-nowrap px-3.5 py-3">
+                          {/* Always shows "Options"; picking a choice runs it and the select snaps back. */}
+                          <select
+                            aria-label={`Options for ${e.truckName} ${e.trailerNumber}`}
+                            value=""
+                            onChange={(ev) => {
+                              const choice = ev.target.value
+                              if (choice === 'checkout') onCheckOut(e)
+                              else onEdit(e)
+                            }}
+                            className="cursor-pointer rounded-lg border-[1.5px] border-line bg-panel px-2 py-1.5 text-[14px] font-semibold text-ink transition-colors hover:border-signal-bright"
+                          >
+                            <option value="" disabled>
+                              Options
+                            </option>
+                            <option value="checkout">{e.timeOut ? 'Edit Check Out' : 'Check Out'}</option>
+                            <option value="edit">Edit Check In</option>
+                          </select>
+                        </td>
+                      </tr>
+                    )
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
 
-        <div className="no-print flex flex-wrap items-center justify-end gap-3 border-t border-line px-5 py-4">
-          {rows.length > MAX_ROWS && (
-            <button type="button" onClick={() => setShowAll((v) => !v)} className="mr-auto cursor-pointer font-semibold underline">
-              {showAll ? 'Show less' : `Show all (${rows.length})`}
+          <div className="no-print flex flex-wrap items-center justify-end gap-3 border-t border-hair px-5 py-4">
+            {rows.length > MAX_ROWS && (
+              <button type="button" onClick={() => setShowAll((v) => !v)} className={'mr-auto ' + ui.btnGhost}>
+                {showAll ? 'Show less' : `Show all (${rows.length})`}
+              </button>
+            )}
+            {exportError && <span className="mr-auto font-semibold text-danger">{exportError}</span>}
+            <button type="button" onClick={handlePrint} disabled={!rows.length} className={ui.btnSmall}>
+              <Icon name="print" />
+              Print
             </button>
-          )}
-          {exportError && <span className="mr-auto font-semibold text-danger">{exportError}</span>}
-          <button type="button" onClick={handlePrint} disabled={!rows.length} className={ui.btnSmall}>
-            Print
-          </button>
-          <button type="button" onClick={handleExport} disabled={!rows.length || exporting} className={ui.btnSmallPrimary}>
-            {exporting ? 'Exporting…' : 'Export'}
-          </button>
-        </div>
-      </section>
+            <button type="button" onClick={handleExport} disabled={!rows.length || exporting} className={ui.btnSmallPrimary}>
+              <Icon name="export" />
+              {exporting ? 'Exporting…' : 'Export'}
+            </button>
+          </div>
+        </section>
+      )}
       {children}
-    </Dashboard>
+    </div>
   )
 }

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import * as ui from '../ui'
+import { Icon } from '../icons'
 
 const STARTER_MESSAGES = [
   {
@@ -52,23 +53,27 @@ export default function Messages({ raised }) {
   return (
     <section className={'no-print fixed right-4 z-30 w-[min(380px,calc(100vw-2rem))] ' + (raised ? 'bottom-28' : 'bottom-4')}>
       {open ? (
-        <div className="overflow-hidden rounded-xl border border-line bg-panel shadow-2xl">
-          <div className="flex items-center justify-between gap-3 bg-chrome px-4 py-3 text-white">
-            <div>
+        <div className="animate-pop overflow-hidden rounded-2xl border border-hair bg-panel shadow-overlay">
+          <div className="on-chrome flex items-center justify-between gap-3 bg-chrome px-4 py-3 text-white">
+            <span className="grid size-9 shrink-0 place-items-center rounded-[10px] bg-white/10 text-signal-bright">
+              <Icon name="messages" size={18} />
+            </span>
+            <div className="min-w-0 flex-1">
               <h2 className="font-display text-xl leading-tight font-bold">Shipping Department</h2>
-              <p className="text-xs text-[#C9D0D5]">Gate operations · UI demo</p>
+              <p className="text-xs text-rail-text">Gate operations · UI demo</p>
             </div>
             <button
               type="button"
               aria-label="Minimize messages"
               onClick={() => setOpen(false)}
-              className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-lg text-2xl leading-none hover:bg-white/10"
+              className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-lg text-2xl leading-none transition-colors duration-150 hover:bg-white/10"
             >
               −
             </button>
           </div>
 
-          <div role="note" className="border-b border-line bg-signal/15 px-4 py-2 text-xs font-semibold text-ink">
+          <div role="note" className="flex items-center gap-1.5 border-b border-hair bg-warn/50 px-4 py-2 text-xs font-semibold text-ink">
+            <Icon name="info" size={14} />
             Demo only — messages are not delivered or saved.
           </div>
 
@@ -85,7 +90,7 @@ export default function Messages({ raised }) {
                     aria-hidden="true"
                     className={
                       'flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold ' +
-                      (fromGate ? 'bg-ink text-panel' : 'bg-signal text-signal-ink')
+                      (fromGate ? 'bg-signal text-signal-ink' : 'bg-signal-soft text-ink')
                     }
                   >
                     {message.initials}
@@ -98,7 +103,7 @@ export default function Messages({ raised }) {
                     <p
                       className={
                         'whitespace-pre-wrap break-words rounded-xl px-3 py-2 text-left text-sm ' +
-                        (fromGate ? 'rounded-tr-sm bg-ink text-panel' : 'rounded-tl-sm border border-line bg-panel')
+                        (fromGate ? 'rounded-tr-sm bg-signal text-signal-ink shadow-card' : 'rounded-tl-sm border border-hair bg-panel shadow-card')
                       }
                     >
                       {message.text}
@@ -109,7 +114,7 @@ export default function Messages({ raised }) {
             })}
           </div>
 
-          <form onSubmit={handleSubmit} className="flex items-end gap-2 border-t border-line p-3">
+          <form onSubmit={handleSubmit} className="flex items-end gap-2 border-t border-hair p-3">
             <div className="min-w-0 flex-1">
               <label htmlFor="message-draft" className="sr-only">
                 Message as Gate
@@ -134,11 +139,11 @@ export default function Messages({ raised }) {
           type="button"
           aria-expanded="false"
           onClick={() => setOpen(true)}
-          className="ml-auto flex min-h-12 cursor-pointer items-center gap-2 rounded-full border-2 border-signal bg-chrome px-5 font-display text-lg font-bold text-white shadow-xl hover:bg-ink"
+          className="on-chrome ml-auto flex min-h-12 cursor-pointer items-center gap-2 rounded-full border border-white/10 bg-chrome px-5 font-display text-[15px] font-bold text-white shadow-overlay transition-[background-color,transform] duration-150 hover:-translate-y-0.5 hover:bg-signal"
         >
-          <span aria-hidden="true">●</span>
+          <Icon name="messages" />
           Shipping chat
-          <span className={ui.tag + ' bg-signal text-signal-ink'}>Demo</span>
+          <span className={ui.tag + ' bg-warn text-warn-ink'}>Demo</span>
         </button>
       )}
     </section>

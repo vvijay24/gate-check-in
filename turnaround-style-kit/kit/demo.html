@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Turnaround theme demo</title>
+<link rel="stylesheet" href="theme.css">
+<style>body{margin:0;background:var(--color-bg)} .wrap{max-width:1200px;margin:0 auto;padding:32px 20px 64px}</style>
+</head>
+<body>
+<div class="wrap">
+<div class="tt">
+
+  <header class="tt-hero">
+    <span class="tt-eyebrow">Gate to gate · Sample week</span>
+    <h1>Truck turnaround overview</h1>
+    <p class="tt-hero-sub">Mon Oct 26 – Sun Nov 1, 2026 · every truck measured from gate check-in to gate checkout, against its appointment</p>
+    <p class="tt-take">Since going digital, trucks leave 35 min sooner (140 → 105 min) and about $2,090 a week of detention is avoided.</p>
+  </header>
+
+  <div class="tt-cards">
+    <button type="button" class="tt-card accent-navy">
+      <span class="tt-card-head"><span class="tt-ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span><span class="tt-card-label">Gate-to-gate turnaround</span></span>
+      <span class="tt-big"><b>105</b><span class="tt-unit">min average</span></span>
+      <span class="tt-meta"><span class="tt-pill ok">● On target</span><span class="tt-note">Target 65–130 min</span></span>
+      <span class="tt-spark" id="spark1"></span>
+      <span class="tt-more">See details →</span>
+    </button>
+    <button type="button" class="tt-card accent-yolk">
+      <span class="tt-card-head"><span class="tt-ico"><svg viewBox="0 0 24 24"><path d="M3 21V9l9-5 9 5v12"/><path d="M7 21v-8h10v8"/><path d="M7 17h10"/></svg></span><span class="tt-card-label">Dock handling time</span></span>
+      <span class="tt-big"><b>64</b><span class="tt-unit">min average</span></span>
+      <span class="tt-meta"><span class="tt-pill ok">● On target</span><span class="tt-note">Target 45–85 min</span></span>
+      <span class="tt-spark" id="spark2"></span>
+      <span class="tt-more">See details →</span>
+    </button>
+    <button type="button" class="tt-card accent-red">
+      <span class="tt-card-head"><span class="tt-ico"><svg viewBox="0 0 24 24"><path d="M12 3v18"/><path d="M16.5 7.5c0-1.7-2-3-4.5-3s-4.5 1.3-4.5 3 2 2.7 4.5 3.2 4.5 1.6 4.5 3.3-2 3-4.5 3-4.5-1.3-4.5-3"/></svg></span><span class="tt-card-label">Detention risk</span></span>
+      <span class="tt-big"><b class="is-bad">$202</b><span class="tt-unit">this week</span></span>
+      <span class="tt-meta"><span class="tt-pill bad">● Money at risk</span><span class="tt-note">2 h free time, then $75/h</span></span>
+      <span class="tt-spark" id="spark3"></span>
+      <span class="tt-more">See details →</span>
+    </button>
+  </div>
+
+  <div class="tt-section">
+    <div class="tt-ihero">
+      <span class="tt-eyebrow">Impact of going digital</span>
+      <h2>From paper and phone calls to one shared screen</h2>
+      <p class="tt-ihero-sub">Manual week vs digital week.</p>
+    </div>
+    <div class="tt-itiles">
+      <div class="tt-itile"><span class="tt-itile-label">Faster per truck</span><span class="tt-ibig"><b>35</b><span class="tt-unit">min saved</span></span><span class="tt-note">140 → 105 min gate to gate (−25%)</span></div>
+      <div class="tt-itile hot"><span class="tt-itile-label">Detention avoided this week</span><span class="tt-ibig"><b>$2,090</b></span><span class="tt-note">About $108,680 a year at this pace</span></div>
+      <div class="tt-itile"><span class="tt-itile-label">Phone calls no longer needed</span><span class="tt-ibig"><b>347</b><span class="tt-unit">calls</span></span><span class="tt-note">plus 660 paper handoffs</span></div>
+    </div>
+    <div class="tt-grid">
+      <div class="tt-panel tt-wide warm">
+        <h3>Every stage, manual vs digital</h3>
+        <div class="tt-legend"><span><i style="background:var(--chart-muted)"></i>Manual week</span><span><i style="background:var(--p-teal)"></i>Digital week</span></div>
+        <div class="tt-chart" id="dumbbell"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="tt-section">
+    <div class="tt-section-head"><span class="tt-eyebrow">Process</span><h2>Where the time goes</h2></div>
+    <div class="tt-grid">
+      <div class="tt-panel tt-wide">
+        <h3>Average minutes per stage, by day</h3>
+        <div class="tt-legend">
+          <span class="grp">Gate &amp; yard</span><span><i style="background:var(--p-sky)"></i>Gate check-in</span><span><i style="background:var(--p-navy)"></i>Dock assignment</span><span><i style="background:var(--p-navy-2)"></i>Gate checkout</span>
+          <span class="grp">At the door</span><span><i style="background:var(--p-gold-1)"></i>Pre-loading</span><span><i style="background:var(--p-yolk)"></i>Loading / unloading</span><span><i style="background:var(--p-amber)"></i>Inspection</span>
+        </div>
+        <div class="tt-chart" id="stack"></div>
+      </div>
+      <div class="tt-panel warm">
+        <h3>Each stage against its target</h3>
+        <div class="tt-chart" id="stages"></div>
+      </div>
+      <div class="tt-panel">
+        <h3>Arrival vs appointment</h3>
+        <div class="tt-legend"><span><i style="background:var(--p-teal)"></i>Early</span><span><i style="background:var(--p-navy)"></i>On time</span><span><i style="background:var(--p-red)"></i>Late</span></div>
+        <div class="tt-chart" id="donut"></div>
+      </div>
+      <div class="tt-panel tt-wide">
+        <h3>Gate to gate by weekday</h3>
+        <div class="tt-legend"><span><i style="background:var(--chart-muted)"></i>Manual week</span><span><i style="background:var(--p-navy)"></i>Digital week</span></div>
+        <div class="tt-chart" id="grouped"></div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
+<script src="charts.js"></script>
+<script>
+/* Sample numbers only, to show the look. Replace with your own data. */
+const days = [
+  { day: 'Mon', trucks: 34, g2g: 104, dock: 63, det: 53, s: [5.6, 28.9, 7.4, 43.0, 13.9, 5.1] },
+  { day: 'Tue', trucks: 36, g2g: 104, dock: 64, det: 71, s: [5.4, 29.5, 7.0, 43.8, 13.5, 5.0] },
+  { day: 'Wed', trucks: 33, g2g: 105, dock: 65, det: 30, s: [5.5, 29.0, 7.6, 44.1, 13.6, 5.2] },
+  { day: 'Thu', trucks: 38, g2g: 116, dock: 66, det: 48, s: [5.9, 38.6, 7.2, 44.5, 14.1, 5.3] },
+  { day: 'Fri', trucks: 35, g2g: 99, dock: 62, det: 0, s: [5.3, 26.4, 7.3, 42.0, 13.4, 4.9] },
+  { day: 'Sat', trucks: 16, g2g: 98, dock: 63, det: 0, s: [5.1, 25.8, 7.1, 42.6, 13.2, 4.8] },
+  { day: 'Sun', trucks: 8, g2g: 92, dock: 61, det: 0, s: [4.9, 21.0, 7.0, 41.4, 12.9, 4.7] },
+];
+const stageNames = ['Gate check-in', 'Dock assignment', 'Pre-loading', 'Loading / unloading', 'Inspection', 'Gate checkout'];
+const targets = [[3, 5], [15, 30], [5, 10], [30, 60], [10, 15], [3, 5]];
+const avgs = [5.5, 29.6, 7.3, 43.4, 13.7, 5.1];
+const before = [10, 44.9, 15.6, 42.3, 19, 8.1];
+const manualWeek = [138, 134, 139, 154, 138, 129, 134];
+days.forEach((d) => stageNames.forEach((n, i) => { d['s' + i] = d.s[i]; }));
+
+const el = (id) => document.getElementById(id);
+TT.autoRedraw(el('spark1'), () => TT.spark(el('spark1'), { rows: days, key: (r) => r.day, value: (r) => r.g2g, color: TT.C.navy, id: 'g2g', isBad: (r) => r.g2g > 130 }));
+TT.autoRedraw(el('spark2'), () => TT.spark(el('spark2'), { rows: days, key: (r) => r.day, value: (r) => r.dock, color: TT.C.yolk, id: 'dock' }));
+TT.autoRedraw(el('spark3'), () => TT.spark(el('spark3'), { rows: days, key: (r) => r.day, value: (r) => r.det, color: TT.C.red, id: 'det', isBad: (r) => r.det > 0 }));
+
+TT.autoRedraw(el('stack'), () => TT.stackBars(el('stack'), {
+  rows: days, key: (r) => r.day, fmt: TT.FMT.min, ref: 130, refLabel: 'Max 130 min',
+  series: stageNames.map((n, i) => ({ field: 's' + i, name: n, color: TT.C.stages[i] })),
+  tipHead: (r) => `${r.day} · ${r.trucks} trucks`,
+}));
+const stageRows = stageNames.map((n, i) => ({ n, avg: avgs[i], t: targets[i], i }));
+TT.autoRedraw(el('stages'), () => TT.hbars(el('stages'), {
+  rows: stageRows, key: (r) => r.n, label: (r) => r.n, value: (r) => r.avg, fmt: (v) => TT.FMT.min1(v) + ' min',
+  band: (r) => r.t, color: (r) => TT.C.stages[r.i], isBad: (r) => r.avg > r.t[1],
+  tip: (r) => [r.n, [[null, 'Average', TT.FMT.min1(r.avg) + ' min'], [null, 'Target', `${r.t[0]}–${r.t[1]} min`]]],
+}));
+TT.autoRedraw(el('donut'), () => TT.donut(el('donut'), {
+  parts: [{ name: 'Early', value: 19, color: TT.C.teal }, { name: 'On time', value: 117, color: TT.C.navy }, { name: 'Late', value: 64, color: TT.C.red }],
+  center: '58.5%', centerLabel: 'on time',
+}));
+TT.autoRedraw(el('dumbbell'), () => TT.dumbbell(el('dumbbell'), {
+  rows: stageRows, key: (r) => r.n, label: (r) => r.n, before: (r) => before[r.i], after: (r) => r.avg, unit: ' min',
+}));
+const wk = days.map((d, i) => ({ day: d.day, before: manualWeek[i], after: d.g2g }));
+TT.autoRedraw(el('grouped'), () => TT.groupBars(el('grouped'), {
+  rows: wk, key: (r) => r.day, fmt: TT.FMT.min, ref: 130,
+  series: [{ field: 'before', name: 'Manual', color: TT.C.muted }, { field: 'after', name: 'Digital', color: TT.C.navy }],
+}));
+</script>
+</body>
+</html>

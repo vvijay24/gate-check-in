@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import * as ui from '../ui'
+import { Icon } from '../icons'
 
 export const dockKey = (dock) => String(dock ?? '').trim().toUpperCase()
 
@@ -34,6 +35,7 @@ export default function AssignDock({ entry, occupied, onAssignDock, extra, compa
     return (
       <div className={'flex flex-wrap items-center gap-3' + (compact ? '' : ' mt-2')}>
         <button type="button" onClick={() => setAssigning(true)} className={ui.btnSmallPrimary}>
+          <Icon name="dock" />
           Assign Dock
         </button>
         {extra}
@@ -42,7 +44,7 @@ export default function AssignDock({ entry, occupied, onAssignDock, extra, compa
   }
 
   return (
-    <form onSubmit={save} className={'flex flex-wrap items-end gap-2' + (compact ? '' : ' mt-2')} noValidate>
+    <form onSubmit={save} className={'flex animate-fade flex-wrap items-end gap-2' + (compact ? '' : ' mt-2')} noValidate>
       <div className="w-28">
         <label htmlFor={`dock-${entry.id}`} className={ui.label + ' mb-1'}>
           Dock #

@@ -1,397 +1,520 @@
-import { useEffect, useRef, useState } from 'react'
-import Field from './Field'
-import { ErrorSummary } from './GuardForm'
+import { useEffect, useMemo, useState } from 'react'
 import * as ui from '../ui'
-import { arrivalMs, dayKey, duration } from '../time'
-import { DETENTION_TAG, detentionState } from '../detention'
+import { Icon } from '../icons'
+import { clockTime, dayKey } from '../time'
 import { LOAD_CHECKS, TRAILER_CHECKS } from '../inspectionChecks'
+import { BottomBar, More, Note, Stepper, goButton } from './gate/parts'
 
-// Pre-loading inspection for outbound poultry. Every load is frozen, so one set of limits applies:
-// typical cold-chain figures; confirm them against the plant's HACCP plan.
-const LIMIT = { product: 0, precool: 10 }
+// The poultry loading inspection, in two short checklists at the moment each is done:
+// - Before loading (Loading section): the empty trailer, reefer and pre-cool. Saved on `entry.trailerCheck`;
+//   it has to pass before "Loading started".
+// - After loading (Inspection section): product temperatures, pallets, load checks, then Pass / Fail.
+//   Saved on `entry.loadingInspection` with the trailer answers merged in, so Shipping, the Gate, the
+//   Entry Log export and the Overview read one complete inspection as before.
+// Known values (times, seal, set point, the inspector on duty) are filled in, not asked. Every truck's
+// answers are kept on this device as a draft until saved, so walking away loses nothing.
 
-const YES_NO = ['Yes', 'No']
+// Typical cold-chain limits for frozen product; confirm them against the plant's HACCP plan.
+export const LIMIT = { product: 0, precool: 10 }
 
 const PRODUCT_TEMPS = [
-  { name: 'tempFront', label: 'Product Temp Front °F' },
-  { name: 'tempMiddle', label: 'Product Temp Middle °F' },
-  { name: 'tempRear', label: 'Product Temp Rear °F' },
+  { name: 'tempFront', label: 'Front' },
+  { name: 'tempMiddle', label: 'Middle' },
+  { name: 'tempRear', label: 'Rear' },
 ]
 
-// Required fields, in on-screen order so the first error gets focus.
-const REQUIRED = [
-  'inspectionDate',
-  'inspectionTime',
-  ...TRAILER_CHECKS.map((c) => c.name),
-  'setPoint',
-  'precoolTemp',
-  ...PRODUCT_TEMPS.map((t) => t.name),
-  'reeferRunning',
-  'palletsLoaded',
-  ...LOAD_CHECKS.map((c) => c.name),
-  'loadStart',
-  'loadFinish',
-  'sealApplied',
-  'technician',
-  'inspector',
-]
-
-// Field names for the error summary.
-const LABELS = {
-  inspectionDate: 'Inspection Date',
-  inspectionTime: 'Inspection Time',
-  ...Object.fromEntries([...TRAILER_CHECKS, ...LOAD_CHECKS, ...PRODUCT_TEMPS].map((c) => [c.name, c.label])),
-  setPoint: 'Reefer Set Point °F',
-  precoolTemp: 'Trailer Pre-Cool Temp °F',
-  reeferRunning: 'Reefer Running (Continuous)',
-  palletsLoaded: 'Pallets Loaded',
-  loadStart: 'Loading Start',
-  loadFinish: 'Loading Finish',
-  sealApplied: 'Seal # Applied',
-  technician: 'Technician Name',
-  inspector: 'Inspected By',
-  correctiveAction: 'Corrective Action',
-}
-
+const filled = (v) => String(v ?? '').trim() !== ''
 const pad = (n) => String(n).padStart(2, '0')
-const timeOf = (d) => `${pad(d.getHours())}:${pad(d.getMinutes())}`
-const nowTime = () => timeOf(new Date())
-// The moment the inspection took place, from its Inspection Date and Time.
-const inspectionMs = (f) => new Date(`${f.inspectionDate}T${f.inspectionTime || '00:00'}`).getTime()
-
-// A new inspection starts at today / now. One saved before these fields existed takes the time it
-// was saved.
-const blank = (entry) => {
-  const at = entry.loadingInspection?.inspectedAt ? new Date(entry.loadingInspection.inspectedAt) : new Date()
-  return {
-    inspectionDate: dayKey(at),
-    inspectionTime: timeOf(at),
-    ...Object.fromEntries([...TRAILER_CHECKS, ...LOAD_CHECKS].map((c) => [c.name, ''])),
-    setPoint: entry.tempSet || '',
-    precoolTemp: '',
-    ...Object.fromEntries(PRODUCT_TEMPS.map((t) => [t.name, ''])),
-    reeferRunning: '',
-    palletsLoaded: '',
-    caseCount: '',
-    totalWeight: '',
-    loadStart: '',
-    loadFinish: '',
-    sealApplied: entry.outgoingSeals || '',
-    correctiveAction: '',
-    technician: '',
-    inspector: '',
-    notes: '',
-  }
+const hhmm = (ms) => {
+  const d = new Date(ms)
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
-// Everything that makes the load fail, as readable lines.
-export function inspectionIssues(f) {
-  const issues = []
-  for (const c of [...TRAILER_CHECKS, ...LOAD_CHECKS]) if (f[c.name] === 'No') issues.push(`${c.label}: No`)
+// Problems that fail the trailer check / the load, as readable lines.
+export function trailerIssues(f) {
+  const issues = TRAILER_CHECKS.filter((c) => f[c.name] === 'No').map((c) => `${c.label}: No`)
   if (f.reeferRunning === 'No') issues.push('Reefer not running in continuous mode')
+  if (filled(f.precoolTemp) && Number(f.precoolTemp) > LIMIT.precool) issues.push(`Trailer pre-cool ${f.precoolTemp}°F is above ${LIMIT.precool}°F`)
+  return issues
+}
+export function loadIssues(f) {
+  const issues = LOAD_CHECKS.filter((c) => f[c.name] === 'No').map((c) => `${c.label}: No`)
   for (const t of PRODUCT_TEMPS) {
     const v = f[t.name]
-    if (v !== '' && Number(v) > LIMIT.product) issues.push(`${t.label.replace(' °F', '')} ${v}°F is above ${LIMIT.product}°F`)
-  }
-  if (f.precoolTemp !== '' && Number(f.precoolTemp) > LIMIT.precool) {
-    issues.push(`Trailer pre-cool ${f.precoolTemp}°F is above ${LIMIT.precool}°F`)
+    if (filled(v) && Number(v) > LIMIT.product) issues.push(`Product temp ${t.label.toLowerCase()} ${v}°F is above ${LIMIT.product}°F`)
   }
   return issues
 }
+export const inspectionIssues = (f) => [...trailerIssues(f), ...loadIssues(f)]
 
-function validate(f, issues) {
-  const errors = {}
-  for (const key of REQUIRED) if (!String(f[key] ?? '').trim()) errors[key] = 'Required'
-  // A few minutes' leeway for clocks that differ.
-  if (f.inspectionDate && f.inspectionTime && inspectionMs(f) > Date.now() + 5 * 60000) errors.inspectionTime = "Can't be in the future"
-  if (f.loadStart && f.loadFinish && f.loadFinish < f.loadStart) errors.loadFinish = 'Finish must be after start'
-  if (issues.length && !f.correctiveAction.trim()) errors.correctiveAction = 'Describe the corrective action for this failed inspection'
-  return errors
-}
-
-const sectionRow = 'mt-6 mb-2.5 flex flex-wrap items-center justify-between gap-2 border-t border-line pt-3.5'
-const sectionTitle = 'font-display text-[20px] leading-tight font-bold text-muted'
-const grid = 'grid grid-cols-1 gap-3.5 sm:grid-cols-2 2xl:grid-cols-3'
-const filled = (v) => String(v ?? '').trim() !== ''
-
-// A section heading, with an optional action (Mark all Yes) at its right.
-function Section({ title, action }) {
-  return (
-    <div className={sectionRow}>
-      <h3 className={sectionTitle}>{title}</h3>
-      {action}
-    </div>
-  )
-}
-
-// Result so far, progress, issues and the truck's detention, kept in view beside the form.
-function StatusPanel({ entry, issues, answered, total, now }) {
-  const done = answered === total
-  const det = detentionState(entry, now)
-  const fail = issues.length > 0
-  const issueList = (
-    <ul className="mt-1 list-disc pl-5 text-[14px] text-danger">
-      {issues.map((i) => (
-        <li key={i}>{i}</li>
-      ))}
-    </ul>
-  )
-  return (
-    <aside className="space-y-3 lg:sticky lg:top-[calc(var(--header-h,114px)+16px)] lg:self-start">
-      {/* Pass / Fail is given only once every required field is answered; until then, problems
-          already found are listed without calling the result. */}
-      {done ? (
-        <div role="status" className={'rounded-lg border-l-[6px] px-4 py-3 ' + (fail ? 'border-danger bg-danger-soft' : 'border-ok bg-ok-soft')}>
-          <div className={'font-display text-[22px] leading-tight font-bold ' + (fail ? 'text-danger' : 'text-ok')}>
-            {fail ? '⚠ Result: Fail' : '✓ Result: Pass'}
-          </div>
-          {fail && issueList}
-        </div>
-      ) : (
-        <div role="status" className={'rounded-lg border border-l-[6px] border-line px-4 py-3 ' + (fail ? 'border-l-danger' : 'border-l-line')}>
-          <div className="font-display text-[19px] leading-tight font-bold text-muted">Result: shown when the inspection is complete</div>
-          {fail ? (
-            <>
-              <p className="mt-1 text-sm font-semibold text-danger">Problems found so far:</p>
-              {issueList}
-            </>
-          ) : (
-            <p className="mt-1 text-sm text-muted">No problems found so far.</p>
-          )}
-        </div>
-      )}
-
-      <div className="rounded-lg border border-line px-4 py-3">
-        <div className="flex items-baseline justify-between gap-2 text-sm font-semibold">
-          <span>Required answered</span>
-          <span className="tabular-nums">
-            {answered} of {total}
-          </span>
-        </div>
-        <div
-          className="mt-1.5 h-2.5 overflow-hidden rounded bg-track"
-          role="progressbar"
-          aria-label="Required fields answered"
-          aria-valuemin={0}
-          aria-valuemax={total}
-          aria-valuenow={answered}
-        >
-          <div className={'h-full rounded-r ' + (done ? 'bg-ok' : 'bg-ink')} style={{ width: `${(answered / total) * 100}%` }} />
-        </div>
-      </div>
-
-      {/* Inspection time counts toward detention, so show how long the truck has been here. */}
-      <div className="rounded-lg border border-line px-4 py-3 text-sm">
-        <div className="font-semibold">On site {duration(now - arrivalMs(entry))}</div>
-        {det ? (
-          <span className={ui.tag + ' mt-1 ' + DETENTION_TAG[det.level]}>{det.text}</span>
-        ) : (
-          <span className="text-muted">Within free time</span>
-        )}
-      </div>
-    </aside>
-  )
-}
-
-function InspectionForm({ entry, onSave, onCancel, onChangeTruck }) {
-  const [form, setForm] = useState(() => ({ ...blank(entry), ...(entry.loadingInspection ?? {}) }))
-  const [errors, setErrors] = useState({})
-  const [now, setNow] = useState(Date.now)
-  const summaryRef = useRef(null)
-  const issues = inspectionIssues(form)
-  const result = issues.length ? 'Fail' : 'Pass'
-  // Corrective Action becomes required (and appears) once the load is failing.
-  const required = issues.length ? [...REQUIRED, 'correctiveAction'] : REQUIRED
-  const answered = required.filter((k) => filled(form[k])).length
-
-  useEffect(() => {
-    const t = setInterval(() => setNow(Date.now()), 30000)
-    return () => clearInterval(t)
-  }, [])
-
-  const handleChange = (e) => {
-    const { name, value } = e.target
-    setForm((f) => ({ ...f, [name]: value }))
-    if (errors[name]) setErrors(({ [name]: _, ...rest }) => rest)
+// Drafts per truck and checklist, kept in this browser until saved.
+const DRAFTS = 'inspection-drafts'
+const readDrafts = () => {
+  try {
+    return JSON.parse(localStorage.getItem(DRAFTS)) ?? {}
+  } catch {
+    return {}
   }
-
-  // Answers Yes to the group's unanswered checks; a No already given is left alone.
-  const markAllYes = (checks) => {
-    const open = checks.filter((c) => !form[c.name]).map((c) => c.name)
-    setForm((f) => ({ ...f, ...Object.fromEntries(open.map((n) => [n, 'Yes'])) }))
-    setErrors((errs) => Object.fromEntries(Object.entries(errs).filter(([k]) => !open.includes(k))))
-  }
-  const allYesButton = (checks) => {
-    const open = checks.filter((c) => !form[c.name]).length
-    return (
-      <button type="button" onClick={() => markAllYes(checks)} disabled={!open} className={ui.btnSmall}>
-        Mark all Yes{open ? ` (${open})` : ''}
-      </button>
-    )
-  }
-
-  // "Above 0°F limit" under a temperature that's too warm for frozen product.
-  const tooWarm = (name, max) => (filled(form[name]) && Number(form[name]) > max ? `Above ${max}°F limit` : undefined)
-
-  const field = (props) => (
-    <Field
-      key={props.name}
-      {...props}
-      value={form[props.name] ?? ''}
-      onChange={handleChange}
-      required={required.includes(props.name)}
-      error={errors[props.name]}
-    />
-  )
-  const check = (c) => field({ ...c, type: 'choice', options: YES_NO, dangerOptions: ['No'] })
-
-  const timeField = (name, label) => (
-    <div key={name} className="flex min-w-0 flex-col gap-1">
-      <div className="flex items-end justify-between gap-2">
-        <label htmlFor={`field-${name}`} className={ui.label}>
-          {label}
-          <span className={ui.required}>*</span>
-        </label>
-        <button
-          type="button"
-          onClick={() => handleChange({ target: { name, value: nowTime() } })}
-          className="cursor-pointer text-[15px] font-semibold underline"
-        >
-          Now
-        </button>
-      </div>
-      <input
-        id={`field-${name}`}
-        name={name}
-        type="time"
-        value={form[name]}
-        onChange={handleChange}
-        className={ui.input + (errors[name] ? ui.inputError : '')}
-      />
-      {errors[name] && <p className={ui.errorText}>{errors[name]}</p>}
-    </div>
-  )
-
-  const submit = (ev) => {
-    ev.preventDefault()
-    const errs = validate(form, issues)
-    setErrors(errs)
-    if (Object.keys(errs).length) {
-      // Show the summary of everything missing; its links jump to each field.
-      requestAnimationFrame(() => {
-        summaryRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-        summaryRef.current?.focus({ preventScroll: true })
-      })
-      return
-    }
-    // inspectedAt is the Inspection Date and Time entered (used for dock → inspected timing);
-    // savedAt records when the form was actually saved.
-    onSave(entry.id, { ...form, result, issues, inspectedAt: inspectionMs(form), savedAt: Date.now() })
-  }
-
-  return (
-    <form onSubmit={submit} noValidate>
-      {/* Which truck this is; Change truck goes back up to the dock tiles. */}
-      <div className="flex flex-wrap items-start justify-between gap-3 rounded-lg bg-page p-4">
-        <div className="min-w-0">
-          <div className="text-sm font-semibold text-muted">Inspecting</div>
-          <div className="font-display text-[23px] leading-tight font-bold">
-            Dock {entry.dockDoor} · Trailer {entry.trailerNumber} · {entry.truckName}
-          </div>
-          <div className="text-[15px] text-muted">
-            {[entry.pickupNumber && `Order No ${entry.pickupNumber}`, entry.customerPickupFor && `For ${entry.customerPickupFor}`, entry.truckerNameIn]
-              .filter(Boolean)
-              .join(' · ') || 'No order details entered at check-in'}
-          </div>
-        </div>
-        <button type="button" onClick={onChangeTruck} className={ui.btnSmall + ' no-print'}>
-          Change truck
-        </button>
-      </div>
-
-      <div className="mt-4 grid gap-5 lg:grid-cols-[minmax(0,1fr)_300px]">
-        {/* On narrow screens the status panel comes first, above the questions. */}
-        <div className="lg:order-2">
-          <StatusPanel entry={entry} issues={issues} answered={answered} total={required.length} now={now} />
-        </div>
-
-        <div className="min-w-0 lg:order-1">
-          <ErrorSummary errors={errors} action="saving the inspection" summaryRef={summaryRef} labels={LABELS} />
-
-          {/* When the inspection took place; starts at today / now. */}
-          <h3 className={sectionTitle + ' mb-2.5'}>Inspection</h3>
-          <div className={grid}>
-            {field({ name: 'inspectionDate', label: 'Inspection Date', type: 'date' })}
-            {field({ name: 'inspectionTime', label: 'Inspection Time', type: 'time' })}
-          </div>
-
-          <Section title="Trailer Condition" action={allYesButton(TRAILER_CHECKS)} />
-          <div className={grid}>{TRAILER_CHECKS.map(check)}</div>
-
-          <Section title="Temperature" />
-          <p className="mb-2.5 text-sm text-muted">
-            Frozen product: {LIMIT.product}°F or below; trailer pre-cool {LIMIT.precool}°F or below.
-          </p>
-          <div className={grid}>
-            {field({ name: 'setPoint', label: 'Reefer Set Point °F', type: 'number', step: 0.1 })}
-            {field({ name: 'precoolTemp', label: 'Trailer Pre-Cool Temp °F', type: 'number', step: 0.1, warning: tooWarm('precoolTemp', LIMIT.precool) })}
-            {field({ name: 'reeferRunning', label: 'Reefer Running (Continuous)', type: 'choice', options: YES_NO, dangerOptions: ['No'] })}
-            {PRODUCT_TEMPS.map((t) => field({ ...t, type: 'number', step: 0.1, warning: tooWarm(t.name, LIMIT.product) }))}
-          </div>
-
-          <Section title="Load" action={allYesButton(LOAD_CHECKS)} />
-          <div className={grid}>
-            {field({ name: 'palletsLoaded', label: 'Pallets Loaded', type: 'number', min: 0 })}
-            {field({ name: 'caseCount', label: 'Case Count', type: 'number', min: 0 })}
-            {field({ name: 'totalWeight', label: 'Total Weight (lbs)', type: 'number', min: 0 })}
-            {LOAD_CHECKS.map(check)}
-            {timeField('loadStart', 'Loading Start')}
-            {timeField('loadFinish', 'Loading Finish')}
-          </div>
-
-          <Section title="Seal and Sign-Off" />
-          <div className={grid}>
-            {field({ name: 'sealApplied', label: 'Seal # Applied' })}
-            {field({ name: 'technician', label: 'Technician Name' })}
-            {field({ name: 'inspector', label: 'Inspected By' })}
-            {issues.length > 0 && field({ name: 'correctiveAction', label: 'Corrective Action', type: 'textarea', wide: true })}
-            {field({ name: 'notes', label: 'Notes', type: 'textarea', wide: true })}
-          </div>
-        </div>
-      </div>
-
-      {/* Pinned to the bottom of the screen while the form scrolls, like the Gate form. */}
-      <div className="no-print sticky bottom-0 z-10 -mx-5 -mb-5 mt-5 flex flex-wrap justify-end gap-3 rounded-b-[10px] border-t border-line bg-panel p-4 shadow-[0_-6px_16px_rgb(0_0_0/0.08)] sm:p-5">
-        <button type="button" onClick={onCancel} className={ui.btn}>
-          Cancel
-        </button>
-        <button type="submit" className={ui.btnPrimary}>
-          {entry.loadingInspection ? 'Update Inspection' : 'Save Inspection'}
-        </button>
-      </div>
-    </form>
-  )
 }
+const writeDraft = (key, form) => {
+  try {
+    const all = readDrafts()
+    if (form) all[key] = form
+    else delete all[key]
+    localStorage.setItem(DRAFTS, JSON.stringify(all))
+  } catch {
+    // A full storage only loses the draft, never a saved inspection.
+  }
+}
+export const hasDraft = (id, part) => !!readDrafts()[`${id}:${part}`]
 
-// Inspection panel shown under At the Docks: select a dock tile and press Inspect to open the form.
-export default function LoadingInspection({ atDock, selectedId, onSelect, onSave }) {
-  const entry = atDock.find((e) => e.id === selectedId)
-  const changeTruck = () => document.getElementById('at-the-docks')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-
+// A numbered step inside a checklist: grey number, green tick once its answers are in.
+const SCROLL_MT = 'scroll-mt-[calc(var(--header-h,114px)+24px)]'
+function Step({ n, id, title, done, hint, action, children }) {
   return (
-    <section id="loading-inspection" className="scroll-mt-[calc(var(--header-h,114px)+16px)] rounded-[10px] border border-line bg-panel p-5">
-      <h2 className="font-display text-[26px] leading-tight font-bold">Loading Inspection</h2>
-      {entry ? (
-        <div className="mt-4">
-          <InspectionForm key={entry.id} entry={entry} onSave={onSave} onCancel={() => onSelect(null)} onChangeTruck={changeTruck} />
+    <section aria-labelledby={`${id}-title`} id={id} className={'grid grid-cols-[36px_minmax(0,1fr)] gap-x-3.5 border-b border-hair py-5 last:border-b-0 ' + SCROLL_MT}>
+      <span
+        className={
+          'grid size-8 place-items-center rounded-full text-[15px] font-bold transition-colors duration-200 ' + (done ? 'bg-ok text-signal-ink' : 'bg-signal-soft text-ink')
+        }
+        aria-hidden="true"
+      >
+        {done ? <Icon name="done" size={18} /> : n}
+      </span>
+      <div className="grid min-w-0 gap-3">
+        <div className="flex min-h-8 flex-wrap items-center justify-between gap-2">
+          <h4 id={`${id}-title`} className="font-display text-[17px] leading-tight font-bold">
+            {title}
+            {done && <span className="sr-only"> (done)</span>}
+          </h4>
+          {action}
         </div>
-      ) : (
-        <p className="mt-2 text-muted">
-          {atDock.length
-            ? 'Select a truck under At the Docks, then press Inspect to start its loading inspection.'
-            : 'No trucks at a dock. Assign a dock on the Shipping tab, then inspect the truck here.'}
-        </p>
-      )}
+        {hint && <p className="-mt-2 text-[14px] text-muted">{hint}</p>}
+        {children}
+      </div>
     </section>
+  )
+}
+
+// Yes / No for one check, in a row; the row turns red on No.
+function CheckRow({ name, label, value, onChange }) {
+  return (
+    <div
+      className={
+        'flex min-h-[60px] items-center justify-between gap-3 rounded-xl border py-2 pr-2 pl-4 transition-colors duration-150 ' +
+        (value === 'No' ? 'border-transparent bg-danger-soft' : value === 'Yes' ? 'border-hair bg-ok-soft/50' : 'border-hair bg-field')
+      }
+    >
+      <span id={`field-${name}-label`} className="font-medium">
+        {label}
+      </span>
+      <span role="group" aria-labelledby={`field-${name}-label`} className="flex shrink-0 gap-1 rounded-[11px] border border-line bg-panel p-[3px]">
+        {['Yes', 'No'].map((v) => (
+          <button
+            key={v}
+            id={v === 'Yes' ? `field-${name}` : undefined}
+            type="button"
+            aria-pressed={value === v}
+            onClick={() => onChange(v)}
+            className={
+              'h-10 w-[60px] cursor-pointer rounded-lg text-[15px] font-bold transition-colors duration-150 ' +
+              (value === v ? (v === 'No' ? 'bg-danger text-signal-ink' : 'bg-signal text-signal-ink') : 'text-muted hover:text-ink')
+            }
+          >
+            {v}
+          </button>
+        ))}
+      </span>
+    </div>
+  )
+}
+
+function Checks({ list, form, set }) {
+  return (
+    <div className="grid gap-2 md:grid-cols-2">
+      {list.map((c) => (
+        <CheckRow key={c.name} name={c.name} label={c.label} value={form[c.name]} onChange={(v) => set(c.name, v)} />
+      ))}
+    </div>
+  )
+}
+
+// "All good (n)": answers Yes to every unanswered check in the group; a No already given stays.
+function AllGood({ list, form, setMany }) {
+  const open = list.filter((c) => !form[c.name]).map((c) => c.name)
+  return (
+    <button type="button" disabled={!open.length} onClick={() => setMany(Object.fromEntries(open.map((n) => [n, 'Yes'])))} className={ui.btnSmallPrimary}>
+      <Icon name="done" size={18} />
+      {open.length ? `All good (${open.length})` : 'All answered'}
+    </button>
+  )
+}
+
+// A temperature or count box: label, − value +, and a line under it (the limit, or the problem in red).
+function Measure({ name, label, value, onChange, start, limit, hint, step = 1, min }) {
+  const bad = limit != null && filled(value) && Number(value) > limit
+  return (
+    <div className={'grid gap-2 rounded-xl border p-3 transition-colors duration-150 ' + (bad ? 'border-transparent bg-danger-soft' : 'border-hair bg-field')}>
+      <span className="text-[14px] font-semibold">{label}</span>
+      <Stepper name={name} label={label} value={value} onChange={onChange} start={start} step={step} min={min} />
+      <span className={'text-[13px] ' + (bad ? 'font-bold text-danger' : 'text-muted')}>{bad ? `Above the ${limit}°F limit` : hint}</span>
+    </div>
+  )
+}
+
+function Known({ items }) {
+  return (
+    <div className="grid grid-cols-2 gap-2.5 py-5 md:grid-cols-4">
+      {items.map(([label, value]) => (
+        <div key={label} className="rounded-xl bg-signal-tint px-3.5 py-2.5">
+          <span className="block text-[12px] font-semibold text-muted">{label}</span>
+          <b className="text-[15px]">{value || '—'}</b>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// Shared by both checklists: the sheet around the steps, the draft, and the bottom bar.
+function useChecklist(entry, part, initial) {
+  const key = `${entry.id}:${part}`
+  const [form, setForm] = useState(() => ({ ...initial, ...(readDrafts()[key] ?? {}) }))
+  const [touched, setTouched] = useState(false)
+  useEffect(() => {
+    if (touched) writeDraft(key, form)
+  }, [key, form, touched])
+  const set = (name, value) => {
+    setTouched(true)
+    setForm((f) => ({ ...f, [name]: value }))
+  }
+  const setMany = (patch) => {
+    setTouched(true)
+    setForm((f) => ({ ...f, ...patch }))
+  }
+  return { form, set, setMany, clearDraft: () => writeDraft(key, null) }
+}
+
+function Sheet({ title, entry, onClose, children }) {
+  return (
+    <div className="mt-5 animate-pop overflow-hidden rounded-2xl border border-hair bg-panel shadow-raised">
+      <div className="on-chrome flex flex-wrap items-center justify-between gap-3 bg-gradient-to-br from-[var(--p-hero-2)] to-[var(--p-hero)] px-5 py-4 text-white">
+        <div className="min-w-0">
+          <h3 className="font-display text-[20px] leading-tight font-bold">
+            {title} · Dock {entry.dockDoor}
+          </h3>
+          <p className="text-[14px] text-rail-text">
+            {[entry.trailerNumber && `Trailer ${entry.trailerNumber}`, entry.truckName, entry.pickupNumber && `Order No ${entry.pickupNumber}`, entry.customerPickupFor && `for ${entry.customerPickupFor}`]
+              .filter(Boolean)
+              .join(' · ')}
+          </p>
+        </div>
+        <button type="button" onClick={onClose} className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-[10px] border border-white/20 bg-white/10 px-3.5 font-semibold text-white transition-colors duration-150 hover:bg-white/20">
+          <Icon name="close" size={18} />
+          Close · keeps a draft
+        </button>
+      </div>
+      {children}
+    </div>
+  )
+}
+
+// What the bottom bar says: what's missing (each jumps to its step), or the result once complete.
+function Bar({ missing, issues, ready, label, okText, onSave }) {
+  const fail = issues.length > 0
+  const message = ready ? (
+    <span className={'flex items-start gap-2 ' + (fail ? 'text-danger' : 'text-ok')}>
+      <Icon name={fail ? 'failed' : 'done'} className="mt-0.5" />
+      <span>
+        <b>{fail ? `${issues.length} problem${issues.length > 1 ? 's' : ''}` : 'All checks passed'}</b>
+        <span className="block text-[14px] text-muted">{fail ? issues.join(' · ') : okText}</span>
+      </span>
+    </span>
+  ) : undefined
+  return (
+    <BottomBar missing={missing} message={message}>
+      {!ready && fail && (
+        <span className="basis-full text-[14px] font-semibold text-danger sm:order-first sm:basis-auto">
+          <Icon name="failed" size={16} className="mr-1 inline align-[-3px]" />
+          {issues.join(' · ')}
+        </span>
+      )}
+      <button type="button" disabled={!ready} onClick={onSave} className={goButton(ready && !fail) + ' max-sm:w-full'}>
+        <Icon name={fail ? 'inspect' : 'inspected'} size={24} />
+        {label}
+      </button>
+    </BottomBar>
+  )
+}
+
+const trailerSteps = ({ form, set, setMany, entry, n0 = 1 }) => {
+  const checksDone = TRAILER_CHECKS.every((c) => form[c.name])
+  const reeferDone = filled(form.precoolTemp) && filled(form.setPoint) && !!form.reeferRunning
+  const missing = [...(checksDone ? [] : [['Trailer condition', 'step-trailer']]), ...(reeferDone ? [] : [['Reefer and pre-cool', 'step-reefer']])]
+  const steps = (
+    <>
+      <Step
+        n={n0}
+        id="step-trailer"
+        title="Trailer condition"
+        done={checksDone}
+        hint="Look inside the empty trailer. Tap All good, then No on anything that isn't."
+        action={<AllGood list={TRAILER_CHECKS} form={form} setMany={setMany} />}
+      >
+        <Checks list={TRAILER_CHECKS} form={form} set={set} />
+      </Step>
+      <Step n={n0 + 1} id="step-reefer" title="Reefer and pre-cool" done={reeferDone} hint={`Frozen poultry: trailer pre-cooled to ${LIMIT.precool}°F or below, reefer on continuous.`}>
+        <div className="grid gap-3 sm:grid-cols-3">
+          <Measure name="precoolTemp" label="Trailer pre-cool °F" value={form.precoolTemp} onChange={(v) => set('precoolTemp', v)} start={-5} limit={LIMIT.precool} hint={`Limit ${LIMIT.precool}°F`} />
+          <Measure name="setPoint" label="Reefer set point °F" value={form.setPoint} onChange={(v) => set('setPoint', v)} start={-10} hint={entry.tempSet ? 'From check-in' : 'As shown on the reefer'} />
+          <div className={'grid content-start gap-2 rounded-xl border p-3 ' + (form.reeferRunning === 'No' ? 'border-transparent bg-danger-soft' : 'border-hair bg-field')}>
+            <span id="field-reeferRunning-label" className="text-[14px] font-semibold">
+              Reefer on continuous
+            </span>
+            <span role="group" aria-labelledby="field-reeferRunning-label" className="flex gap-2">
+              {['Yes', 'No'].map((v) => (
+                <button
+                  key={v}
+                  id={v === 'Yes' ? 'field-reeferRunning' : undefined}
+                  type="button"
+                  aria-pressed={form.reeferRunning === v}
+                  onClick={() => set('reeferRunning', v)}
+                  className={
+                    'min-h-[58px] flex-1 cursor-pointer rounded-xl border-[1.5px] font-display text-[17px] font-bold transition-colors duration-150 ' +
+                    (form.reeferRunning === v
+                      ? v === 'No'
+                        ? 'border-danger bg-danger text-signal-ink'
+                        : 'border-signal bg-signal text-signal-ink'
+                      : 'border-line bg-panel text-ink hover:border-signal-bright')
+                  }
+                >
+                  {v}
+                </button>
+              ))}
+            </span>
+            <span className={'text-[13px] ' + (form.reeferRunning === 'No' ? 'font-bold text-danger' : 'text-muted')}>
+              {form.reeferRunning === 'No' ? 'Must run on continuous' : 'Must be Yes'}
+            </span>
+          </div>
+        </div>
+      </Step>
+    </>
+  )
+  return { steps, missing, issues: trailerIssues(form) }
+}
+
+const trailerBlank = (entry) => ({
+  ...Object.fromEntries(TRAILER_CHECKS.map((c) => [c.name, ''])),
+  precoolTemp: '',
+  setPoint: entry.tempSet || '',
+  reeferRunning: '',
+})
+
+// Before loading: the empty trailer. Pass lets the dock start loading; Fail tells Shipping.
+export function TrailerCheckSheet({ entry, inspector, onSave, onClose }) {
+  const { form, set, setMany, clearDraft } = useChecklist(entry, 'trailer', trailerBlank(entry))
+  const { steps, missing, issues } = trailerSteps({ form, set, setMany, entry })
+  const allMissing = inspector ? missing : [...missing, ['Inspector on duty', 'inspector-on-duty']]
+  const ready = allMissing.length === 0
+  const save = () => {
+    clearDraft()
+    onSave(entry.id, { ...form, inspector, result: issues.length ? 'Fail' : 'Pass', issues, savedAt: Date.now() })
+  }
+  return (
+    <Sheet title="Before loading" entry={entry} onClose={onClose}>
+      <div className="max-w-[960px] px-5">{steps}</div>
+      <div className="px-3 pb-3">
+        <Bar
+          missing={allMissing}
+          issues={issues}
+          ready={ready}
+          label={issues.length ? 'Save · trailer not OK' : 'Save · ready to load'}
+          okText="Next: press Loading started on the dock card."
+          onSave={save}
+        />
+      </div>
+    </Sheet>
+  )
+}
+
+// After loading: product temperatures, pallets and load checks, then Pass / Fail. A visit loaded before
+// the trailer check existed answers the trailer steps here too.
+export function LoadCheckSheet({ entry, inspector, onSave, onClose }) {
+  const tc = entry.trailerCheck
+  const prior = entry.loadingInspection
+  const initial = useMemo(
+    () => ({
+      ...(tc ? {} : trailerBlank(entry)),
+      ...Object.fromEntries(LOAD_CHECKS.map((c) => [c.name, ''])),
+      ...Object.fromEntries(PRODUCT_TEMPS.map((t) => [t.name, ''])),
+      palletsLoaded: prior?.palletsLoaded ?? '',
+      sealApplied: prior?.sealApplied || entry.outgoingSeals || '',
+      caseCount: prior?.caseCount ?? '',
+      totalWeight: prior?.totalWeight ?? '',
+      technician: prior?.technician ?? '',
+      notes: prior?.notes ?? '',
+      correctiveAction: '',
+    }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [entry.id],
+  )
+  const { form, set, setMany, clearDraft } = useChecklist(entry, 'load', initial)
+  const trailer = tc ? null : trailerSteps({ form, set, setMany, entry })
+  const n0 = trailer ? 3 : 1
+  const tempsDone = PRODUCT_TEMPS.every((t) => filled(form[t.name]))
+  const palletsDone = filled(form.palletsLoaded)
+  const checksDone = LOAD_CHECKS.every((c) => form[c.name])
+  const sealDone = filled(form.sealApplied)
+  const issues = [...(trailer?.issues ?? []), ...loadIssues(form)]
+  const fail = issues.length > 0
+  const fixDone = filled(form.correctiveAction)
+  const missing = [
+    ...(trailer?.missing ?? []),
+    ...(tempsDone ? [] : [['Product temperatures', 'step-temps']]),
+    ...(palletsDone ? [] : [['Pallets', 'step-pallets']]),
+    ...(checksDone ? [] : [['Load checks', 'step-load']]),
+    ...(sealDone ? [] : [['Seal #', 'step-seal']]),
+    ...(fail && !fixDone ? [['What was done about it', 'step-fix']] : []),
+    ...(inspector ? [] : [['Inspector on duty', 'inspector-on-duty']]),
+  ]
+  const ready = missing.length === 0
+  const recheck = prior?.result === 'Fail'
+
+  const save = () => {
+    const now = Date.now()
+    clearDraft()
+    // One complete inspection: the trailer answers, this checklist, and the times the app recorded.
+    onSave(entry.id, {
+      ...(tc ? Object.fromEntries(Object.entries(tc).filter(([k]) => !['result', 'issues', 'savedAt', 'inspector'].includes(k))) : {}),
+      ...form,
+      inspectionDate: dayKey(new Date(now)),
+      inspectionTime: hhmm(now),
+      loadStart: entry.loadStartedAt ? hhmm(entry.loadStartedAt) : '',
+      loadFinish: entry.loadFinishedAt ? hhmm(entry.loadFinishedAt) : '',
+      inspector,
+      trailerCheckedAt: tc?.savedAt,
+      result: fail ? 'Fail' : 'Pass',
+      issues,
+      inspectedAt: now,
+      savedAt: now,
+    })
+  }
+
+  return (
+    <Sheet title={recheck ? 'Re-check load' : 'Inspect load'} entry={entry} onClose={onClose}>
+      <div className="max-w-[960px] px-5">
+        <Known
+          items={[
+            ['Trailer check', tc ? `${tc.result === 'Pass' ? 'Passed' : 'Failed'} · ${clockTime(tc.savedAt)}` : 'Not done before loading'],
+            ['Loaded', entry.loadStartedAt && entry.loadFinishedAt ? `${clockTime(entry.loadStartedAt)} – ${clockTime(entry.loadFinishedAt)}` : '—'],
+            ['Seal # (from check-in)', entry.outgoingSeals],
+            ['Signed by', inspector || 'Set inspector on duty'],
+          ]}
+        />
+        <p className="-mt-2 text-[13px] text-muted">Filled in for you. The inspection time is recorded when you save.</p>
+        {recheck && (
+          <div className="pt-4">
+            <Note tone="warn">Failed last time: {(prior.issues ?? []).join(' · ') || 'see the saved inspection'}. Check it again.</Note>
+          </div>
+        )}
+        {trailer && (
+          <div className="pt-4">
+            <Note tone="warn" icon="info">
+              This trailer wasn't checked before loading, so its trailer checks are asked here.
+            </Note>
+          </div>
+        )}
+        {trailer?.steps}
+        <Step n={n0} id="step-temps" title="Product temperatures" done={tempsDone} hint={`Probe front, middle and rear. Frozen product: ${LIMIT.product}°F or below.`}>
+          <div className="grid gap-3 sm:grid-cols-3">
+            {PRODUCT_TEMPS.map((t) => (
+              <Measure key={t.name} name={t.name} label={`${t.label} °F`} value={form[t.name]} onChange={(v) => set(t.name, v)} start={-5} limit={LIMIT.product} hint={`Limit ${LIMIT.product}°F`} />
+            ))}
+          </div>
+        </Step>
+        <Step n={n0 + 1} id="step-pallets" title="Pallets loaded" done={palletsDone}>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <Measure name="palletsLoaded" label="Pallets on the trailer" value={form.palletsLoaded} onChange={(v) => set('palletsLoaded', v)} start={22} min={0} hint="Count them as you close up" />
+          </div>
+        </Step>
+        <Step n={n0 + 2} id="step-load" title="Load checks" done={checksDone} action={<AllGood list={LOAD_CHECKS} form={form} setMany={setMany} />}>
+          <Checks list={LOAD_CHECKS} form={form} set={set} />
+        </Step>
+        <Step n={n0 + 3} id="step-seal" title="Seal applied" done={sealDone} hint={entry.outgoingSeals ? 'From check-in. Change it only if a different seal went on.' : 'The seal number you put on the doors.'}>
+          <input
+            id="field-sealApplied"
+            value={form.sealApplied}
+            onChange={(e) => set('sealApplied', e.target.value)}
+            aria-labelledby="step-seal-title"
+            autoComplete="off"
+            className={ui.input + ' max-w-[320px]'}
+          />
+        </Step>
+        {fail && (
+          <Step n={n0 + 4} id="step-fix" title="What was done about it" done={fixDone} hint="Needed because the load failed. Shipping sees this note.">
+            <textarea
+              id="field-correctiveAction"
+              value={form.correctiveAction}
+              onChange={(e) => set('correctiveAction', e.target.value)}
+              aria-labelledby="step-fix-title"
+              rows={3}
+              placeholder="e.g. Pulled the rear pallets back to the freezer and re-probed"
+              className={ui.input + ' min-h-[96px] text-[16px]'}
+            />
+          </Step>
+        )}
+        <div className="pb-5">
+          <More label="case count, weight, technician, notes" open={[form.caseCount, form.totalWeight, form.technician, form.notes].some(filled)}>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {[
+                ['caseCount', 'Case count', 'numeric'],
+                ['totalWeight', 'Total weight (lbs)', 'numeric'],
+                ['technician', 'Technician', 'text'],
+              ].map(([name, label, mode]) => (
+                <label key={name} className="grid gap-1.5">
+                  <span className={ui.label}>{label}</span>
+                  <input id={`field-${name}`} value={form[name]} inputMode={mode} onChange={(e) => set(name, e.target.value)} className={ui.input} />
+                </label>
+              ))}
+              <label className="grid gap-1.5 sm:col-span-2">
+                <span className={ui.label}>Notes</span>
+                <textarea id="field-notes" value={form.notes} rows={2} onChange={(e) => set('notes', e.target.value)} className={ui.input + ' text-[16px]'} />
+              </label>
+            </div>
+          </More>
+        </div>
+      </div>
+      <div className="px-3 pb-3">
+        <Bar missing={missing} issues={issues} ready={ready} label={fail ? 'Save · Fail' : 'Save · Pass'} okText="Next: Release to gate on the dock card." onSave={save} />
+      </div>
+    </Sheet>
+  )
+}
+
+// A saved, passed inspection at a glance (View on a passed truck).
+export function InspectionSummary({ entry, onClose, onRecheck }) {
+  const i = entry.loadingInspection
+  const temps = PRODUCT_TEMPS.map((t) => (filled(i[t.name]) ? `${i[t.name]}°F` : '—')).join(' / ')
+  return (
+    <Sheet title="Inspection" entry={entry} onClose={onClose}>
+      <div className="max-w-[960px] px-5 pb-5">
+        <Known
+          items={[
+            ['Result', i.result === 'Pass' ? 'Passed' : 'Failed'],
+            ['Trailer check', entry.trailerCheck ? clockTime(entry.trailerCheck.savedAt) : '—'],
+            ['Product temps', temps],
+            ['Pallets', i.palletsLoaded],
+            ['Pre-cool', filled(i.precoolTemp) ? `${i.precoolTemp}°F` : '—'],
+            ['Seal', i.sealApplied],
+            ['Inspected by', i.inspector],
+            ['Saved', clockTime(i.savedAt ?? i.inspectedAt)],
+          ]}
+        />
+        <button type="button" onClick={onRecheck} className={ui.btnSmall}>
+          <Icon name="inspect" size={18} />
+          Inspect again
+        </button>
+        <p className="mt-2 text-[13px] text-muted">Inspecting again replaces this inspection, and the truck has to be released again.</p>
+      </div>
+    </Sheet>
   )
 }

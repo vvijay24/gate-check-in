@@ -1,0 +1,300 @@
+import * as ui from '../../ui'
+import { Icon } from '../../icons'
+
+// Building blocks of the Gate's Check In and Check Out pages, kept simple for a guard working with a
+// tablet in one hand: a thin top line (switch, where and when, one progress bar), one column of plain
+// numbered steps, optional fields tucked under "More", a short recap, and a bottom bar that always holds
+// the main button. Nothing moves except what the guard taps. Every control a guard answers has the id
+// `field-<name>`, so the error list can jump to it.
+
+// Clears the sticky header and top line when a step or field is scrolled into view.
+const SCROLL_MT = 'scroll-mt-[calc(var(--header-h,114px)+120px)]'
+
+export const scrollToStep = (id) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+
+// Progress in three clear steps: red while under a third is filled in, amber until every required
+// answer is in, green when ready. The count beside the bar says the same without colour.
+export function stageOf(filled, total, blocked) {
+  if (blocked) return { bar: 'bg-danger', word: "Can't leave yet", text: 'text-danger' }
+  if (total > 0 && filled === total) return { bar: 'bg-ok', word: 'ready', text: 'text-ok' }
+  if (total > 0 && filled / total >= 1 / 3) return { bar: 'bg-warn-edge', word: 'done', text: 'text-ink' }
+  return { bar: 'bg-danger', word: 'done', text: 'text-ink' }
+}
+
+// The thin line under the header: the Check In / Check Out switch, where and when (`where`), and one
+// progress bar with "7 of 10". Sticky, so the guard always sees how far along they are.
+export function GateTopLine({ switcher, where, progress }) {
+  const stage = progress && stageOf(progress.filled, progress.total, progress.blocked)
+  const pct = progress?.total ? Math.round((progress.filled / progress.total) * 100) : 0
+  return (
+    <div className="sticky top-[var(--header-h,114px)] z-[5] -mx-4 grid gap-2 border-b border-hair bg-panel px-4 py-2.5 shadow-card sm:mx-0 sm:rounded-2xl sm:border">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+        {switcher}
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[15px] text-muted">{where}</div>
+      </div>
+      {progress && (
+        <div className="flex items-center gap-3">
+          <div
+            className="h-2 flex-1 overflow-hidden rounded-full bg-signal-soft"
+            role="progressbar"
+            aria-label="Required answers filled in"
+            aria-valuemin={0}
+            aria-valuemax={progress.total}
+            aria-valuenow={progress.filled}
+            aria-valuetext={progress.blocked ? stage.word : `${progress.filled} of ${progress.total} ${stage.word}`}
+          >
+            <div className={'h-full rounded-full ' + stage.bar} style={{ width: `${progress.blocked ? 100 : pct}%` }} />
+          </div>
+          <span className="shrink-0 text-[14px] whitespace-nowrap text-muted" aria-hidden="true">
+            {progress.blocked ? (
+              <b className={stage.text}>{stage.word}</b>
+            ) : (
+              <>
+                <b className={stage.text}>
+                  {progress.filled} of {progress.total}
+                </b>{' '}
+                {stage.word}
+              </>
+            )}
+          </span>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// One step: a card with a plain numbered heading. The number is grey until something is answered
+// (`started`), amber while partly done, green with a tick once its required answers are in (`ok`).
+export function GateStep({ n, id, title, ok, started, children }) {
+  const tone = ok ? 'done' : started ? 'started' : 'todo'
+  return (
+    <section aria-labelledby={id} className="grid gap-4 rounded-2xl border border-hair bg-panel px-5 pt-4 pb-5 shadow-card">
+      <h2 id={id} className={'flex items-center gap-2.5 font-display text-[20px] leading-tight font-bold ' + SCROLL_MT}>
+        <span
+          className={
+            'grid size-8 shrink-0 place-items-center rounded-full text-[15px] ' +
+            { done: 'bg-ok text-signal-ink', started: 'bg-warn text-warn-ink', todo: 'bg-signal-soft text-ink' }[tone]
+          }
+        >
+          {tone === 'done' ? <Icon name="done" size={18} /> : n}
+        </span>
+        {title}
+        {tone === 'started' && <span className="sr-only"> (in progress)</span>}
+        {tone === 'done' && <span className="sr-only"> (done)</span>}
+      </h2>
+      {children}
+    </section>
+  )
+}
+
+// Optional fields, tucked away at the end of a step until tapped. Opens by itself if something in it
+// is already filled in.
+export function More({ label, open, children }) {
+  return (
+    <details open={open} className="group border-t border-dashed border-line pt-2">
+      <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 font-semibold text-signal [&::-webkit-details-marker]:hidden">
+        <span aria-hidden="true" className="text-[13px] transition-transform group-open:rotate-90">
+          ▶
+        </span>
+        More (optional): {label}
+      </summary>
+      <div className="grid gap-4 pt-2">{children}</div>
+    </details>
+  )
+}
+
+// Label, the control, a hint and the error. `group`: the control is a set of buttons, so the label
+// names the group instead of pointing at one input.
+export function FieldBox({ name, label, required, hint, error, group, after, className = '', children }) {
+  const Label = group ? 'span' : 'label'
+  return (
+    <div className={'flex min-w-0 flex-col gap-1.5 ' + className}>
+      <span className="flex flex-wrap items-center gap-2">
+        <Label id={`field-${name}-label`} htmlFor={group ? undefined : `field-${name}`} className="text-[16px] font-semibold text-muted">
+          {label}
+          {required && <span className={ui.required}>*</span>}
+        </Label>
+        {after}
+      </span>
+      {children}
+      {hint && <p className="text-[14px] text-muted">{hint}</p>}
+      {error && (
+        <p id={`field-${name}-error`} className={ui.errorText}>
+          {error}
+        </p>
+      )}
+    </div>
+  )
+}
+
+// Big buttons for one answer. `options`: [{ value, label, danger, disabled }] — the picked answer is
+// solid slate, or solid red for a problem answer (a broken seal, an empty tank).
+export function Seg({ name, options, value, onChange, error }) {
+  return (
+    <div role="group" aria-labelledby={`field-${name}-label`} aria-describedby={error ? `field-${name}-error` : undefined} className="flex flex-wrap gap-2">
+      {options.map((o, i) => {
+        const on = value === o.value
+        return (
+          <button
+            key={o.value}
+            id={i === 0 ? `field-${name}` : undefined}
+            type="button"
+            aria-pressed={on}
+            disabled={o.disabled}
+            onClick={() => onChange(o.value)}
+            className={
+              'min-h-[58px] min-w-16 flex-1 cursor-pointer rounded-xl border-2 px-3 font-display text-[17px] font-bold disabled:cursor-not-allowed disabled:opacity-40 ' +
+              (on
+                ? o.danger
+                  ? 'border-danger bg-danger text-signal-ink'
+                  : 'border-signal bg-signal text-signal-ink'
+                : (error ? 'border-danger' : 'border-line') + ' bg-field text-ink hover:border-signal-bright')
+            }
+          >
+            {o.label ?? o.value}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+// Tap-to-fill buttons (recent carriers, customers, appointment times). The one matching `value` is picked.
+export function Chips({ label, items, value, onPick }) {
+  if (!items.length) return null
+  const picked = String(value ?? '').trim().toLowerCase()
+  return (
+    <div role="group" aria-label={label} className="flex flex-wrap gap-2">
+      {items.map((it) => {
+        const v = typeof it === 'string' ? it : it.value
+        const on = picked === String(v).toLowerCase()
+        return (
+          <button
+            key={v}
+            type="button"
+            aria-pressed={on}
+            onClick={() => onPick(v)}
+            className={
+              'inline-flex min-h-12 cursor-pointer items-center rounded-xl border-[1.5px] px-4 text-[15px] font-semibold ' +
+              (on ? 'border-signal bg-signal text-signal-ink' : 'border-line bg-panel text-ink hover:border-signal-bright')
+            }
+          >
+            {typeof it === 'string' ? it : it.label}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+// − value + for temperatures and counts; the value can also be typed. `start`: what the first tap on an
+// empty box sets (e.g. −5 for frozen product), so nobody has to type a minus sign.
+export function Stepper({ name, label, value, onChange, step = 1, min, start, inputMode = 'decimal', error }) {
+  const bump = (d) => {
+    if (start != null && String(value ?? '').trim() === '') return onChange(String(start))
+    const n = (parseFloat(value) || 0) + d
+    onChange(String(min != null ? Math.max(min, n) : n))
+  }
+  const btn = 'w-16 shrink-0 cursor-pointer bg-panel text-[22px] font-bold text-ink hover:bg-signal-tint active:bg-signal-soft'
+  return (
+    <div className={'flex overflow-hidden rounded-xl border-[1.5px] bg-field ' + (error ? 'border-danger' : 'border-line')}>
+      <button type="button" onClick={() => bump(-step)} aria-label={`Lower ${label}`} className={btn}>
+        −
+      </button>
+      <input
+        id={`field-${name}`}
+        value={value ?? ''}
+        onChange={(e) => onChange(e.target.value)}
+        inputMode={inputMode}
+        aria-label={label}
+        aria-invalid={error ? true : undefined}
+        className="min-h-[58px] min-w-0 flex-1 bg-transparent text-center font-display text-[22px] font-bold focus:outline-none"
+      />
+      <button type="button" onClick={() => bump(step)} aria-label={`Raise ${label}`} className={btn}>
+        +
+      </button>
+    </div>
+  )
+}
+
+// A pill with an icon and words; `tone`: ok | warn | danger | info.
+export function Badge({ tone = 'info', icon, children }) {
+  const cls = { ok: 'bg-ok-soft text-ok', warn: 'bg-warn text-warn-ink', danger: 'bg-danger-soft text-danger', info: 'bg-signal-soft text-ink' }[tone]
+  return (
+    <span className={ui.tag + ' text-[14px] ' + cls}>
+      {icon && <Icon name={icon} size={15} />}
+      {children}
+    </span>
+  )
+}
+
+// A full-width message inside a step: `bad` for a problem to tell Shipping about, `warn` for a heads-up,
+// `ok` for a confirmation.
+export function Note({ tone = 'bad', icon = 'warning', children }) {
+  const cls = { bad: 'bg-danger-soft text-danger', warn: 'bg-warn text-warn-ink', ok: 'bg-ok-soft text-ok' }[tone]
+  return (
+    <p role={tone === 'bad' ? 'alert' : undefined} className={'flex items-start gap-2 rounded-xl px-4 py-2.5 font-semibold ' + cls}>
+      <Icon name={icon} className="mt-0.5" />
+      <span>{children}</span>
+    </p>
+  )
+}
+
+// A short recap above the bottom bar: a few lines, each filled in as the guard goes ("Not yet" until then).
+export function Recap({ lines }) {
+  return (
+    <section aria-label="Check it over" className="grid gap-1 rounded-2xl border border-hair bg-panel px-5 py-4 shadow-card">
+      <h2 className="font-display text-[18px] font-bold">Check it over</h2>
+      {lines.map((parts, i) => {
+        const shown = parts.filter(Boolean)
+        return (
+          <p key={i} className="text-[15px]">
+            {shown.length ? (
+              shown.reduce((acc, p, j) => (j ? [...acc, ' · ', p] : [p]), [])
+            ) : (
+              <span className="text-muted italic">Not yet</span>
+            )}
+          </p>
+        )
+      })}
+    </section>
+  )
+}
+
+// The main button: slate while something is missing, solid green when everything required is in.
+const SLATE = 'border-signal bg-signal text-signal-ink shadow-raised hover:border-signal-hover hover:bg-signal-hover'
+export const goButton = (ready) =>
+  (ready ? ui.btnPrimary.replace(SLATE, 'border-ok bg-ok text-signal-ink shadow-raised hover:brightness-110') : ui.btnPrimary) + ' min-h-[60px] min-w-[220px] text-[19px]'
+
+// The bar pinned to the bottom of the screen: what's still needed (each name jumps to its step) and the
+// main button, always in the same place. `missing`: [[label, stepId], …]. `tint` for a confirm step.
+export function BottomBar({ missing = [], message, tint, children }) {
+  return (
+    <div
+      className={
+        'no-print sticky bottom-0 z-10 -mx-4 flex flex-wrap items-center gap-3 border-t border-hair px-5 py-3 shadow-[0_-8px_20px_rgba(15,30,58,0.08)] sm:mx-0 sm:rounded-2xl sm:border ' +
+        (tint ? 'bg-signal-tint' : 'bg-panel')
+      }
+    >
+      <div className="min-w-[200px] flex-1 text-[16px] text-muted" aria-live="polite">
+        {message ??
+          (missing.length ? (
+            <>
+              Still needed:{' '}
+              {missing.map(([label, step], i) => (
+                <span key={label}>
+                  {i > 0 && ', '}
+                  <button type="button" onClick={() => scrollToStep(step)} className="cursor-pointer font-bold text-danger underline">
+                    {label}
+                  </button>
+                </span>
+              ))}
+            </>
+          ) : (
+            <b className="text-ok">All done</b>
+          ))}
+      </div>
+      {children}
+    </div>
+  )
+}
