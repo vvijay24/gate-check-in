@@ -237,22 +237,24 @@ function Toolbar({ from, to, today, preset, onPreset, onRange, days, filters, op
   )
 }
 
-// Left padding that clears the fixed Insights rail on wide screens (see the layout below). App uses it
-// for the notices above Insights too, so the rail never covers them.
-export const RAIL_PAD = 'lg:pl-[max(0px,calc(240px_-_max(0px,(100vw_-_1400px)/2)))]'
+// Left padding that clears the fixed Insights rail (15rem) on wide screens (see the layout below). App
+// uses it for the notices above Insights too, so the rail never covers them.
+export const RAIL_PAD = 'lg:pl-60'
 
 // Wide screens: a dark rail pinned to the window's left edge, from under the header (--header-h, set
-// in App) to the bottom of the window, with the sections under their group headings.
+// in App) to the bottom of the window, with the sections under their group headings. It never
+// scrolls: its spacing follows the window's height (vh), and on short windows a section's figure
+// shrinks to a dot beside its name.
 // Narrow screens: a row of light buttons above the content.
 function Sidebar({ section, onSelect, keys, sampleControl, settingsControl, inProfile }) {
   const toneCls = { alert: 'text-danger lg:text-rail-alert', warn: 'text-warn-line lg:text-warn' }
   return (
-    <aside className="rail no-print min-w-0 lg:fixed lg:top-[var(--header-h,114px)] lg:bottom-0 lg:left-0 lg:z-[5] lg:w-60 lg:overflow-y-auto lg:border-r lg:border-white/[0.06] lg:bg-rail">
-      <nav aria-label="Insights sections" className="lg:px-3 lg:py-3">
+    <aside className="rail no-print min-w-0 lg:fixed lg:top-[var(--header-h,114px)] lg:bottom-0 lg:left-0 lg:z-[5] lg:w-60 lg:overflow-hidden lg:border-r lg:border-white/[0.06] lg:bg-rail">
+      <nav aria-label="Insights sections" className="lg:flex lg:h-full lg:flex-col lg:px-3 lg:py-[clamp(4px,1.2vh,12px)]">
         <ul className="flex gap-1.5 overflow-x-auto pb-1 lg:block lg:overflow-visible lg:pb-0">
           {GROUPS.map((g) => (
             <li key={g} className="contents lg:block">
-              <span className="eyebrow hidden px-3 pt-4 pb-1.5 text-[10.5px] text-rail-muted/80 lg:block">{g}</span>
+              <span className="eyebrow hidden px-3 pt-[clamp(3px,1.3vh,16px)] pb-[clamp(2px,0.5vh,6px)] text-[10.5px] text-rail-muted/80 lg:block">{g}</span>
               <ul className="contents lg:block lg:space-y-0.5">
                 {SECTIONS.filter((s) => s.group === g).map((s) => {
                   const on = section === s.id
@@ -265,17 +267,20 @@ function Sidebar({ section, onSelect, keys, sampleControl, settingsControl, inPr
                         onClick={() => onSelect(s.id)}
                         className={
                           'relative min-h-10 w-full cursor-pointer rounded-md border px-3 py-1.5 text-left whitespace-nowrap transition-colors ' +
-                          'lg:flex lg:min-h-10 lg:flex-col lg:justify-center lg:border-0 lg:py-1.5 ' +
+                          'lg:flex lg:min-h-[clamp(26px,4.3vh,44px)] lg:flex-col lg:justify-center lg:border-0 lg:py-[clamp(2px,0.5vh,6px)] ' +
                           'lg:before:absolute lg:before:top-2 lg:before:bottom-2 lg:before:left-0 lg:before:w-[3px] lg:before:rounded-full ' +
                           (on
                             ? 'border-signal bg-signal-soft text-signal-line lg:bg-white/[0.07] lg:text-white lg:before:bg-signal' + (inProfile ? ' lg:before:bg-signal/60' : '')
                             : 'border-edge bg-panel text-ink hover:bg-field lg:bg-transparent lg:text-rail-text lg:hover:bg-white/[0.05] lg:hover:text-white')
                         }
                       >
-                        <span className="block text-[13.5px] leading-tight font-medium">{s.label}</span>
+                        <span className="flex items-center gap-2 text-[13.5px] leading-tight font-medium">
+                          {s.label}
+                          {k?.tone && <i aria-hidden="true" className={'hidden h-1.5 w-1.5 shrink-0 rounded-full [@media(max-height:760px)]:lg:inline-block ' + (k.tone === 'alert' ? 'bg-rail-alert' : 'bg-warn')} />}
+                        </span>
                         {/* The section's figure only when it needs attention; otherwise just the name. */}
                         {k?.tone && (
-                          <span className={'figure block text-[11.5px] lg:mt-0.5 ' + toneCls[k.tone]}>
+                          <span className={'figure block text-[11.5px] lg:mt-0.5 [@media(max-height:760px)]:lg:sr-only ' + toneCls[k.tone]}>
                             ⚠ {k.key}
                           </span>
                         )}
@@ -287,7 +292,7 @@ function Sidebar({ section, onSelect, keys, sampleControl, settingsControl, inPr
             </li>
           ))}
         </ul>
-        <div className="mt-4 hidden flex-col items-start border-t border-white/[0.08] px-3 pt-2 lg:flex">
+        <div className="mt-auto hidden flex-col items-start border-t border-white/[0.08] px-3 pt-1 lg:flex [&>button]:min-h-8">
           {settingsControl}
           {sampleControl}
         </div>
@@ -494,7 +499,19 @@ export default function Analytics({ entries, gateEvents = [], sampleCount, onLoa
     setTrail((t) => t.slice(0, -1))
     scrollUp()
   }
-  const nav = useMemo(() => ({ open }), [open])
+  const pendingStatus = useRef('')
+  const go = useCallback((id, { status = '' } = {}) => {
+    pendingStatus.current = status
+    setSection(id)
+    setTrail([])
+    top.current?.scrollIntoView({ block: 'start', behavior: 'smooth' })
+  }, [])
+  const takeStatus = useCallback(() => {
+    const s = pendingStatus.current
+    pendingStatus.current = ''
+    return s
+  }, [])
+  const nav = useMemo(() => ({ open, go, takeStatus }), [open, go, takeStatus])
 
   const copyLink = async () => {
     try {
@@ -597,7 +614,7 @@ export default function Analytics({ entries, gateEvents = [], sampleCount, onLoa
         />
         <SettingsDialog open={settingsOpen} settings={settings} defaultGoLive={defaultGoLive} onSave={saveSettings} onClose={() => setSettingsOpen(false)} />
 
-        <div className="min-w-0 space-y-5">
+        <div className="mx-auto w-full max-w-[1760px] min-w-0 space-y-5">
           <Toolbar
             from={range.from}
             to={range.to}

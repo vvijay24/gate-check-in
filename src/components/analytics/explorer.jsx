@@ -5,7 +5,7 @@ import { isDrop } from '../../metrics'
 import { visitStages } from '../../analytics'
 import { Card } from './ui'
 import { STAGES, SortTable, dur, money } from './charts'
-import { ProfileLink } from './nav'
+import { ProfileLink, useInsightsNav } from './nav'
 import { visitCell } from './sections'
 
 // Visit Explorer: every visit in the range (after the global filters), searchable, with each stage's
@@ -60,8 +60,9 @@ const COLUMNS = [
 ]
 
 export function ExplorerSection({ entries, range, now }) {
+  const { takeStatus } = useInsightsNav()
   const [query, setQuery] = useState('')
-  const [status, setStatus] = useState('')
+  const [status, setStatus] = useState(() => takeStatus())
   const [page, setPage] = useState(0)
   const all = useMemo(
     () =>

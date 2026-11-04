@@ -1,5 +1,6 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { useInsightsNav } from './nav'
 import { Spark } from './viz'
 
 // Panels used across Insights: a titled card, a headline-figure tile, a strip of tiles and a meter.
@@ -165,30 +166,46 @@ const isWordy = (v) => typeof v === 'string' && /[A-Za-z]{3,}/.test(v)
 // omitted is the regular tile. `tone` (good / warn / alert) colors a thin top edge. `note` explains
 // the figure: shown when the tile needs attention (warn / alert), otherwise behind the label's ⓘ.
 // `spark` ({ values, label }) adds a small trend line, one value per day of the range.
-export function Tile({ label, value, note, tone, trend, size, spark }) {
+// `to` ({ section, status, label }) makes the whole tile open that section (the ⓘ still works).
+export function Tile({ label, value, note, tone, trend, size, spark, to }) {
+  const { go } = useInsightsNav()
   const bar = { alert: 'bg-danger', warn: 'bg-warn', good: 'bg-ok' }[tone]
   const box = { lead: 'flex h-full flex-col px-6 py-5 ' + (spark ? 'justify-between' : 'justify-center'), compact: 'flex flex-col px-4 py-3.5' }[size] ?? 'px-4 py-3.5'
   const number = { lead: 'mt-2 text-[40px]', compact: 'mt-1.5 text-[24px]' }[size] ?? 'mt-1.5 text-[28px]'
   const loud = tone === 'alert' || tone === 'warn'
   return (
-    <div className={'relative min-w-0 overflow-hidden rounded-xl bg-panel shadow-card ' + box}>
+    <div className={'group/tile relative min-w-0 overflow-hidden rounded-xl bg-panel shadow-card ' + (to ? 'transition-colors hover:bg-field ' : '') + box}>
       {bar && <i aria-hidden="true" className={'absolute inset-x-0 top-0 h-[3px] ' + bar} />}
-      <div className="eyebrow flex min-w-0 items-center text-muted">
+      {to && (
+        <button
+          type="button"
+          onClick={() => go(to.section, { status: to.status })}
+          aria-label={`${typeof label === 'string' ? label : ''}: ${to.label}`}
+          title={to.label}
+          className="absolute inset-0 z-0 cursor-pointer rounded-[inherit] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-signal"
+        />
+      )}
+      {to && (
+        <span aria-hidden="true" className="pointer-events-none absolute top-3 right-3 text-[14px] text-muted opacity-0 transition-opacity group-hover/tile:opacity-100">
+          →
+        </span>
+      )}
+      <div className="eyebrow pointer-events-none relative flex min-w-0 items-center text-muted [&_button]:pointer-events-auto">
         <span className="truncate">{label}</span>
         {note && !loud && <Info label={typeof label === 'string' ? label : undefined}>{note}</Info>}
       </div>
-      <div className={number + ' leading-none font-semibold ' + (isWordy(value) ? 'truncate tracking-[-0.01em]' : 'figure')}>{value}</div>
+      <div className={'pointer-events-none relative ' + number + ' leading-none font-semibold ' + (isWordy(value) ? 'truncate tracking-[-0.01em]' : 'figure')}>{value}</div>
       {note && loud && (
-        <div className={'mt-2 text-[12.5px] leading-snug ' + (tone === 'alert' ? 'font-semibold text-danger' : 'text-warn-line')}>{note}</div>
+        <div className={'pointer-events-none relative mt-2 text-[12.5px] leading-snug ' + (tone === 'alert' ? 'font-semibold text-danger' : 'text-warn-line')}>{note}</div>
       )}
-      {trend && <div className={loud ? '' : 'mt-2'}>{trend}</div>}
+      {trend && <div className={'pointer-events-none relative ' + (loud ? '' : 'mt-2')}>{trend}</div>}
       {spark && size !== 'lead' && <div className="min-h-2 flex-1" />}
       {spark && (
         <Spark
           values={spark.values}
           label={spark.label}
           color={tone === 'alert' ? 'var(--color-danger)' : undefined}
-          className={size === 'lead' ? 'mt-4 h-16 w-full' : 'mt-1 h-8 w-full'}
+          className={'pointer-events-none relative ' + (size === 'lead' ? 'mt-4 h-16 w-full' : 'mt-1 h-8 w-full')}
         />
       )}
     </div>

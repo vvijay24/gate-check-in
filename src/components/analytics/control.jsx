@@ -137,6 +137,7 @@ export function ControlSection({ r, prev, trend, ops, prevOps, entries, now, imp
           size="compact"
           label="On site now"
           value={n.live}
+          to={{ section: 'explorer', status: 'onsite', label: 'See the trucks on site' }}
           note={`${n.waiting} waiting for a dock · ${n.drops} drop${n.drops === 1 ? '' : 's'}`}
           spark={{ values: slots.map((s) => s.total), label: 'Trucks on site today, every 30 minutes' }}
         />
@@ -144,6 +145,7 @@ export function ControlSection({ r, prev, trend, ops, prevOps, entries, now, imp
           size="compact"
           label="Past free time now"
           value={n.over}
+          to={{ section: 'explorer', status: 'over', label: 'See visits past free time' }}
           note={n.over ? `${money(n.accruingPerHour)}/h detention accruing` : 'No detention accruing'}
           tone={n.over ? 'alert' : 'good'}
           spark={{ values: slots.map((s) => s.overFree), label: 'Trucks past free time today, every 30 minutes' }}
@@ -152,6 +154,7 @@ export function ControlSection({ r, prev, trend, ops, prevOps, entries, now, imp
           size="compact"
           label="Departures today"
           value={departedToday}
+          to={{ section: 'throughput', label: 'Open Throughput' }}
           note={avgDepartures == null ? 'Checked out at the gate' : `Avg ${Math.round(avgDepartures)}/day in this range`}
           spark={{ values: ops.days.map((d) => d.departures), label: 'Departures per day in this range' }}
         />
@@ -159,6 +162,7 @@ export function ControlSection({ r, prev, trend, ops, prevOps, entries, now, imp
           size="compact"
           label="Typical stay (p50)"
           value={dur(ops.stays.p50)}
+          to={{ section: 'turnaround', label: 'Open Turnaround & Detention' }}
           note={`Slow end (p90) ${dur(ops.stays.p90)} · free ${FREE_H} h`}
           tone={ops.stays.p90 == null ? undefined : ops.stays.p90 > FREE_MS ? 'warn' : 'good'}
           trend={trend(ops.stays.p50, prevOps.stays.p50, duration, true)}
@@ -168,6 +172,7 @@ export function ControlSection({ r, prev, trend, ops, prevOps, entries, now, imp
           size="compact"
           label="Docks in use"
           value={pct(ops.dockUse)}
+          to={{ section: 'docks', label: 'Open Docks' }}
           note="Share of operating hours"
           trend={trend(ops.dockUse, prevOps.dockUse, ptsDiff)}
           spark={{ values: ops.days.map((d) => d.dockUse), label: 'Dock use per day' }}
@@ -176,6 +181,7 @@ export function ControlSection({ r, prev, trend, ops, prevOps, entries, now, imp
           size="compact"
           label="On-time arrival"
           value={pct(t.onTimePct)}
+          to={{ section: 'throughput', label: 'Open Throughput' }}
           note={t.scheduled ? `${r.arrivals.late} late of ${t.scheduled} appointments` : 'No appointments'}
           tone={t.onTimePct == null ? undefined : t.onTimePct >= 0.8 ? 'good' : 'warn'}
           trend={trend(t.onTimePct, prev.totals.onTimePct, ptsDiff)}

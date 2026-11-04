@@ -1,7 +1,9 @@
 import { createContext, useContext } from 'react'
 
 // Opens a drill-down page from anywhere in Insights: { kind: 'carrier' | 'customer' | 'dock' | 'visit', id }.
-export const InsightsNav = createContext({ open: () => {} })
+// `go(section, { status })` switches section (status: the Visit Explorer's quick filter to start on);
+// `takeStatus()` hands that filter to the Explorer once.
+export const InsightsNav = createContext({ open: () => {}, go: () => {}, takeStatus: () => '' })
 export const useInsightsNav = () => useContext(InsightsNav)
 
 const KIND_WORD = { carrier: 'carrier', customer: 'customer', dock: 'dock', visit: 'visit' }

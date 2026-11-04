@@ -268,8 +268,9 @@ export default function App() {
           (scrolled ? 'shadow-[0_8px_24px_-12px_rgb(0_0_0/0.65)]' : '')
         }
       >
-        <div className="mx-auto flex max-w-[1400px] flex-wrap items-stretch gap-x-6 px-4 sm:px-5 lg:h-14 lg:flex-nowrap">
-          <div className="flex items-center gap-2.5 py-2.5 lg:py-0">
+        {/* Full width: the title sits over the Insights rail at the left edge, the clock at the right. */}
+        <div className="flex flex-wrap items-stretch gap-x-6 px-4 sm:px-5 lg:h-14 lg:flex-nowrap lg:px-6">
+          <div className="flex items-center gap-2.5 py-2.5 lg:w-[calc(15rem-1.5rem)] lg:shrink-0 lg:py-0">
             <span aria-hidden="true" className="grid h-7 w-7 place-items-center rounded-md bg-signal text-white shadow-[inset_0_-2px_0_rgb(0_0_0/0.18)]">
               <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
                 <path d="M4 18V8M4 9h16M8 9l3 4M13 9l3 4" />
@@ -327,7 +328,8 @@ export default function App() {
 
       <Toast notice={notice} onClose={() => setNotice(null)} />
 
-      <main className="mx-auto max-w-[1400px] space-y-5 px-4 py-5 sm:px-5">
+      {/* Insights uses the full width beside its rail; the other tabs sit centered. */}
+      <main className={'space-y-5 px-4 py-5 sm:px-5 ' + (tab === 'analytics' ? 'lg:px-6 lg:py-6' : 'mx-auto max-w-[1440px] lg:px-6')}>
         {/* Storage trouble stays on the page (a pop-up would vanish); on Insights it clears the rail. */}
         {storageError && (
           <div className={tab === 'analytics' ? RAIL_PAD : ''}>
