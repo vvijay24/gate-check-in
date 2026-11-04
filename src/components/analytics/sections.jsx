@@ -1,7 +1,7 @@
 import { duration } from '../../time'
 import { DETENTION_FREE_MIN, DETENTION_RATE_PER_HOUR } from '../../yard'
 import { GATE_STYLE } from '../YardMap'
-import { Card, Meter, Tile } from './ui'
+import { Card, Meter, Strip, Tile } from './ui'
 import { ArrivalHistogram, DayView, StayHistogram } from './control'
 import { ProfileLink } from './nav'
 import { StageSpread } from './viz'
@@ -33,7 +33,7 @@ import {
 const FREE_H = DETENTION_FREE_MIN / 60
 export const toMin = (ms) => (ms == null ? null : ms / 60000)
 // Three per row until the screen is very wide, so the numbers never crowd beside the sidebar.
-export const Tiles = ({ children }) => <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 2xl:grid-cols-5">{children}</div>
+export const Tiles = ({ children }) => <Strip>{children}</Strip>
 export const Pair = ({ children }) => <div className="grid gap-5 xl:grid-cols-2">{children}</div>
 // The section's main figure (1/3) beside the chart that explains it (2/3); both stretch to the taller.
 export const LeadRow = ({ lead, children }) => (
@@ -43,11 +43,22 @@ export const LeadRow = ({ lead, children }) => (
   </div>
 )
 
-export function SectionHeading({ title, sub }) {
+// Breadcrumb trail, title and one-line description at the top of a section or drill-down page.
+export function SectionHeading({ title, sub, crumbs = [] }) {
   return (
-    <div>
-      <h2 className="font-display text-[28px] leading-tight font-bold">{title}</h2>
-      <p className="text-sm text-muted">{sub}</p>
+    <div className="min-w-0">
+      {crumbs.length > 0 && (
+        <nav aria-label="Breadcrumb" className="mb-1 flex flex-wrap items-center gap-1.5 text-[12px] font-medium text-muted">
+          {crumbs.map((c, i) => (
+            <span key={i} className="flex items-center gap-1.5">
+              {i > 0 && <span aria-hidden="true" className="text-edge">/</span>}
+              {c}
+            </span>
+          ))}
+        </nav>
+      )}
+      <h2 className="text-[22px] leading-tight font-semibold tracking-[-0.015em] break-words">{title}</h2>
+      {sub && <p className="mt-0.5 text-[13px] text-muted">{sub}</p>}
     </div>
   )
 }
@@ -55,9 +66,10 @@ export function SectionHeading({ title, sub }) {
 // The section's one-line takeaway, read before the numbers.
 export function Takeaway({ children }) {
   return (
-    <p role="note" className="rounded-[10px] border border-l-[6px] border-line border-l-ink bg-panel px-4 py-3 text-[16px] leading-snug">
-      {children}
-    </p>
+    <div role="note" className="flex flex-col gap-1 rounded-xl border-l-[3px] border-l-signal bg-panel px-4 py-3 shadow-card sm:flex-row sm:gap-4">
+      <span className="eyebrow shrink-0 pt-0.5 text-signal-line">Summary</span>
+      <p className="text-[14px] leading-relaxed">{children}</p>
+    </div>
   )
 }
 
@@ -503,7 +515,7 @@ export function CarriersSection({ r, prev, trend }) {
         </Card>
       </LeadRow>
 
-      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+      <Strip cols="grid-cols-2 xl:grid-cols-4">
         <Tile size="compact" label="Carriers" value={r.carriers.length} note={`${total} live visits between them`} />
         <Tile
           size="compact"
@@ -528,7 +540,7 @@ export function CarriersSection({ r, prev, trend }) {
             return b ? `${b.visits} visits · ${pct(total ? b.visits / total : null)} of all` : 'No visits'
           })()}
         />
-      </div>
+      </Strip>
 
       <Card title="Stay by Carrier" sub={`Typical (p50) to slow-end (p90) time on site, against the ${FREE_H} h free time · busiest 8 carriers`}>
         <PartnerSpread rows={r.carriers} kind="carrier" />

@@ -177,15 +177,15 @@ export function ImpactSection({ r, prev, trend, impact, prevImpact, settings, on
 
 function BeforeNow({ label, before, now, better }) {
   return (
-    <div className={'rounded-lg border border-t-[5px] border-line px-4 py-3 ' + (better ? 'border-t-ok' : 'border-t-danger')}>
-      <div className="text-sm font-semibold text-muted">{label}</div>
+    <div className={'rounded-lg border border-t-[3px] border-line px-4 py-3 ' + (better ? 'border-t-ok' : 'border-t-danger')}>
+      <div className="eyebrow text-muted">{label}</div>
       <div className="mt-1 flex flex-wrap items-baseline gap-2 tabular-nums">
         <span className="text-muted line-through">{before}</span>
         <span className="text-muted" aria-hidden="true">
           →
         </span>
         <span className="sr-only">before, now</span>
-        <b className="text-[26px] leading-tight">{now}</b>
+        <b className="figure text-[22px] leading-tight font-semibold">{now}</b>
       </div>
     </div>
   )
@@ -213,7 +213,7 @@ const HANDOFF_COLUMNS = [
     render: (h) => (
       <span className="flex items-center justify-end gap-2">
         <span className="hidden w-24 sm:flex">
-          <Meter value={h.onTargetPct ?? 0} className={h.onTargetPct >= 0.8 ? 'bg-ok' : h.onTargetPct >= 0.5 ? 'bg-signal' : 'bg-danger'} />
+          <Meter value={h.onTargetPct ?? 0} className={h.onTargetPct >= 0.8 ? 'bg-ok' : h.onTargetPct >= 0.5 ? 'bg-warn' : 'bg-danger'} />
         </span>
         <span className="w-10">{pct(h.onTargetPct)}</span>
       </span>
@@ -231,11 +231,11 @@ export const STUCK_COLUMNS = [
 
 // One step of the Gate → Shipping chain.
 function ChainStep({ title, value, note, children, tone }) {
-  const edge = { good: 'border-t-ok', warn: 'border-t-signal', alert: 'border-t-danger' }[tone] ?? 'border-t-line'
+  const edge = { good: 'border-t-ok', warn: 'border-t-warn', alert: 'border-t-danger' }[tone] ?? 'border-t-line'
   return (
-    <div className={'min-w-0 rounded-lg border border-t-[5px] border-line px-3.5 py-3 ' + edge}>
-      <div className="text-sm font-semibold text-muted">{title}</div>
-      <div className="mt-0.5 text-[26px] leading-tight font-bold tabular-nums">{value}</div>
+    <div className={'min-w-0 rounded-lg border border-t-[3px] border-line px-3.5 py-3 ' + edge}>
+      <div className="eyebrow text-muted">{title}</div>
+      <div className="figure mt-1.5 text-[22px] leading-tight font-semibold">{value}</div>
       <div className="text-[13px] text-muted">{note}</div>
       {children && <div className="mt-1 text-[12px]">{children}</div>}
     </div>
@@ -366,7 +366,7 @@ const GUARD_COLUMNS = [
 function Stat({ value, label }) {
   return (
     <div className="rounded-lg border border-line px-3 py-2">
-      <b className="block text-[26px] leading-tight tabular-nums">{value}</b>
+      <b className="figure block text-[22px] leading-tight font-semibold">{value}</b>
       <span className="text-[13px] text-muted">{label}</span>
     </div>
   )
@@ -527,7 +527,7 @@ export function SettingsDialog({ open, settings, defaultGoLive, onSave, onClose 
     >
       {open && (
         <form onSubmit={submit} noValidate className="space-y-5 p-5">
-          <h2 id="impact-settings-title" className="font-display text-[26px] leading-tight font-bold">
+          <h2 id="impact-settings-title" className="font-display text-[20px] leading-tight font-semibold">
             Targets &amp; go-live
           </h2>
 

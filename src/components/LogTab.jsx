@@ -23,7 +23,7 @@ export default function LogTab({ entries }) {
 
   return (
     <section className="space-y-4">
-      <h2 className="font-display text-[26px] leading-tight font-bold">Gate Log</h2>
+      <h2 className="font-display text-[20px] leading-tight font-semibold">Gate Log</h2>
 
       <p className="text-muted" role="status">
         {entries.length} {entries.length === 1 ? 'entry' : 'entries'}

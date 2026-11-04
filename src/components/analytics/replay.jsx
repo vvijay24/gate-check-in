@@ -89,7 +89,7 @@ export function ReplaySection({ entries, range }) {
   const over = [...yard.atDock.values(), ...yard.bays.filter(Boolean)].filter((e) => detentionState(e, atMs)?.level === 'over').length
 
   const seg = (on) =>
-    'min-h-11 cursor-pointer rounded-md border-2 px-3 text-[14px] font-semibold ' + (on ? 'border-signal bg-signal text-signal-ink' : 'border-line bg-panel text-ink')
+    'min-h-11 cursor-pointer rounded-md border px-3 text-[14px] font-semibold ' + (on ? 'border-signal bg-signal text-signal-ink' : 'border-edge bg-panel text-ink hover:bg-field')
   const stats = [
     ['On site', onSite],
     ['At docks', yard.atDock.size],
@@ -106,7 +106,7 @@ export function ReplaySection({ entries, range }) {
             <select
               value={day}
               onChange={(ev) => pickDay(ev.target.value)}
-              className="min-h-11 cursor-pointer rounded-md border-2 border-line bg-panel px-2 font-semibold text-ink"
+              className="min-h-11 cursor-pointer rounded-md border border-edge bg-panel px-2 font-semibold text-ink"
             >
               {days.map((d) => (
                 <option key={d} value={d}>
@@ -126,7 +126,7 @@ export function ReplaySection({ entries, range }) {
               </button>
             ))}
           </div>
-          <span className="ml-auto font-display text-[30px] leading-none font-bold tabular-nums" aria-live="off">
+          <span className="ml-auto font-display text-[24px] leading-none font-semibold tabular-nums" aria-live="off">
             {clockTime(atMs)}
           </span>
         </div>
@@ -158,7 +158,7 @@ export function ReplaySection({ entries, range }) {
           {stats.map(([label, value]) => (
             <li key={label} className="rounded-lg border border-line bg-page px-3 py-2">
               <div className="text-[13px] font-semibold text-muted">{label}</div>
-              <div className={'font-display text-[24px] leading-tight font-bold' + (label === 'Past free time' && value ? ' text-danger' : '')}>{value}</div>
+              <div className={'font-display text-[19px] leading-tight font-semibold' + (label === 'Past free time' && value ? ' text-danger' : '')}>{value}</div>
             </li>
           ))}
         </ul>

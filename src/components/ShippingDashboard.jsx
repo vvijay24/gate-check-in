@@ -14,7 +14,7 @@ import ReleaseDialog from './ReleaseDialog'
 // After the inspection passes, Shipping releases the truck to the gate; until it leaves it is only
 // adding detention. Statuses use the Entry Log's words and colors, so a truck reads the same in both.
 const STATUS_TAG = {
-  Waiting: 'bg-signal-soft text-ink ring-1 ring-signal-line/40',
+  Waiting: 'bg-warn-soft text-ink ring-1 ring-warn-line/40',
   'At dock': 'bg-ink text-panel',
   'Awaiting release': 'bg-ok text-panel',
   'Released to gate': 'bg-delivery-soft text-delivery',
@@ -158,7 +158,7 @@ export default function ShippingDashboard({ entries, onAssignDock, onEdit, onChe
       className={
         'no-print w-full min-w-[64px] cursor-pointer rounded-md bg-panel px-1.5 py-1 text-[13px] font-normal text-ink ' +
         (wide ? '' : 'max-w-[170px] ') +
-        (filters[c.id] ? 'border-2 border-signal-line font-semibold ' : 'border border-line ') +
+        (filters[c.id] ? 'border border-signal-line font-semibold ' : 'border border-line ') +
         cls
       }
     >
@@ -226,7 +226,7 @@ export default function ShippingDashboard({ entries, onAssignDock, onEdit, onChe
 
       <section id="outbound" className="rounded-xl bg-panel shadow-card">
         <div className="flex flex-wrap items-center justify-between gap-3 px-5 pt-5 pb-3">
-          <h2 className="font-display text-[26px] leading-tight font-bold">
+          <h2 className="font-display text-[20px] leading-tight font-semibold">
             Outbound Shipments <span className="text-muted">({rows.length})</span>
           </h2>
           {active.length > 0 && (
@@ -258,7 +258,7 @@ export default function ShippingDashboard({ entries, onAssignDock, onEdit, onChe
                 <li key={e.id} className="rounded-lg bg-page p-3">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <div className="font-display text-[19px] leading-tight font-bold">{e.pickupNumber || 'No order no'}</div>
+                      <div className="font-display text-[16px] leading-tight font-semibold">{e.pickupNumber || 'No order no'}</div>
                       <div className="text-[13px] text-muted">{[e.customerPickupFor, `Trailer ${e.trailerNumber || '—'}`, e.truckName].filter(Boolean).join(' · ')}</div>
                     </div>
                     <span className={ui.tag + ' ' + STATUS_TAG[s]}>{s}</span>

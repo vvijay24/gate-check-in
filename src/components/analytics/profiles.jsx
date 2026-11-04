@@ -5,7 +5,7 @@ import { isDrop } from '../../metrics'
 import { dockKey } from '../AssignDock'
 import { previousRange, rangeMetrics, visitStages } from '../../analytics'
 import { opsMetrics } from '../../ops'
-import { Card, Tile } from './ui'
+import { Card, Strip, Tile } from './ui'
 import { BarList, DROP, DayBars, LIVE, Legend, STAGES, SortTable, Trend, count, dur, money, pct, ptsDiff, weekdayDate } from './charts'
 import { ArrivalHistogram, DayView, StayHistogram } from './control'
 import { ProfileLink } from './nav'
@@ -19,23 +19,22 @@ import { OVERRUN, StageSpread } from './viz'
 const FREE_MS = DETENTION_FREE_MIN * 60000
 const FREE_H = DETENTION_FREE_MIN / 60
 const same = (a, b) => String(a ?? '').trim().toLowerCase() === String(b ?? '').trim().toLowerCase()
-const Grid6 = ({ children }) => <div className="grid grid-cols-2 gap-3 md:grid-cols-3 2xl:grid-cols-6">{children}</div>
+const Grid6 = ({ children }) => <Strip cols="grid-cols-2 md:grid-cols-3 2xl:grid-cols-6">{children}</Strip>
 const Pair = ({ children }) => <div className="grid gap-5 xl:grid-cols-2">{children}</div>
 
 export function ProfileHeader({ kicker, title, meta, onBack, backLabel }) {
   return (
     <div className="flex flex-wrap items-end justify-between gap-3">
       <div className="min-w-0">
-        <button
-          type="button"
-          onClick={onBack}
-          className="mb-1 inline-flex min-h-11 cursor-pointer items-center gap-1.5 rounded-md text-sm font-semibold text-muted hover:text-ink"
-        >
-          <span aria-hidden="true">←</span> {backLabel}
-        </button>
-        <p className="text-[12px] font-bold tracking-[0.08em] text-signal-line uppercase">{kicker}</p>
-        <h2 className="font-display text-[30px] leading-tight font-bold break-words">{title}</h2>
-        {meta && <p className="text-sm text-muted">{meta}</p>}
+        <nav aria-label="Breadcrumb" className="mb-1 flex flex-wrap items-center gap-1.5 text-[12px] font-medium text-muted">
+          <button type="button" onClick={onBack} className="inline-flex min-h-8 cursor-pointer items-center gap-1 rounded hover:text-ink">
+            <span aria-hidden="true">←</span> {backLabel}
+          </button>
+          <span aria-hidden="true" className="text-edge">/</span>
+          <span className="text-signal-line">{kicker}</span>
+        </nav>
+        <h2 className="text-[22px] leading-tight font-semibold tracking-[-0.015em] break-words">{title}</h2>
+        {meta && <p className="mt-0.5 text-[13px] text-muted">{meta}</p>}
       </div>
     </div>
   )
@@ -288,7 +287,7 @@ function VisitTimeline({ e, s, now }) {
             segs.map((g) => <i key={g.key} className="absolute inset-y-0 border-r-2 border-panel" style={{ left: X(g.a), width: `calc(${X(g.b)} - ${X(g.a)})`, background: g.color }} />)
           )}
           {!drop && end > freeEnd && <i className="absolute inset-y-0 border-b-[3px] border-danger" style={{ left: X(freeEnd), right: `calc(100% - ${X(end)})`, background: OVERRUN }} />}
-          {!e.timeOut && <i className="absolute inset-y-0 w-[3px] bg-signal" style={{ left: `calc(${X(end)} - 3px)` }} />}
+          {!e.timeOut && <i className="absolute inset-y-0 w-[3px] bg-warn" style={{ left: `calc(${X(end)} - 3px)` }} />}
         </div>
         {!drop && (
           <div className="absolute -top-6 bottom-0 border-l-2 border-dashed border-danger" style={{ left: X(freeEnd) }}>

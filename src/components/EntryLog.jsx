@@ -80,7 +80,7 @@ function StatusTag({ e }) {
   if (isReleased(e)) return <span className={ui.tag + ' bg-delivery-soft text-delivery'}>Released to gate</span>
   if (awaitingRelease(e)) return <span className={ui.tag + ' bg-ok text-panel'}>Awaiting release</span>
   if (e.dockDoor) return <span className={ui.tag + ' bg-ink text-panel'}>At dock</span>
-  return <span className={ui.tag + ' bg-signal-soft text-ink ring-1 ring-signal-line/40'}>Waiting</span>
+  return <span className={ui.tag + ' bg-warn-soft text-ink ring-1 ring-warn-line/40'}>Waiting</span>
 }
 
 // Prints only the Entry Log: index.css hides everything else while body has data-print="entry-log".
@@ -181,7 +181,7 @@ export default function EntryLog({ entries, onEdit, onCheckOut, onDelete, onAssi
       className={
         'no-print w-full min-w-[64px] cursor-pointer rounded-md bg-panel px-1.5 py-1 text-[13px] font-normal text-ink ' +
         (wide ? '' : 'max-w-[170px] ') +
-        (filters[c.id] ? 'border-2 border-signal-line font-semibold ' : 'border border-line ') +
+        (filters[c.id] ? 'border border-signal-line font-semibold ' : 'border border-line ') +
         cls
       }
     >
@@ -221,7 +221,7 @@ export default function EntryLog({ entries, onEdit, onCheckOut, onDelete, onAssi
   return (
     <section id="entry-log" className="rounded-xl bg-panel shadow-card">
       <div className="flex flex-wrap items-center justify-between gap-3 px-5 pt-5 pb-3">
-        <h2 className="font-display text-[26px] leading-tight font-bold">Entry Log</h2>
+        <h2 className="font-display text-[20px] leading-tight font-semibold">Entry Log</h2>
         <div role="tablist" aria-label="Entry Log filter" className="no-print flex flex-wrap gap-1.5">
           {TABS.map((t) => (
             <button
@@ -230,8 +230,8 @@ export default function EntryLog({ entries, onEdit, onCheckOut, onDelete, onAssi
               aria-selected={tab === t.id}
               onClick={() => setTab(t.id)}
               className={
-                'min-h-11 cursor-pointer rounded-lg border-2 px-4 font-display text-lg font-bold ' +
-                (tab === t.id ? 'border-signal bg-signal text-signal-ink' : 'border-line bg-panel text-ink')
+                'min-h-11 cursor-pointer rounded-lg border px-4 font-display text-[15px] font-semibold ' +
+                (tab === t.id ? 'border-signal bg-signal text-signal-ink' : 'border-edge bg-panel text-ink hover:bg-field')
               }
             >
               {t.label} <span className="font-semibold opacity-70">({lists[t.id].length})</span>
@@ -290,7 +290,7 @@ export default function EntryLog({ entries, onEdit, onCheckOut, onDelete, onAssi
               <li key={e.id} className="rounded-lg bg-page p-3">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <div className="font-display text-[19px] leading-tight font-bold">{e.pickupNumber || `Trailer ${e.trailerNumber || '—'}`}</div>
+                    <div className="font-display text-[16px] leading-tight font-semibold">{e.pickupNumber || `Trailer ${e.trailerNumber || '—'}`}</div>
                     <div className="text-[13px] text-muted">
                       {[e.pickupNumber && `Trailer ${e.trailerNumber}`, e.truckName, e.customerPickupFor].filter(Boolean).join(' · ')}
                     </div>

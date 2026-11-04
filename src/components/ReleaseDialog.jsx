@@ -73,7 +73,7 @@ export default function ReleaseDialog({ entry, onRelease, onClose }) {
       {entry && form && (
         <form onSubmit={submit} noValidate className="space-y-4 p-5">
           <div>
-            <h2 id="release-title" className="font-display text-[26px] leading-tight font-bold">
+            <h2 id="release-title" className="font-display text-[20px] leading-tight font-semibold">
               Release to gate
             </h2>
             <p className="text-[15px] text-muted">
@@ -97,7 +97,7 @@ export default function ReleaseDialog({ entry, onRelease, onClose }) {
           <div>
             <label
               className={
-                'flex min-h-[52px] cursor-pointer items-center gap-3 rounded-[10px] border-2 bg-field px-4 font-semibold ' +
+                'flex min-h-[52px] cursor-pointer items-center gap-3 rounded-lg border bg-field px-4 font-semibold ' +
                 (errors.paperwork ? 'border-danger' : 'border-line')
               }
             >

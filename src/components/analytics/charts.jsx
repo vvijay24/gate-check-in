@@ -20,7 +20,7 @@ export const money = (v) => `$${Math.round(v ?? 0).toLocaleString()}`
 export const dur = (ms) => (ms == null ? '—' : duration(ms))
 export const count = (v) => String(Math.round(v))
 export const minutesToDur = (m) => duration(m * 60000)
-export const th = 'px-3 py-2.5 whitespace-nowrap'
+export const th = 'px-3 py-2 whitespace-nowrap'
 export const td = 'px-3 py-2.5'
 
 export const tooltipCls = 'pointer-events-none absolute z-10 rounded-md bg-chrome px-2.5 py-1.5 text-[13px] whitespace-nowrap text-white'
@@ -37,7 +37,7 @@ const labelEvery = (n) => Math.max(1, Math.ceil(n / 10))
 
 // Change against the previous period: green when it's an improvement, red when not.
 export function Trend({ value, base, lowerIsBetter, format, days }) {
-  const cls = 'mt-1 text-[12px] '
+  const cls = 'mt-1.5 text-[11.5px] '
   const label = `prev ${days} days`
   if (value == null || base == null) return <div className={cls + 'text-muted'}>No data for {label}</div>
   const diff = value - base
@@ -52,7 +52,7 @@ export function Trend({ value, base, lowerIsBetter, format, days }) {
 
 export function Legend({ items }) {
   return (
-    <ul className="flex flex-wrap gap-x-4 gap-y-1 text-[13px] font-semibold">
+    <ul className="flex flex-wrap gap-x-4 gap-y-1 text-[12px] font-medium text-muted">
       {items.map(([label, color]) => (
         <li key={label} className="flex items-center gap-1.5">
           <i className="inline-block h-3 w-3 rounded-[3px]" style={{ background: color }} />
@@ -66,7 +66,7 @@ export function Legend({ items }) {
 export function TableView({ head, rows }) {
   return (
     <details className="mt-3">
-      <summary className="cursor-pointer text-sm font-semibold">Show as table</summary>
+      <summary className="inline-flex min-h-8 cursor-pointer items-center text-[12.5px] font-medium text-muted hover:text-ink">Show as table</summary>
       <div className="overflow-x-auto">
       <table className="mt-2 w-full max-w-md text-sm">
         <thead className="text-muted">
@@ -350,14 +350,14 @@ export function BarList({ rows, color = 'var(--color-ink)', empty }) {
   return (
     <ul className="space-y-2.5 px-5 pt-3 pb-5">
       {rows.map((r) => (
-        <li key={r.label} className="grid grid-cols-[minmax(0,200px)_minmax(0,1fr)_auto] items-center gap-3 text-[14px]">
+        <li key={r.label} className="grid grid-cols-[minmax(0,200px)_minmax(0,1fr)_auto] items-center gap-3 text-[13.5px]">
           <span className={'truncate ' + (r.strong ? 'font-bold' : 'font-semibold')} title={r.label}>
             {r.node ?? r.label}
           </span>
-          <span className="h-3 overflow-hidden rounded bg-track">
-            <span className="block h-full rounded-r" style={{ width: `${(r.value / max) * 100}%`, background: r.color ?? color }} />
+ <span className="h-2 overflow-hidden rounded-full bg-track">
+            <span className="block h-full rounded-full" style={{ width: `${(r.value / max) * 100}%`, background: r.color ?? color }} />
           </span>
-          <span className={'text-right whitespace-nowrap tabular-nums' + (r.strong ? ' font-bold' : '')}>
+          <span className={'figure text-right text-[12.5px] whitespace-nowrap' + (r.strong ? ' font-semibold' : '')}>
             {r.text ?? r.value}
             {r.note && <span className="text-muted"> · {r.note}</span>}
           </span>
@@ -468,15 +468,15 @@ export function SortTable({ columns, rows, initial, empty, rowKey = (r) => r.nam
 
   return (
     <div className="mt-3 overflow-x-auto">
-      <table className="w-full border-collapse text-left text-[14px]" style={{ minWidth }}>
-        <thead className="text-[13px] font-semibold text-muted">
+      <table className="w-full border-collapse text-left text-[13.5px]" style={{ minWidth }}>
+        <thead className="eyebrow bg-field text-[10.5px] text-muted">
           <tr className="border-y border-line">
             {columns.map((c) => (
               <th key={c.id} className={th + (c.numeric ? ' text-right' : '')} style={c.minW ? { minWidth: c.minW } : undefined} aria-sort={sort.id === c.id ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}>
-                <button type="button" onClick={() => toggle(c)} className="cursor-pointer font-semibold hover:text-ink">
+                <button type="button" onClick={() => toggle(c)} className={'cursor-pointer tracking-[0.06em] uppercase hover:text-ink ' + (sort.id === c.id ? 'text-ink' : '')}>
                   {c.label}
-                  <span aria-hidden="true" className="ml-1">
-                    {sort.id === c.id ? (sort.dir === 'asc' ? '▲' : '▼') : '↕'}
+                  <span aria-hidden="true" className={'ml-1 ' + (sort.id === c.id ? 'text-signal-line' : 'opacity-50')}>
+                    {sort.id === c.id ? (sort.dir === 'asc' ? '↑' : '↓') : '↕'}
                   </span>
                 </button>
               </th>
@@ -494,7 +494,7 @@ export function SortTable({ columns, rows, initial, empty, rowKey = (r) => r.nam
             (pageSize ? sorted.slice(page * pageSize, page * pageSize + pageSize) : sorted).map((r) => (
               <tr key={rowKey(r)} className="hover:bg-field/70">
                 {columns.map((c) => (
-                  <td key={c.id} className={td + (c.numeric ? ' text-right tabular-nums' : '')}>
+                  <td key={c.id} className={td + (c.numeric ? ' figure text-right text-[13px]' : '')}>
                     {c.render ? c.render(r) : c.value(r)}
                     {c.bar && <DataBar value={c.value(r)} max={maxOf[c.id]} danger={c.bar === 'danger'} />}
                   </td>

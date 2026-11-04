@@ -110,7 +110,7 @@ function validate(f, issues) {
 }
 
 const sectionRow = 'mt-6 mb-2.5 flex flex-wrap items-center justify-between gap-2 border-t border-line pt-3.5'
-const sectionTitle = 'font-display text-[20px] leading-tight font-bold text-muted'
+const sectionTitle = 'font-display text-[16px] leading-tight font-semibold text-muted'
 const grid = 'grid grid-cols-1 gap-3.5 sm:grid-cols-2 2xl:grid-cols-3'
 const filled = (v) => String(v ?? '').trim() !== ''
 
@@ -156,13 +156,13 @@ function StatusPanel({ entry, issues, answered, total, now }) {
             )}
           </svg>
           <div className="min-w-0">
-            <div className={'font-display text-[24px] leading-tight font-bold ' + (fail ? 'text-danger' : 'text-ok')}>{fail ? 'Result: Fail' : 'Result: Pass'}</div>
+            <div className={'font-display text-[19px] leading-tight font-semibold ' + (fail ? 'text-danger' : 'text-ok')}>{fail ? 'Result: Fail' : 'Result: Pass'}</div>
             {fail ? issueList : <p className="text-sm">Every check passed. Save to send it to Shipping.</p>}
           </div>
         </div>
       ) : (
         <div role="status" className={'rounded-xl border-l-[6px] bg-panel px-4 py-3 shadow-card ' + (fail ? 'border-l-danger' : 'border-l-line')}>
-          <div className="font-display text-[19px] leading-tight font-bold text-muted">Result: shown when the inspection is complete</div>
+          <div className="font-display text-[16px] leading-tight font-semibold text-muted">Result: shown when the inspection is complete</div>
           {fail ? (
             <>
               <p className="mt-1 text-sm font-semibold text-danger">Problems found so far:</p>
@@ -351,7 +351,7 @@ function InspectionForm({ entry, onSave, onCancel, onChangeTruck }) {
       <div className="flex flex-wrap items-start justify-between gap-3 rounded-lg bg-page p-4">
         <div className="min-w-0">
           <div className="text-sm font-semibold text-muted">Inspecting</div>
-          <div className="font-display text-[23px] leading-tight font-bold">
+          <div className="font-display text-[18px] leading-tight font-semibold">
             Dock {entry.dockDoor} · Trailer {entry.trailerNumber} · {entry.truckName}
           </div>
           <div className="text-[15px] text-muted">
@@ -436,7 +436,7 @@ export default function LoadingInspection({ atDock, selectedId, onSelect, onSave
 
   return (
     <section id="loading-inspection" className="scroll-mt-[calc(var(--header-h,114px)+16px)] rounded-xl bg-panel shadow-card p-5">
-      <h2 className="font-display text-[26px] leading-tight font-bold">Loading Inspection</h2>
+      <h2 className="font-display text-[20px] leading-tight font-semibold">Loading Inspection</h2>
       {entry ? (
         <div className="mt-4">
           <InspectionForm key={entry.id} entry={entry} onSave={onSave} onCancel={() => onSelect(null)} onChangeTruck={changeTruck} />

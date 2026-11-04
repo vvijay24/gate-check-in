@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { clockTime, dayKey, duration } from '../../time'
 import { DETENTION_FREE_MIN } from '../../yard'
 import { opsDay } from '../../ops'
-import { Card, Tile } from './ui'
+import { Card, Strip, Tile } from './ui'
 import { dur, money, pct, ptsDiff } from './charts'
 import { STUCK_COLUMNS } from './impact'
 import { SortTable } from './charts'
@@ -118,7 +118,7 @@ export function DayView({ entries, now, dates, docksOnly = false, onlyDock }) {
 
 // ---------- The section ----------
 
-const KpiGrid = ({ children }) => <div className="grid grid-cols-2 gap-3 md:grid-cols-3 2xl:grid-cols-6">{children}</div>
+const KpiGrid = ({ children }) => <Strip cols="grid-cols-2 md:grid-cols-3 2xl:grid-cols-6">{children}</Strip>
 
 export function ControlSection({ r, prev, trend, ops, prevOps, entries, now, impact }) {
   const n = ops.now

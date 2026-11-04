@@ -43,7 +43,7 @@ function WaitingCard({ e, now, occupied, onAssignDock, onEdit }) {
       <Stripe purposes={purposes} />
       <div className="px-3 py-2.5">
         <div className="flex flex-wrap items-baseline justify-between gap-x-3">
-          <span className="font-display text-[19px] leading-tight font-bold break-words">
+          <span className="font-display text-[16px] leading-tight font-semibold break-words">
             {e.trailerNumber} · {e.truckName}
           </span>
           <span className="text-[15px] font-semibold">Waiting {duration(waited)}</span>
@@ -89,7 +89,7 @@ function WaitingCard({ e, now, occupied, onAssignDock, onEdit }) {
 function InspectionTag({ e, wrap }) {
   const tag = wrap ? ui.tag.replace('whitespace-nowrap', 'whitespace-normal') : ui.tag
   const inspection = e.loadingInspection
-  if (!inspection) return <span className={tag + ' bg-signal-soft text-ink ring-1 ring-signal-line/40'}>Not inspected</span>
+  if (!inspection) return <span className={tag + ' bg-warn-soft text-ink ring-1 ring-warn-line/40'}>Not inspected</span>
   if (inspection.result !== 'Pass') return <span className={tag + ' bg-danger-soft text-danger'}>⚠ Inspection failed</span>
   return isReleased(e) ? (
     <span className={tag + ' bg-delivery-soft text-delivery'}>✓ Released to gate</span>
@@ -107,10 +107,10 @@ function DockCard({ e, now, onCheckOut }) {
       <div className="flex gap-4 px-3 py-2.5">
         <div className="shrink-0 text-center">
           <div className="text-[13px] font-semibold text-muted">Dock</div>
-          <div className="font-display text-[28px] leading-none font-bold">{e.dockDoor}</div>
+          <div className="font-display text-[22px] leading-none font-semibold">{e.dockDoor}</div>
         </div>
         <div className="min-w-0 flex-1">
-          <div className="font-display text-[19px] leading-tight font-bold break-words">
+          <div className="font-display text-[16px] leading-tight font-semibold break-words">
             {e.trailerNumber} · {e.truckName}
           </div>
           <Meta
@@ -150,14 +150,14 @@ function DockTile({ e, now, selected, onSelect }) {
       aria-pressed={selected}
       onClick={() => onSelect(e.id)}
       className={
-        'grid cursor-pointer grid-cols-[6px_1fr] overflow-hidden rounded-lg border-2 bg-page text-left ' +
+        'grid cursor-pointer grid-cols-[6px_1fr] overflow-hidden rounded-lg border bg-page text-left ' +
         (selected ? 'border-signal-line bg-panel' : 'border-transparent hover:border-line')
       }
     >
       <Stripe purposes={purposes} />
       <div className="min-w-0 px-2.5 py-2">
         <div className="flex items-baseline justify-between gap-2">
-          <span className="font-display text-[19px] leading-none font-bold whitespace-nowrap">Dock {e.dockDoor}</span>
+          <span className="font-display text-[16px] leading-none font-semibold whitespace-nowrap">Dock {e.dockDoor}</span>
           <span className="text-[13px] font-semibold whitespace-nowrap" title={`At dock since ${clockTime(e.dockAssignedAt)}`}>
             {duration(now - e.dockAssignedAt)}
           </span>
@@ -183,7 +183,7 @@ function DockStatus({ occupied, now, wide }) {
   const free = DOCKS.filter((d) => !occupied.has(dockKey(d))).length
   return (
     <section className="rounded-xl bg-panel shadow-card p-4">
-      <h2 className="font-display text-[21px] leading-tight font-bold">
+      <h2 className="font-display text-[17px] leading-tight font-semibold">
         Dock Status <span className="text-muted">({free} free)</span>
       </h2>
       <ul className={'mt-3 grid grid-cols-3 gap-2' + (wide ? ' md:grid-cols-6' : '')}>
@@ -193,12 +193,12 @@ function DockStatus({ occupied, now, wide }) {
             <li
               key={d}
               className={
-                'flex min-h-[92px] flex-col rounded-lg border-2 px-2 py-1.5 ' +
+                'flex min-h-[92px] flex-col rounded-lg border px-2 py-1.5 ' +
                 (truck ? 'border-ink bg-ink text-panel' : 'border-ok bg-ok-soft text-ink')
               }
             >
               <span className="text-[12px] font-semibold opacity-80">Dock</span>
-              <span className="font-display text-[28px] leading-none font-bold">{d}</span>
+              <span className="font-display text-[22px] leading-none font-semibold">{d}</span>
               {truck ? (
                 <span className="mt-auto text-[12px] leading-tight">
                   <b className="block">In use</b>
@@ -224,7 +224,7 @@ function StagingBays({ entries, now, wide }) {
   const open = bays.filter((e) => !e).length
   return (
     <section className="rounded-xl bg-panel shadow-card p-4">
-      <h2 className="font-display text-[21px] leading-tight font-bold">
+      <h2 className="font-display text-[17px] leading-tight font-semibold">
         Staging Bays <span className="text-muted">({open} open)</span>
       </h2>
       <ul className={'mt-3 grid grid-cols-3 gap-2' + (wide ? ' md:grid-cols-6' : '')}>
@@ -232,12 +232,12 @@ function StagingBays({ entries, now, wide }) {
           <li
             key={i}
             className={
-              'flex min-h-[92px] flex-col rounded-lg border-2 px-2 py-1.5 ' +
-              (!e ? 'border-ok bg-ok-soft text-ink' : isDrop(e) ? 'border-drop bg-drop-soft text-ink' : 'border-signal-line bg-signal-soft text-ink')
+              'flex min-h-[92px] flex-col rounded-lg border px-2 py-1.5 ' +
+              (!e ? 'border-ok bg-ok-soft text-ink' : isDrop(e) ? 'border-drop bg-drop-soft text-ink' : 'border-warn-line bg-warn-soft text-ink')
             }
           >
             <span className="text-[12px] font-semibold opacity-80">Bay</span>
-            <span className="font-display text-[28px] leading-none font-bold">{i + 1}</span>
+            <span className="font-display text-[22px] leading-none font-semibold">{i + 1}</span>
             {e ? (
               <span className="mt-auto text-[12px] leading-tight">
                 <b className="block">{isDrop(e) ? 'Dropped' : 'Waiting'}</b>
@@ -267,7 +267,7 @@ function Panel({ id, title, count, empty, emptyKind, tiles, action, className = 
   return (
     <section id={id} className={'scroll-mt-[calc(var(--header-h,114px)+16px)] rounded-xl bg-panel shadow-card p-4 ' + className}>
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="font-display text-[21px] leading-tight font-bold">
+        <h2 className="font-display text-[17px] leading-tight font-semibold">
           {title} <span className="text-muted">({count})</span>
         </h2>
         {action}
@@ -427,7 +427,7 @@ function LiveYard({ entries, onEdit, onCheckOut, onInspect, stretch, highlightId
   return (
     <section className={'rounded-xl bg-panel shadow-card p-4 sm:col-span-2 lg:col-span-1' + (stretch ? ' h-full' : '')}>
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="font-display text-[21px] leading-tight font-bold">{inspecting ? 'Inspection Map' : 'Live Yard Map'}</h2>
+        <h2 className="font-display text-[17px] leading-tight font-semibold">{inspecting ? 'Inspection Map' : 'Live Yard Map'}</h2>
         <div className="flex flex-wrap items-center gap-3">
           {onInspect && (
             <div role="group" aria-label="Map view" className="flex gap-1">
@@ -441,8 +441,8 @@ function LiveYard({ entries, onEdit, onCheckOut, onInspect, stretch, highlightId
                   aria-pressed={view === id}
                   onClick={() => setView(id)}
                   className={
-                    'min-h-11 cursor-pointer rounded-md border-2 px-3 text-[14px] font-semibold ' +
-                    (view === id ? 'border-signal bg-signal text-signal-ink' : 'border-line bg-panel text-ink')
+                    'min-h-11 cursor-pointer rounded-md border px-3 text-[14px] font-semibold ' +
+                    (view === id ? 'border-signal bg-signal text-signal-ink' : 'border-edge bg-panel text-ink hover:bg-field')
                   }
                 >
                   {label}
@@ -477,7 +477,7 @@ function LiveYard({ entries, onEdit, onCheckOut, onInspect, stretch, highlightId
         {/* Padding sits on this wrapper so a click inside the pop-up never reaches the dialog itself. */}
         <div className="p-5">
           <div className="flex items-center justify-between gap-3">
-            <h2 className="font-display text-[26px] leading-tight font-bold">{inspecting ? 'Inspection Map' : 'Live Yard Map'}</h2>
+            <h2 className="font-display text-[20px] leading-tight font-semibold">{inspecting ? 'Inspection Map' : 'Live Yard Map'}</h2>
             <button type="button" onClick={close} className={ui.btnSmall}>
               ✕ Close
             </button>
@@ -594,7 +594,7 @@ function SummaryStrip({ entries }) {
       tone: awaiting ? 'warn' : undefined,
     },
   ]
-  const toneBar = { good: 'bg-ok', warn: 'bg-signal', alert: 'bg-danger' }
+  const toneBar = { good: 'bg-ok', warn: 'bg-warn', alert: 'bg-danger' }
 
   return (
     <section aria-label="Right now" className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
@@ -604,7 +604,7 @@ function SummaryStrip({ entries }) {
           <div className="text-[13px] font-semibold text-muted">{it.label}</div>
           {/* The trend line drops below the figure when the tile is too narrow for both. */}
           <div className="flex flex-wrap items-end justify-between gap-x-2">
-            <div className="font-display text-[30px] leading-tight font-bold whitespace-nowrap tabular-nums">{it.value}</div>
+            <div className="font-display text-[24px] leading-tight font-semibold whitespace-nowrap tabular-nums">{it.value}</div>
             <Sparkline values={it.trend} title={`${it.label}, last 8 hours: ${it.trend[0]} → ${it.trend[it.trend.length - 1]}`} />
           </div>
           <div className={'text-[13px] ' + (it.tone === 'alert' ? 'font-semibold text-danger' : 'text-muted')}>{it.note}</div>
@@ -633,7 +633,7 @@ function ReadyForRelease({ entries, onStartRelease }) {
           <Stripe purposes={e.visitPurpose ?? []} />
           <div className="flex min-w-0 flex-col gap-1 px-2.5 py-2">
             <div className="flex flex-wrap items-baseline justify-between gap-x-2">
-              <span className="font-display text-[19px] leading-tight font-bold whitespace-nowrap">Dock {e.dockDoor}</span>
+              <span className="font-display text-[16px] leading-tight font-semibold whitespace-nowrap">Dock {e.dockDoor}</span>
               {e.loadingInspection.inspectedAt && (
                 <span className="text-[13px] font-semibold whitespace-nowrap">Passed {ago(now - e.loadingInspection.inspectedAt)}</span>
               )}

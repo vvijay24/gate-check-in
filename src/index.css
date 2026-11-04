@@ -1,30 +1,54 @@
 @import "tailwindcss";
 
-/* Palette and type from guard-shack-log.html. Utilities read these variables,
-   so the dark-mode overrides below restyle everything automatically. */
+/* Fonts ship with the app (public/fonts, SIL Open Font License) so they load offline and on locked-down networks. */
+@font-face { font-family: "IBM Plex Sans"; font-style: normal; font-weight: 400; font-display: swap; src: url("/fonts/ibm-plex-sans-latin-400-normal.woff2") format("woff2"); }
+@font-face { font-family: "IBM Plex Sans"; font-style: normal; font-weight: 500; font-display: swap; src: url("/fonts/ibm-plex-sans-latin-500-normal.woff2") format("woff2"); }
+@font-face { font-family: "IBM Plex Sans"; font-style: normal; font-weight: 600; font-display: swap; src: url("/fonts/ibm-plex-sans-latin-600-normal.woff2") format("woff2"); }
+@font-face { font-family: "IBM Plex Sans"; font-style: normal; font-weight: 700; font-display: swap; src: url("/fonts/ibm-plex-sans-latin-700-normal.woff2") format("woff2"); }
+@font-face { font-family: "IBM Plex Mono"; font-style: normal; font-weight: 500; font-display: swap; src: url("/fonts/ibm-plex-mono-latin-500-normal.woff2") format("woff2"); }
+@font-face { font-family: "IBM Plex Mono"; font-style: normal; font-weight: 600; font-display: swap; src: url("/fonts/ibm-plex-mono-latin-600-normal.woff2") format("woff2"); }
+@font-face { font-family: "Barlow Condensed"; font-style: normal; font-weight: 700; font-display: swap; src: url("/fonts/barlow-condensed-latin-700-normal.woff2") format("woff2"); }
+
+/* "Control Room" design language: slate neutrals, hairline panels, one blue accent for selection
+   and primary actions, amber kept for live states and warnings. Utilities read these variables, so
+   the dark-mode overrides below restyle everything automatically. */
 @theme {
-  --font-body: "Barlow", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  --font-display: "Barlow Condensed", "Arial Narrow", "Roboto Condensed", sans-serif;
+  --font-body: "IBM Plex Sans", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  /* Headings use the same family, semibold; the display name is kept so existing classes still work. */
+  --font-display: "IBM Plex Sans", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Consolas, monospace;
+  /* Carrier lettering painted on the yard map's trailers stays condensed, like real trailer graphics. */
+  --font-scene: "Barlow Condensed", "Arial Narrow", sans-serif;
 
-  /* Cards sit on soft shadows instead of outlines (an outline is added in dark mode, below). */
-  --shadow-card: 0 1px 2px rgb(16 24 32 / 0.06), 0 6px 18px -6px rgb(16 24 32 / 0.12);
-  --shadow-raised: 0 2px 6px rgb(16 24 32 / 0.08), 0 16px 40px -12px rgb(16 24 32 / 0.28);
+  /* Tight corners: panels 8px, controls 6px. */
+  --radius-xl: 0.5rem;
+  --radius-lg: 0.375rem;
+  --radius-md: 0.3125rem;
 
-  --color-page: #eceeef;
+  /* Panels are drawn with a hairline, not a floating shadow; raised layers (menus, dialogs) lift. */
+  --shadow-card: 0 0 0 1px var(--color-line), 0 1px 2px rgb(15 23 42 / 0.04);
+  --shadow-raised: 0 0 0 1px var(--color-line), 0 12px 32px -8px rgb(15 23 42 / 0.22);
+
+  --color-page: #f1f4f7;
   --color-panel: #ffffff;
-  --color-ink: #1b1e21;
-  --color-muted: #5e666d;
-  --color-line: #d3d7da;
-  --color-field: #f5f6f7;
-  --color-chrome: #1b1e21;
-  --color-signal-ink: #1b1e21;
-  /* Safety amber: the one accent, for primary buttons and active states (8.2:1 with signal-ink).
-     `signal-soft` tints status tags and tiles, read with the normal ink. */
-  --color-signal: #f5a524;
-  --color-signal-soft: #fdf0d5;
-  /* The accent as a thin line (focus ring, selected tile, active filter, warning edge). The amber fill
-     above is only 2:1 on white, so lines use this deeper amber (4.9:1 on white, 3.7:1 on asphalt). */
-  --color-signal-line: #9a6700;
+  --color-ink: #0f172a;
+  --color-muted: #536175;
+  --color-line: #e2e8f0;
+  /* Control edges (inputs, outline buttons): 3:1 on white, so a field's boundary is visible. */
+  --color-edge: #8a97a8;
+  --color-field: #f8fafc;
+  --color-chrome: #0f172a;
+  /* Accent blue: selection, primary buttons, links in context (5.2:1 white on it). The `signal`
+     name is kept from the first design so every selected state picks it up. */
+  --color-signal: #2563eb;
+  --color-signal-ink: #ffffff;
+  --color-signal-soft: #eaf1ff;
+  --color-signal-line: #1d4ed8;
+  /* Amber: live / now markers, warnings and "needs attention" (never selection). */
+  --color-warn: #f59e0b;
+  --color-warn-ink: #1f1300;
+  --color-warn-soft: #fef3c7;
+  --color-warn-line: #b45309;
 
   --color-delivery: #1f6fb2;
   --color-delivery-soft: #e3eef8;
@@ -55,16 +79,16 @@
 
   /* Overview sidebar: a dark rail joined to the header. The text colors are for use on the rail and
      stay the same in dark mode; only the rail itself gets deeper there (see below). */
-  --color-rail: #1b1e21;
-  --color-rail-text: #c9d0d5;
-  --color-rail-muted: #9aa3aa;
-  --color-rail-alert: #f08080;
+  --color-rail: #0f172a;
+  --color-rail-text: #cbd5e1;
+  --color-rail-muted: #8a97a8;
+  --color-rail-alert: #fca5a5;
 
   /* Yard map and meter tracks */
   --color-asphalt: #dde1e4;
   --color-bay: #f5f6f7;
   --color-building: #c9ced2;
-  --color-track: #e3e6e8;
+  --color-track: #e2e8f0;
 
   /* Isometric yard scene: ground, building, vehicles and carrier paints. Paints avoid the status hues
      (blue, green, purple, yellow) so a truck's color never reads as its status. */
@@ -99,17 +123,23 @@
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --color-page: #16191c;
-    --color-panel: #20252a;
-    --color-ink: #eceff1;
-    --color-muted: #9aa3aa;
-    --color-line: #343b42;
-    --color-field: #181c20;
-    --color-signal-line: #f7c35f;
-    --color-signal: #f2b33d;
-    --color-signal-soft: #3d3119;
-    --shadow-card: 0 0 0 1px var(--color-line), 0 8px 20px -8px rgb(0 0 0 / 0.5);
-    --shadow-raised: 0 0 0 1px var(--color-line), 0 18px 44px -12px rgb(0 0 0 / 0.7);
+    --color-page: #0a0f1c;
+    --color-panel: #111827;
+    --color-ink: #e5e9f0;
+    --color-muted: #94a3b8;
+    --color-line: #1f2a3c;
+    --color-edge: #5b6b80;
+    --color-field: #0d1424;
+    --color-chrome: #060b17;
+    --color-signal: #3b82f6;
+    --color-signal-ink: #ffffff;
+    --color-signal-soft: #15254a;
+    --color-signal-line: #7aa7ff;
+    --color-warn: #f59e0b;
+    --color-warn-soft: #3a2a0b;
+    --color-warn-line: #fbbf24;
+    --shadow-card: 0 0 0 1px var(--color-line), 0 1px 2px rgb(0 0 0 / 0.3);
+    --shadow-raised: 0 0 0 1px var(--color-line), 0 16px 40px -10px rgb(0 0 0 / 0.7);
     --color-delivery: #5ca4e3;
     --color-delivery-soft: #1c2c3b;
     --color-pickup: #5bbf86;
@@ -130,11 +160,11 @@
     --color-stage-2: #2f78bd;
     --color-stage-3: #5ca4e3;
     --color-stage-4: #a9cdee;
-    --color-rail: #0d0f11;
+    --color-rail: #060b17;
     --color-asphalt: #2a3036;
     --color-bay: #1d2226;
     --color-building: #3a4148;
-    --color-track: #2c3238;
+    --color-track: #1f2a3c;
     --color-iso-ground: #253024;
     --color-iso-lot: #30363c;
     --color-iso-paint: #c9ced2;
@@ -160,17 +190,23 @@
   }
 }
 :root[data-theme="dark"] {
-  --color-page: #16191c;
-  --color-panel: #20252a;
-  --color-ink: #eceff1;
-  --color-muted: #9aa3aa;
-  --color-line: #343b42;
-  --color-field: #181c20;
-  --color-signal-line: #f7c35f;
-  --color-signal: #f2b33d;
-  --color-signal-soft: #3d3119;
-  --shadow-card: 0 0 0 1px var(--color-line), 0 8px 20px -8px rgb(0 0 0 / 0.5);
-  --shadow-raised: 0 0 0 1px var(--color-line), 0 18px 44px -12px rgb(0 0 0 / 0.7);
+  --color-page: #0a0f1c;
+  --color-panel: #111827;
+  --color-ink: #e5e9f0;
+  --color-muted: #94a3b8;
+  --color-line: #1f2a3c;
+  --color-edge: #5b6b80;
+  --color-field: #0d1424;
+  --color-chrome: #060b17;
+  --color-signal: #3b82f6;
+  --color-signal-ink: #ffffff;
+  --color-signal-soft: #15254a;
+  --color-signal-line: #7aa7ff;
+  --color-warn: #f59e0b;
+  --color-warn-soft: #3a2a0b;
+  --color-warn-line: #fbbf24;
+  --shadow-card: 0 0 0 1px var(--color-line), 0 1px 2px rgb(0 0 0 / 0.3);
+  --shadow-raised: 0 0 0 1px var(--color-line), 0 16px 40px -10px rgb(0 0 0 / 0.7);
   --color-delivery: #5ca4e3;
   --color-delivery-soft: #1c2c3b;
   --color-pickup: #5bbf86;
@@ -191,11 +227,11 @@
   --color-stage-2: #2f78bd;
   --color-stage-3: #5ca4e3;
   --color-stage-4: #a9cdee;
-  --color-rail: #0d0f11;
+  --color-rail: #060b17;
   --color-asphalt: #2a3036;
   --color-bay: #1d2226;
   --color-building: #3a4148;
-  --color-track: #2c3238;
+  --color-track: #1f2a3c;
   --color-iso-ground: #253024;
   --color-iso-lot: #30363c;
   --color-iso-paint: #c9ced2;
@@ -229,20 +265,27 @@ body {
   background: var(--color-page);
   color: var(--color-ink);
   font-family: var(--font-body);
-  font-size: 15px;
-  line-height: 1.45;
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
 }
+/* Headings: semibold and slightly tight, never the heavy condensed face of the first design. */
+.font-display { letter-spacing: -0.012em; }
+/* Figures: KPI values, clocks and table numbers line up in the mono face. */
+.figure { font-family: var(--font-mono); font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+/* Small caps-style labels above figures and table headers. */
+.eyebrow { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; }
 
 :focus-visible {
   outline: 3px solid var(--color-signal-line);
   outline-offset: 2px;
 }
-/* On the dark header and Overview rail the pale yellow reads best. */
+/* On the dark header and Insights rail a lighter blue reads best. */
 .on-chrome :focus-visible {
-  outline-color: var(--color-signal);
+  outline-color: #7aa7ff;
 }
 @media (min-width: 64rem) {
-  .rail :focus-visible { outline-color: var(--color-signal); }
+  .rail :focus-visible { outline-color: #7aa7ff; }
 }
 
 /* Yard map icons: SVG groups don't draw an outline, so the hit area shows focus instead. */

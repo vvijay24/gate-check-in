@@ -27,7 +27,7 @@ const STATUSES = [
 const statusOf = (s) => (s.drop ? 'Dropped trailer' : s.onSite ? 'On site' : 'Departed')
 
 const COLUMNS = [
-  { id: 'visit', label: 'Visit', value: (s) => arrivalMs(s.e), render: visitCell, minW: 190 },
+  { id: 'visit', label: 'Visit', value: (s) => arrivalMs(s.e), render: visitCell, minW: 170 },
   { id: 'purpose', label: 'Purpose', value: (s) => (s.e.visitPurpose ?? []).join(', '), render: (s) => (s.e.visitPurpose ?? []).join(', ') || '—' },
   {
     id: 'dock',
@@ -109,15 +109,15 @@ export function ExplorerSection({ entries, range, now }) {
     XLSX.writeFile(book, `visits-${range.from}-to-${range.to}.xlsx`)
   }
 
-  const field = 'min-h-11 rounded-md border-2 border-line bg-panel px-3 text-ink'
+  const field = 'min-h-10 rounded-md border border-edge bg-panel px-3 text-[13.5px] text-ink'
   return (
     <Card
       title="Every Visit"
       sub={`${rows.length} of ${all.length} visits in this range · ${money(cost)} est. detention among them · click a visit to open it`}
     >
       <div className="flex flex-wrap items-end gap-3 px-5 pt-4">
-        <label className="min-w-0 flex-1 basis-60 text-sm font-semibold text-muted">
-          <span className="block">Search</span>
+        <label className="min-w-0 flex-1 basis-60 text-[12px] font-medium text-muted">
+          <span className="mb-1 block">Search</span>
           <input
             type="search"
             value={query}
@@ -129,7 +129,7 @@ export function ExplorerSection({ entries, range, now }) {
             className={field + ' w-full'}
           />
         </label>
-        <div role="group" aria-label="Show" className="flex flex-wrap gap-1.5">
+        <div role="group" aria-label="Show" className="inline-flex flex-wrap gap-0.5 rounded-md bg-track p-0.5">
           {STATUSES.map((s) => (
             <button
               key={s.id}
@@ -140,8 +140,8 @@ export function ExplorerSection({ entries, range, now }) {
                 setPage(0)
               }}
               className={
-                'min-h-11 cursor-pointer rounded-full border-2 px-3.5 text-sm font-semibold ' +
-                (status === s.id ? 'border-ink bg-ink text-panel' : 'border-line bg-panel text-ink hover:border-ink/40')
+                'min-h-9 cursor-pointer rounded-[5px] px-3 text-[13px] font-medium whitespace-nowrap ' +
+                (status === s.id ? 'bg-panel text-ink shadow-[0_1px_2px_rgb(15_23_42/0.14),0_0_0_1px_var(--color-line)]' : 'text-muted hover:text-ink')
               }
             >
               {s.label}
@@ -152,7 +152,7 @@ export function ExplorerSection({ entries, range, now }) {
           Export these
         </button>
       </div>
-      <SortTable columns={COLUMNS} rows={rows} pageSize={PAGE} page={at} rowKey={(s) => s.e.id} initial={{ id: 'visit', dir: 'desc' }} minWidth={1080} empty="No visits match." />
+      <SortTable columns={COLUMNS} rows={rows} pageSize={PAGE} page={at} rowKey={(s) => s.e.id} initial={{ id: 'visit', dir: 'desc' }} minWidth={980} empty="No visits match." />
       {pages > 1 && (
         <div className="flex flex-wrap items-center justify-between gap-2 px-5 py-3 text-sm">
           <span className="text-muted">

@@ -106,14 +106,18 @@ function writeUrl({ section, preset, range, filters, profile }) {
 
 // ---------- Toolbar and filters ----------
 
+// One option of a segmented control: the chosen one is a raised white chip on the gray track.
 const segCls = (on) =>
-  'min-h-11 cursor-pointer rounded-md border-2 px-3.5 font-semibold ' + (on ? 'border-signal bg-signal text-signal-ink' : 'border-line bg-panel text-ink')
+  'min-h-9 cursor-pointer rounded-[5px] px-3 text-[13px] font-medium whitespace-nowrap transition-colors ' +
+  (on ? 'bg-panel text-ink shadow-[0_1px_2px_rgb(15_23_42/0.14),0_0_0_1px_var(--color-line)]' : 'text-muted hover:text-ink')
+// An outlined toolbar control.
+const ctlCls = 'flex min-h-9 cursor-pointer items-center gap-1.5 rounded-md border border-edge bg-panel px-3 text-[13px] font-medium text-ink hover:bg-field'
 
 function FilterPanel({ filters, options, onChange }) {
-  const sel = 'min-h-11 w-full rounded-md border-2 border-line bg-panel px-2 text-ink'
+  const sel = 'min-h-10 w-full rounded-md border border-edge bg-panel px-2 text-[13.5px] text-ink'
   const field = (key, label, items) => (
-    <label className="text-sm font-semibold text-muted">
-      <span className="block">{label}</span>
+    <label className="text-[12px] font-medium text-muted">
+      <span className="mb-1 block">{label}</span>
       <select value={filters[key]} onChange={(ev) => onChange({ ...filters, [key]: ev.target.value })} className={sel}>
         {items.map(([v, l]) => (
           <option key={v} value={v}>
@@ -141,26 +145,33 @@ function FilterPanel({ filters, options, onChange }) {
 function Toolbar({ from, to, today, preset, onPreset, onRange, days, filters, options, onFilters, exportButton, onCopyLink, copied }) {
   const custom = useRef(null)
   const [showFilters, setShowFilters] = useState(false)
-  const dateCls = 'min-h-11 rounded-md border-2 border-line bg-panel px-2 text-ink'
+  const dateCls = 'min-h-10 rounded-md border border-edge bg-panel px-2 text-[13.5px] text-ink'
   const close = () => custom.current && (custom.current.open = false)
   const active = activeFilters(filters)
   return (
-    <div className="no-print rounded-xl bg-panel p-2.5 shadow-card">
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-        <div role="group" aria-label="Date range" className="flex flex-wrap items-center gap-2">
-          {PRESETS.map((n) => (
-            <button key={n} type="button" aria-pressed={preset === n} onClick={() => onPreset(n)} className={segCls(preset === n)}>
-              {n === 'golive' ? 'Since go-live' : `Last ${n} days`}
-            </button>
-          ))}
+    <div className="no-print rounded-xl bg-panel px-3 py-2.5 shadow-card">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <div role="group" aria-label="Date range" className="inline-flex flex-wrap gap-0.5 rounded-md bg-track p-0.5">
+            {PRESETS.map((n) => (
+              <button key={n} type="button" aria-pressed={preset === n} onClick={() => onPreset(n)} className={segCls(preset === n)}>
+                {n === 'golive' ? 'Since go-live' : `${n}D`}
+                <span className="sr-only">{n === 'golive' ? '' : ` (last ${n} days)`}</span>
+              </button>
+            ))}
+          </div>
           <details ref={custom} className="relative" onKeyDown={(ev) => ev.key === 'Escape' && close()}>
             <summary
-              className={
-                'flex min-h-11 cursor-pointer list-none items-center gap-1.5 rounded-md border-2 px-3.5 font-semibold [&::-webkit-details-marker]:hidden ' +
-                (preset ? 'border-line bg-panel text-ink' : 'border-signal bg-signal text-signal-ink')
-              }
+              className={ctlCls + ' list-none [&::-webkit-details-marker]:hidden ' + (preset ? '' : 'border-signal ring-1 ring-signal')}
             >
-              {shortDate(from)} → {shortDate(to)} <span aria-hidden="true">▾</span>
+              <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4 text-muted" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+                <rect x="3" y="5" width="18" height="16" rx="2" />
+                <path d="M3 10h18M8 3v4M16 3v4" />
+              </svg>
+              <span className="figure text-[12.5px]">
+                {shortDate(from)} – {shortDate(to)}
+              </span>
+              <span aria-hidden="true" className="text-muted">▾</span>
               <span className="sr-only">, choose custom dates</span>
             </summary>
             <div className="absolute left-0 z-20 mt-1.5 flex flex-wrap items-end gap-2 rounded-xl bg-panel p-3 shadow-raised">
@@ -177,17 +188,23 @@ function Toolbar({ from, to, today, preset, onPreset, onRange, days, filters, op
               </button>
             </div>
           </details>
-          <button type="button" aria-expanded={showFilters} onClick={() => setShowFilters((v) => !v)} className={segCls(false) + ' flex items-center gap-2'}>
-            <span aria-hidden="true">⚲</span> Filters
-            {active.length > 0 && <span className="rounded-full bg-ink px-2 text-[12px] leading-5 text-panel">{active.length}</span>}
+          <button type="button" aria-expanded={showFilters} onClick={() => setShowFilters((v) => !v)} className={ctlCls + (showFilters ? ' bg-field' : '')}>
+            <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4 text-muted" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 5h18l-7 8v6l-4 2v-8L3 5z" />
+            </svg>
+            Filters
+            {active.length > 0 && <span className="figure rounded bg-signal px-1.5 text-[11px] leading-5 text-signal-ink">{active.length}</span>}
           </button>
         </div>
-        <span className="hidden text-sm text-muted 2xl:inline">
+        <span className="hidden text-[12px] text-muted 2xl:inline">
           {days} day{days === 1 ? '' : 's'} · ▲/▼ vs the {days} days before
         </span>
         <span className="ml-auto flex items-center gap-2">
-          <button type="button" onClick={onCopyLink} className={ui.btnSmall} aria-live="polite">
-            {copied ? 'Link copied ✓' : 'Copy link'}
+          <button type="button" onClick={onCopyLink} className={ctlCls} aria-live="polite">
+            <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4 text-muted" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+              <path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1" />
+            </svg>
+            {copied ? 'Copied ✓' : 'Copy link'}
           </button>
           {exportButton}
         </span>
@@ -199,19 +216,19 @@ function Toolbar({ from, to, today, preset, onPreset, onRange, days, filters, op
       )}
       {active.length > 0 && (
         <div className="mt-2.5 flex flex-wrap items-center gap-2 border-t border-line px-1 pt-2.5">
-          <span className="text-sm font-semibold text-muted">Showing only:</span>
+          <span className="eyebrow text-muted">Filtered</span>
           {active.map((k) => (
             <button
               key={k}
               type="button"
               onClick={() => onFilters({ ...filters, [k]: '' })}
               aria-label={`Remove filter ${FILTER_LABEL[k](filters[k])}`}
-              className="flex min-h-9 cursor-pointer items-center gap-1.5 rounded-full bg-signal-soft px-3 text-sm font-semibold text-ink ring-1 ring-signal-line/40 hover:ring-signal-line"
+              className="flex min-h-8 cursor-pointer items-center gap-1.5 rounded-md bg-signal-soft px-2.5 text-[12.5px] font-medium text-signal-line ring-1 ring-signal/25 hover:ring-signal"
             >
               {FILTER_LABEL[k](filters[k])} <span aria-hidden="true">×</span>
             </button>
           ))}
-          <button type="button" onClick={() => onFilters(NO_FILTERS)} className="min-h-9 cursor-pointer text-sm font-semibold underline">
+          <button type="button" onClick={() => onFilters(NO_FILTERS)} className="min-h-8 cursor-pointer text-[12.5px] font-medium text-muted underline hover:text-ink">
             Clear all
           </button>
         </div>
@@ -228,15 +245,15 @@ export const RAIL_PAD = 'lg:pl-[max(0px,calc(240px_-_max(0px,(100vw_-_1400px)/2)
 // in App) to the bottom of the window, with the sections under their group headings.
 // Narrow screens: a row of light buttons above the content.
 function Sidebar({ section, onSelect, keys, sampleControl, settingsControl, inProfile }) {
-  const toneCls = { alert: 'font-semibold text-danger lg:text-rail-alert', warn: 'font-semibold text-ink lg:text-white' }
+  const toneCls = { alert: 'text-danger lg:text-rail-alert', warn: 'text-warn-line lg:text-warn' }
   return (
-    <aside className="rail no-print min-w-0 lg:fixed lg:top-[var(--header-h,114px)] lg:bottom-0 lg:left-0 lg:z-[5] lg:w-60 lg:overflow-y-auto lg:bg-rail">
-      <nav aria-label="Insights sections" className="lg:py-3">
-        <ul className="flex gap-2 overflow-x-auto pb-1 lg:block lg:overflow-visible lg:px-3 lg:pb-0">
+    <aside className="rail no-print min-w-0 lg:fixed lg:top-[var(--header-h,114px)] lg:bottom-0 lg:left-0 lg:z-[5] lg:w-60 lg:overflow-y-auto lg:border-r lg:border-white/[0.06] lg:bg-rail">
+      <nav aria-label="Insights sections" className="lg:px-3 lg:py-3">
+        <ul className="flex gap-1.5 overflow-x-auto pb-1 lg:block lg:overflow-visible lg:pb-0">
           {GROUPS.map((g) => (
             <li key={g} className="contents lg:block">
-              <span className="hidden px-3 pt-3 pb-1 text-[11px] font-bold tracking-[0.12em] text-rail-muted uppercase lg:block">{g}</span>
-              <ul className="contents lg:block lg:space-y-1">
+              <span className="eyebrow hidden px-3 pt-4 pb-1.5 text-[10.5px] text-rail-muted/80 lg:block">{g}</span>
+              <ul className="contents lg:block lg:space-y-0.5">
                 {SECTIONS.filter((s) => s.group === g).map((s) => {
                   const on = section === s.id
                   const k = keys[s.id]
@@ -247,16 +264,17 @@ function Sidebar({ section, onSelect, keys, sampleControl, settingsControl, inPr
                         aria-current={on ? 'page' : undefined}
                         onClick={() => onSelect(s.id)}
                         className={
-                          'min-h-11 w-full cursor-pointer rounded-md border-2 px-3.5 py-1.5 text-left whitespace-nowrap ' +
-                          'lg:flex lg:min-h-14 lg:flex-col lg:justify-center lg:border-0 lg:border-l-[3px] lg:px-3 lg:py-1.5 ' +
+                          'relative min-h-10 w-full cursor-pointer rounded-md border px-3 py-1.5 text-left whitespace-nowrap transition-colors ' +
+                          'lg:flex lg:min-h-12 lg:flex-col lg:justify-center lg:border-0 lg:py-1.5 ' +
+                          'lg:before:absolute lg:before:top-2 lg:before:bottom-2 lg:before:left-0 lg:before:w-[3px] lg:before:rounded-full ' +
                           (on
-                            ? 'border-signal bg-signal text-signal-ink lg:border-l-signal-ink/40' + (inProfile ? ' lg:bg-signal/80' : '')
-                            : 'border-line bg-panel text-ink hover:bg-field lg:border-l-transparent lg:bg-transparent lg:text-rail-text lg:hover:bg-white/10 lg:hover:text-white')
+                            ? 'border-signal bg-signal-soft text-signal-line lg:bg-white/[0.07] lg:text-white lg:before:bg-signal' + (inProfile ? ' lg:before:bg-signal/60' : '')
+                            : 'border-edge bg-panel text-ink hover:bg-field lg:bg-transparent lg:text-rail-text lg:hover:bg-white/[0.05] lg:hover:text-white')
                         }
                       >
-                        <span className="block font-semibold lg:text-[16px] lg:leading-tight">{s.label}</span>
+                        <span className="block text-[13.5px] leading-tight font-medium">{s.label}</span>
                         {k && (
-                          <span className={'block text-[13px] tabular-nums lg:mt-0.5 ' + (on ? (k.tone ? 'font-semibold' : '') : (toneCls[k.tone] ?? 'text-muted lg:text-rail-muted'))}>
+                          <span className={'figure block text-[11.5px] lg:mt-0.5 ' + (toneCls[k.tone] ?? (on ? 'lg:text-rail-text' : 'text-muted lg:text-rail-muted'))}>
                             {k.tone && '⚠ '}
                             {k.key}
                           </span>
@@ -269,7 +287,7 @@ function Sidebar({ section, onSelect, keys, sampleControl, settingsControl, inPr
             </li>
           ))}
         </ul>
-        <div className="mx-3 mt-4 hidden flex-col items-start border-t border-white/15 px-3 pt-2 lg:flex">
+        <div className="mt-4 hidden flex-col items-start border-t border-white/[0.08] px-3 pt-2 lg:flex">
           {settingsControl}
           {sampleControl}
         </div>
@@ -534,7 +552,7 @@ export default function Analytics({ entries, gateEvents = [], sampleCount, onLoa
   const backLabel = backTo ? `Back to ${PROFILE_WORD[backTo.kind].toLowerCase()} ${profileName(backTo)}` : `Back to ${current.label}`
 
   const settingsControl = (colors = 'text-muted hover:text-ink') => (
-    <button type="button" onClick={() => setSettingsOpen(true)} className={'min-h-11 cursor-pointer text-sm font-semibold underline ' + colors}>
+    <button type="button" onClick={() => setSettingsOpen(true)} className={'min-h-10 cursor-pointer text-[12.5px] font-medium underline underline-offset-2 ' + colors}>
       Targets &amp; go-live
     </button>
   )
@@ -544,12 +562,12 @@ export default function Analytics({ entries, gateEvents = [], sampleCount, onLoa
       <button
         type="button"
         onClick={() => window.confirm(`Remove the ${sampleCount} sample visits? Your real entries are kept.`) && onRemoveSample()}
-        className={'min-h-11 cursor-pointer text-sm font-semibold underline ' + colors}
+        className={'min-h-10 cursor-pointer text-[12.5px] font-medium underline underline-offset-2 ' + colors}
       >
         Remove sample data ({sampleCount})
       </button>
     ) : (
-      <button type="button" onClick={onLoadSample} className={'min-h-11 cursor-pointer text-sm font-semibold underline ' + colors}>
+      <button type="button" onClick={onLoadSample} className={'min-h-10 cursor-pointer text-[12.5px] font-medium underline underline-offset-2 ' + colors}>
         Load sample data
       </button>
     )
@@ -557,7 +575,7 @@ export default function Analytics({ entries, gateEvents = [], sampleCount, onLoa
   const exportButton = (
     <span className="flex items-center gap-2">
       {exportError && <span className="font-semibold text-danger">{exportError}</span>}
-      <button type="button" onClick={handleExport} disabled={!hasData || exporting} className={ui.btnSmallPrimary}>
+      <button type="button" onClick={handleExport} disabled={!hasData || exporting} className={ui.btnSmallPrimary.replace('min-h-10', 'min-h-9').replace('text-[14px]', 'text-[13px]')}>
         {exporting ? 'Exporting…' : 'Export'}
       </button>
     </span>
@@ -612,7 +630,7 @@ export default function Analytics({ entries, gateEvents = [], sampleCount, onLoa
             />
           ) : (
             <>
-              <SectionHeading title={current.label} sub={`${current.group} · ${current.sub}`} />
+              <SectionHeading title={current.label} sub={current.sub} crumbs={['Insights', current.group]} />
               {!hasData ? (
                 <Card
                   title="No visits in this range"

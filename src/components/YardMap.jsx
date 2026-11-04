@@ -12,7 +12,7 @@ import { GATES } from '../formConfig'
 // and the rig itself (tractor + trailer, or a trailer on landing gear) carry the status too.
 export const STATUS = {
   // The pale yellow fill gets an amber outline (`line`) so waiting trucks stand out from the bays.
-  waiting: { fill: 'var(--color-signal)', line: 'var(--color-signal-line)', dot: 'bg-signal ring-1 ring-signal-line', label: 'Waiting for a dock' },
+  waiting: { fill: 'var(--color-warn)', line: 'var(--color-warn-line)', dot: 'bg-warn ring-1 ring-warn-line', label: 'Waiting for a dock' },
   dock: { fill: 'var(--color-delivery)', dot: 'bg-delivery', label: 'At dock' },
   ready: { fill: 'var(--color-ok)', dot: 'bg-ok', label: 'Loaded, ready to leave' },
   drop: { fill: 'var(--color-drop)', dot: 'bg-drop', label: 'Dropped trailer' },
@@ -39,7 +39,7 @@ const short = (s, n) => (s && s.length > n ? s.slice(0, n - 1) + '…' : s || ''
 // Drawn centered on (0, 0) with radius 11.
 export function StatusPin({ status }) {
   const dark = status === 'waiting'
-  const ink = dark ? 'var(--color-signal-ink)' : 'white'
+  const ink = dark ? 'var(--color-warn-ink)' : 'white'
   return (
     <g>
       <circle r={11} fill={STATUS[status].fill} stroke={STATUS[status].line ?? 'white'} strokeWidth={2} />
@@ -84,8 +84,8 @@ function AlertBadge() {
 function Plate({ lines, tone }) {
   const width = Math.max(...lines.map((l) => l.text.length * (l.size ?? 12.5) * 0.58)) + 14
   const height = lines.length * 15 + 6
-  const fill = tone === 'inspect' ? 'var(--color-signal)' : 'var(--color-panel)'
-  const stroke = tone === 'inspect' ? 'var(--color-signal-line)' : 'var(--color-line)'
+  const fill = tone === 'inspect' ? 'var(--color-warn-soft)' : 'var(--color-panel)'
+  const stroke = tone === 'inspect' ? 'var(--color-warn-line)' : 'var(--color-line)'
   return (
     <g>
       <rect x={-width / 2} y={0} width={width} height={height} rx={6} fill={fill} stroke={stroke} strokeWidth={1.2} opacity={0.96} />
@@ -178,7 +178,7 @@ function Unit({ e, pose, driving, at, clock, selected, onSelect, focus, motion }
         // Detention glow: amber as free time runs out, red once it's past (or a drop left too long).
         <polygon
           points={footprint(drop, 3)}
-          fill={warn === 'over' ? 'var(--color-danger)' : 'var(--color-signal-line)'}
+          fill={warn === 'over' ? 'var(--color-danger)' : 'var(--color-warn-line)'}
           opacity={0.7}
           filter="url(#iso-halo)"
         >
@@ -255,8 +255,8 @@ function SkyChip({ phase, clock }) {
         {dark ? (
           <path d="M3 -7 A7.5 7.5 0 1 0 6.5 4.5 A6 6 0 1 1 3 -7 Z" fill="var(--color-ink)" />
         ) : (
-          <g fill="none" stroke="var(--color-signal-line)" strokeWidth={1.8} strokeLinecap="round">
-            <circle r={4.2} fill="var(--color-signal)" />
+          <g fill="none" stroke="var(--color-warn-line)" strokeWidth={1.8} strokeLinecap="round">
+            <circle r={4.2} fill="var(--color-warn)" />
             {[0, 45, 90, 135, 180, 225, 270, 315].map((a) => (
               <line key={a} x1={0} y1={-6.5} x2={0} y2={-8.6} transform={`rotate(${a})`} />
             ))}
@@ -363,7 +363,7 @@ function Detail({ e, place, at, clock, live, onEdit, onCheckOut, onInspect }) {
   if (status === 'departed') {
     return (
       <p className="text-sm">
-        <b className="font-display text-[20px]">{e.trailerNumber}</b> <span className="text-muted">{e.truckName}</span>
+        <b className="font-display text-[16px]">{e.trailerNumber}</b> <span className="text-muted">{e.truckName}</span>
         <span className="mt-1 block text-muted">Left at {e.timeOut}.</span>
       </p>
     )
@@ -371,7 +371,7 @@ function Detail({ e, place, at, clock, live, onEdit, onCheckOut, onInspect }) {
   const alert = attention(e, clock)
   return (
     <div>
-      <div className="font-display text-[20px] leading-tight font-bold break-words">
+      <div className="font-display text-[16px] leading-tight font-semibold break-words">
         {e.trailerNumber} <span className="font-body text-sm font-normal text-muted">{e.truckName}</span>
       </div>
       <div className="mt-1 flex items-center gap-1.5 font-semibold">
@@ -431,7 +431,7 @@ function InspectLegend({ count }) {
   return (
     <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[12px]">
       <li className="flex items-center gap-1.5 font-semibold">
-        <i className="inline-block h-3 w-3 rounded-[3px] border-2 border-dashed border-signal-line" />
+        <i className="inline-block h-3 w-3 rounded-[3px] border-2 border-dashed border-warn-line" />
         {count ? `${count} need${count === 1 ? 's' : ''} inspection · tap one to inspect` : 'No trucks waiting for inspection'}
       </li>
       <li className="flex items-center gap-1.5 text-muted">

@@ -212,7 +212,7 @@ export function Rig({ carrier, trailerNumber, drop, reefer, glow, heading = 'S' 
       {k.side(0.4, 33.6, Z + 0.6, Z + 1.9, { fill: paint.color })}
       {k.side(0.4, 33.6, Z + H - 1.2, Z + H - 0.7, { fill: paint.color, opacity: 0.85 })}
       {k.sideText(31, 3, Z + 4.6, name, {
-        fontFamily: 'var(--font-display)',
+        fontFamily: 'var(--font-scene)',
         fontWeight: 700,
         fontSize: 10,
         letterSpacing: 0.4,
@@ -341,7 +341,7 @@ function DockDoor({ cx, label, open }) {
       <Box x={x + 8.8} y={0} z={2.6} w={1.2} d={0.8} h={1.6} color="var(--color-iso-tire)" shade={false} />
       {/* Number plate and dock light. */}
       <FrontQuad x={cx - 3} y={0} w={6} z={16.4} h={4.4} fill="var(--color-iso-band)" />
-      <text transform={ON_Y_FACE(cx - 2.2, 0, 17.3)} fontFamily="var(--font-display)" fontWeight={700} fontSize={9.5} fill="white">
+      <text transform={ON_Y_FACE(cx - 2.2, 0, 17.3)} fontFamily="var(--font-scene)" fontWeight={700} fontSize={9.5} fill="white">
         {label}
       </text>
       <FrontQuad x={cx + 5.6} y={0} w={1.4} z={15.4} h={1} fill={open ? 'var(--color-iso-light)' : 'var(--color-iso-steel)'} />
@@ -474,7 +474,7 @@ export function Scene({ occupied, motion, night = 0 }) {
         <text
           key={i}
           transform={ON_GROUND(colWX(i) - 6, BAY_FRONT - 3)}
-          fontFamily="var(--font-display)"
+          fontFamily="var(--font-scene)"
           fontWeight={700}
           fontSize={11}
           fill="var(--color-iso-paint)"
@@ -491,10 +491,10 @@ export function Scene({ occupied, motion, night = 0 }) {
           opacity={0.85}
         />
       ))}
-      <text transform={ON_GROUND(58, 76)} fontFamily="var(--font-display)" fontWeight={700} fontSize={10} letterSpacing={2} fill="var(--color-iso-paint)" opacity={0.75}>
+      <text transform={ON_GROUND(58, 76)} fontFamily="var(--font-scene)" fontWeight={700} fontSize={10} letterSpacing={2} fill="var(--color-iso-paint)" opacity={0.75}>
         DRIVE LANE
       </text>
-      <text transform={ON_GROUND(70, LOT_D + 19)} fontFamily="var(--font-display)" fontWeight={700} fontSize={10} letterSpacing={4} fill="var(--color-iso-paint)" opacity={0.5}>
+      <text transform={ON_GROUND(70, LOT_D + 19)} fontFamily="var(--font-scene)" fontWeight={700} fontSize={10} letterSpacing={4} fill="var(--color-iso-paint)" opacity={0.5}>
         STREET
       </text>
 
@@ -515,7 +515,7 @@ export function Scene({ occupied, motion, night = 0 }) {
       ))}
       <FrontQuad x={B.x} y={front} w={B.w} z={B.h - 4} h={4} fill="var(--color-iso-band)" />
       <SideQuad x={B.x + B.w} y={B.y} d={B.d} z={B.h - 4} h={4} fill="var(--color-iso-band)" />
-      <text transform={ON_Y_FACE(B.x + 6, front, B.h - 2.8)} fontFamily="var(--font-display)" fontWeight={700} fontSize={7.5} letterSpacing={3} fill="white">
+      <text transform={ON_Y_FACE(B.x + 6, front, B.h - 2.8)} fontFamily="var(--font-scene)" fontWeight={700} fontSize={7.5} letterSpacing={3} fill="white">
         WAREHOUSE · SHIPPING &amp; RECEIVING
       </text>
       {[0, 1, 2].map((i) => (

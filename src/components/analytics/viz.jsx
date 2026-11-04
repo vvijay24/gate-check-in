@@ -62,13 +62,13 @@ export function DayPicker({ dates, value, onChange }) {
   const i = dates.indexOf(value)
   const today = dayKey(new Date())
   const name = (d) => (d === today ? `Today · ${weekdayDate(d)}` : weekdayDate(d))
-  const btn = 'grid min-h-11 min-w-11 cursor-pointer place-items-center rounded-md border-2 border-line bg-panel font-bold disabled:cursor-default disabled:opacity-40'
+  const btn = 'grid min-h-9 min-w-9 cursor-pointer place-items-center rounded-md border border-edge bg-panel font-semibold hover:bg-field disabled:cursor-default disabled:opacity-40'
   return (
     <div className="flex items-center gap-1.5">
       <button type="button" className={btn} disabled={i <= 0} onClick={() => onChange(dates[i - 1])} aria-label="Previous day">
         ‹
       </button>
-      <select value={value} onChange={(ev) => onChange(ev.target.value)} aria-label="Day" className="min-h-11 rounded-md border-2 border-line bg-panel px-2 font-semibold text-ink">
+      <select value={value} onChange={(ev) => onChange(ev.target.value)} aria-label="Day" className="min-h-9 rounded-md border border-edge bg-panel px-2 font-semibold text-ink">
         {[...dates].reverse().map((d) => (
           <option key={d} value={d}>
             {name(d)}
@@ -110,7 +110,7 @@ function HourAxis({ win, now }) {
         ) : null,
       )}
       {now > win.from && now < win.to && (
-        <span className="absolute -translate-x-1/2 rounded bg-signal px-1 font-bold text-signal-ink" style={{ left: `${X(now)}%` }}>
+        <span className="absolute -translate-x-1/2 rounded bg-warn px-1 font-bold text-warn-ink" style={{ left: `${X(now)}%` }}>
           Now
         </span>
       )}
@@ -124,7 +124,7 @@ const HourLines = ({ win }) => {
 }
 const NowLine = ({ win, now }) =>
   now > win.from && now < win.to ? (
-    <i className="pointer-events-none absolute inset-y-0 z-[2] w-0.5 -translate-x-1/2 bg-signal-line" style={{ left: `${((now - win.from) / (win.to - win.from)) * 100}%` }} />
+    <i className="pointer-events-none absolute inset-y-0 z-[2] w-0.5 -translate-x-1/2 bg-warn" style={{ left: `${((now - win.from) / (win.to - win.from)) * 100}%` }} />
   ) : null
 
 // ---------- Yard load through the day ----------
@@ -290,7 +290,7 @@ export function DockLegend() {
         <i className="inline-block h-3 w-4 rounded-[3px] border border-danger" style={{ background: OVERRUN }} />⚠ Past free time
       </li>
       <li className="flex items-center gap-1.5">
-        <i className="inline-block h-3 w-[3px] bg-signal" />
+        <i className="inline-block h-3 w-[3px] bg-warn" />
         Still at dock
       </li>
     </ul>
@@ -367,7 +367,7 @@ function DockRow({ row, first, win, now, X, use, hover, setHover }) {
                   return w > 0 ? <i key={g.key} className="h-full" style={{ flexGrow: w, background: STATE_FILL[g.key] }} /> : null
                 })}
                 {over != null && over < 1 && <i className="absolute inset-y-0 right-0 border-b-[3px] border-danger" style={{ left: `${over * 100}%`, background: OVERRUN }} />}
-                {b.onSite && <i className="absolute inset-y-0 right-0 w-[3px] bg-signal" />}
+                {b.onSite && <i className="absolute inset-y-0 right-0 w-[3px] bg-warn" />}
                 {width > 5 && (
                   <span className="absolute top-1/2 left-1 max-w-[calc(100%-10px)] -translate-y-1/2 truncate rounded bg-panel/90 px-1 text-[11px] leading-4 font-semibold text-ink">
                     {b.e.truckName || 'Unknown'}

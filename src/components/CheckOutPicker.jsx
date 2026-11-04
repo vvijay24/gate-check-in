@@ -22,7 +22,7 @@ function detention(e, now) {
   return null
 }
 
-const DETENTION_TAG = { over: 'bg-danger-soft text-danger', near: 'bg-signal-soft text-ink' }
+const DETENTION_TAG = { over: 'bg-danger-soft text-danger', near: 'bg-warn-soft text-ink' }
 
 // Short form of why a truck can't be checked out yet (the form explains in full).
 const blockedShort = (e) =>
@@ -72,12 +72,12 @@ export default function CheckOutPicker({ entries, onPick }) {
           type="button"
           onClick={() => pick(e)}
           className={
-            'flex w-full cursor-pointer flex-wrap items-center justify-between gap-3 rounded-lg border-2 bg-page px-4 py-3 text-left hover:border-ink ' +
+            'flex w-full cursor-pointer flex-wrap items-center justify-between gap-3 rounded-lg border bg-page px-4 py-3 text-left hover:border-ink ' +
             (d?.level === 'over' ? 'border-danger' : 'border-line')
           }
         >
           <span className="min-w-0">
-            <span className="block font-display text-[23px] leading-tight font-bold break-words">
+            <span className="block font-display text-[18px] leading-tight font-semibold break-words">
               {e.trailerNumber} · {e.truckName}
             </span>
             <span className="block text-[15px] text-muted">
@@ -106,7 +106,7 @@ export default function CheckOutPicker({ entries, onPick }) {
   return (
     <section className="overflow-hidden rounded-xl bg-panel shadow-card">
       <div className="border-b border-line px-5 pt-5 pb-3">
-        <h2 className="font-display text-[26px] leading-tight font-bold">Check a Trailer Out</h2>
+        <h2 className="font-display text-[20px] leading-tight font-semibold">Check a Trailer Out</h2>
         <p className="text-muted">
           {allOnSite.length} on site
           {overCount > 0 && (
@@ -152,7 +152,7 @@ export default function CheckOutPicker({ entries, onPick }) {
           <>
             {released.length > 0 && (
               <section aria-labelledby="released-title" className="mt-4">
-                <h3 id="released-title" className="mb-2 font-display text-[20px] leading-tight font-bold">
+                <h3 id="released-title" className="mb-2 font-display text-[16px] leading-tight font-semibold">
                   Released by Shipping ({released.length})
                 </h3>
                 <ul className="grid gap-2.5">{released.map(card)}</ul>
@@ -161,7 +161,7 @@ export default function CheckOutPicker({ entries, onPick }) {
             {others.length > 0 && (
               <section aria-labelledby="others-title" className="mt-4">
                 {released.length > 0 && (
-                  <h3 id="others-title" className="mb-2 font-display text-[20px] leading-tight font-bold text-muted">
+                  <h3 id="others-title" className="mb-2 font-display text-[16px] leading-tight font-semibold text-muted">
                     Other trucks on site ({others.length})
                   </h3>
                 )}

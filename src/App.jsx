@@ -16,11 +16,18 @@ const EVENTS_KEY = 'gate-events'
 
 // `short` is shown on phones so all four tabs fit on one row.
 const TABS = [
-  { id: 'gate', label: 'Gate' },
-  { id: 'shipping', label: 'Shipping' },
-  { id: 'docks', label: 'Dock & Loading', short: 'Docks' },
-  { id: 'analytics', label: 'Insights' },
+  { id: 'gate', label: 'Gate', icon: 'M3 20V9m0 0h18M3 9l2-4h14l2 4M7 9v11M17 9v11M10 13h4' },
+  { id: 'shipping', label: 'Shipping', icon: 'M3 7l9-4 9 4-9 4-9-4zm0 0v10l9 4m0-10v10m9-14v10l-9 4' },
+  { id: 'docks', label: 'Dock & Loading', short: 'Docks', icon: 'M3 21V8l9-5 9 5v13M7 21v-7h10v7M7 17h10' },
+  { id: 'analytics', label: 'Insights', icon: 'M4 20V10m6 10V4m6 16v-7m4 7H2' },
 ]
+
+// A 16px line icon for a header tab.
+const TabIcon = ({ d }) => (
+  <svg viewBox="0 0 24 24" aria-hidden="true" className="hidden h-4 w-4 shrink-0 sm:block" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d={d} />
+  </svg>
+)
 
 const GATE_MODES = [
   { id: 'in', label: 'Check In' },
@@ -257,14 +264,24 @@ export default function App() {
       <header
         ref={headerRef}
         className={
-          'on-chrome sticky top-0 z-20 border-b border-white/10 text-white transition-[background-color,box-shadow] duration-200 ' +
-          (scrolled ? 'bg-chrome/85 shadow-[0_10px_28px_-14px_rgb(0_0_0/0.7)] backdrop-blur-md' : 'bg-chrome')
+          'on-chrome sticky top-0 z-20 border-b border-white/[0.07] bg-chrome text-white transition-shadow duration-200 ' +
+          (scrolled ? 'shadow-[0_8px_24px_-12px_rgb(0_0_0/0.65)]' : '')
         }
       >
-        <div className="mx-auto flex max-w-[1400px] flex-wrap items-center gap-x-5 gap-y-1 px-4 pt-2 sm:px-5 lg:flex-nowrap lg:py-2">
-          <h1 className="font-display text-[22px] leading-none font-bold whitespace-nowrap sm:text-[26px]">Gate Check In</h1>
+        <div className="mx-auto flex max-w-[1400px] flex-wrap items-stretch gap-x-6 px-4 sm:px-5 lg:h-14 lg:flex-nowrap">
+          <div className="flex items-center gap-2.5 py-2.5 lg:py-0">
+            <span aria-hidden="true" className="grid h-7 w-7 place-items-center rounded-md bg-signal text-white shadow-[inset_0_-2px_0_rgb(0_0_0/0.18)]">
+              <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+                <path d="M4 18V8M4 9h16M8 9l3 4M13 9l3 4" />
+              </svg>
+            </span>
+            <h1 className="text-[15px] leading-none font-semibold tracking-[-0.01em] whitespace-nowrap">
+              Gate Check In
+              <span className="ml-2 hidden border-l border-white/15 pl-2 text-[12px] font-medium text-rail-muted md:inline">Yard Operations</span>
+            </h1>
+          </div>
           {/* Scrolls sideways rather than wrapping if the tabs still don't fit. */}
-          <nav role="tablist" className="no-print order-last -mx-1 flex w-full gap-1 overflow-x-auto px-1 pb-2 lg:order-none lg:w-auto lg:pb-0">
+          <nav role="tablist" className="no-print order-last -mx-1 flex w-full gap-0.5 overflow-x-auto px-1 lg:order-none lg:w-auto">
             {TABS.map((t) => (
               <button
                 key={t.id}
@@ -274,10 +291,12 @@ export default function App() {
                 aria-controls={`panel-${t.id}`}
                 onClick={() => setTab(t.id)}
                 className={
-                  'min-h-11 shrink-0 cursor-pointer rounded-full px-2.5 font-display text-[17px] font-semibold whitespace-nowrap transition-colors sm:px-4 sm:text-[19px] ' +
-                  (tab === t.id ? 'bg-signal text-signal-ink' : 'text-rail-text hover:bg-white/10 hover:text-white')
+                  'relative flex min-h-11 shrink-0 cursor-pointer items-center gap-2 rounded-md px-3 text-[14px] font-medium whitespace-nowrap transition-colors ' +
+                  'after:absolute after:inset-x-2 after:bottom-0 after:h-0.5 after:rounded-full lg:rounded-none ' +
+                  (tab === t.id ? 'text-white after:bg-signal lg:bg-white/[0.04]' : 'text-rail-text/80 after:bg-transparent hover:bg-white/[0.06] hover:text-white')
                 }
               >
+                <TabIcon d={t.icon} />
                 {t.short ? (
                   <>
                     <span className="sm:hidden">{t.short}</span>
@@ -287,12 +306,7 @@ export default function App() {
                   t.label
                 )}
                 {badges[t.id] > 0 && (
-                  <span
-                    className={
-                      'ml-1 inline-flex min-w-5 items-center justify-center rounded-full px-1 align-middle font-body text-[12px] font-bold tabular-nums sm:ml-1.5 sm:min-w-6 sm:px-1.5 sm:text-[13px] ' +
-                      (tab === t.id ? 'bg-chrome text-white' : 'bg-signal text-signal-ink')
-                    }
-                  >
+                  <span className="figure inline-flex h-5 min-w-5 items-center justify-center rounded bg-warn px-1 text-[11px] font-semibold text-warn-ink">
                     {badges[t.id]}
                     <span className="sr-only"> {badgeWords[t.id]}</span>
                   </span>
@@ -303,7 +317,10 @@ export default function App() {
           {/* ml-auto keeps the chat and clock on the right. */}
           <div className="ml-auto flex items-center gap-2.5 sm:gap-4">
             {chatTab && <ChatButton open={chatOpen} onToggle={() => setChatOpen((o) => !o)} />}
-            <span className="font-display text-[20px] font-semibold whitespace-nowrap text-signal sm:text-[22px]">{clock}</span>
+            <span className="flex items-center gap-2 rounded-md border border-white/10 bg-white/[0.04] px-2.5 py-1">
+              <i aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-warn shadow-[0_0_0_3px_rgb(245_158_11/0.2)]" />
+              <span className="figure text-[13px] font-medium whitespace-nowrap text-rail-text">{clock}</span>
+            </span>
           </div>
         </div>
       </header>
@@ -332,7 +349,7 @@ export default function App() {
         >
           {/* The Check In / Check Out form, kept narrow and centered. */}
           <div className="min-w-0 space-y-3">
-            <div role="tablist" aria-label="Gate form" className="no-print grid grid-cols-2 gap-2">
+            <div role="tablist" aria-label="Gate form" className="no-print grid grid-cols-2 gap-1 rounded-lg bg-track p-1">
               {GATE_MODES.map((m) => (
                 <button
                   key={m.id}
@@ -340,8 +357,8 @@ export default function App() {
                   aria-selected={gateMode === m.id}
                   onClick={() => openGate(m.id, null)}
                   className={
-                    'min-h-14 cursor-pointer rounded-[10px] border-2 font-display text-[22px] font-bold ' +
-                    (gateMode === m.id ? 'border-signal bg-signal text-signal-ink' : 'border-line bg-panel text-ink')
+                    'min-h-12 cursor-pointer rounded-md text-[15px] font-semibold transition-colors ' +
+                    (gateMode === m.id ? 'bg-panel text-ink shadow-[0_1px_2px_rgb(15_23_42/0.12),0_0_0_1px_var(--color-line)]' : 'text-muted hover:text-ink')
                   }
                 >
                   {m.label}

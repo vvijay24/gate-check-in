@@ -22,7 +22,7 @@ export function detentionState(e, now) {
 }
 
 // Pill colors by level, used with ui.tag; the words carry the meaning.
-export const DETENTION_TAG = { over: 'bg-danger-soft text-danger', near: 'bg-signal-soft text-ink' }
+export const DETENTION_TAG = { over: 'bg-danger-soft text-danger', near: 'bg-warn-soft text-ink' }
 
 // Any truck or trailer at a dock (pickup, delivery or drop) that still needs its inspection: none
 // saved yet, or the last one failed (so it needs re-checking).

@@ -21,23 +21,35 @@ So: large controls, high contrast, plain words, and the next action always visib
 
 ## 2. Tokens, type and shared classes
 
-- **Colors are tokens** in `src/index.css` (`@theme`): `page`, `panel`, `ink`, `muted`, `line`, `field`,
-  `chrome`, `signal` (safety-amber accent / primary action and active state — fills only), `signal-soft` (amber tint for status tags and tiles, read with `text-ink`), `signal-line` (the accent as a line: focus ring, selected tile, active filter, warning edge; the pale fill is invisible as a thin line on white), `ok`, `danger`, the purpose colors `delivery`,
-  `pickup`, `drop`, gates `gate-in` (green) / `gate-out` (rose), `asphalt`, `bay`, `building` (left over from the flat map, now unused), the isometric yard scene `iso-*` (ground, walls, glass, tires…) and carrier paints `paint-1`…`paint-6` (no blue, green, purple or yellow, so a truck's paint never reads as a status),
-  `track`, charts `chart-live`, `chart-drop`, and the visit-stage scale `stage-1`…`stage-4`. Use them as Tailwind utilities
-  (`bg-panel`, `text-muted`, `border-line`) or `var(--color-…)`. **Never hard-code hex in components.**
+- **Design language: "Control Room"** — slate neutrals, hairline panels, IBM Plex type, one blue accent.
+  It should read like an operations console: calm, dense, precise. No glossy gradients or big rounded pills.
+- **Colors are tokens** in `src/index.css` (`@theme`): `page` (gray canvas), `panel`, `ink`, `muted`,
+  `line` (hairlines), `edge` (control borders, 3:1), `field`, `chrome` / `rail` (dark slate bar and Insights
+  rail), `signal` (accent **blue**: selection, primary buttons, active filter, focus — the name is kept from the
+  first design), `signal-soft`, `signal-line` (the accent as text or a thin line), `warn` / `warn-soft` /
+  `warn-line` / `warn-ink` (**amber: live / "now" markers, waiting and needs-attention states only — never
+  selection**), `ok`, `danger`, purposes `delivery` / `pickup` / `drop`, gates `gate-in` / `gate-out`,
+  the yard scene `iso-*` and carrier paints `paint-1`…`paint-6`, `track`, charts `chart-live`, `chart-drop`,
+  and the visit-stage scale `stage-1`…`stage-4`. Use them as utilities (`bg-panel`, `text-muted`,
+  `border-line`) or `var(--color-…)`. **Never hard-code hex in components.**
 - **A new token goes in three places**: `@theme` (light), the `@media (prefers-color-scheme: dark)` block,
   and the `:root[data-theme="dark"]` block. Missing one breaks dark mode.
-- **Type**: Barlow for body (`font-body`, 15px base), Barlow Condensed for headings and buttons
-  (`font-display`, bold). Page headings ~28px, card titles 21px, table text 14px, notes 13px.
+- **Type**: IBM Plex Sans for everything (14px base; `font-display` is the same family, semibold, kept as
+  a class name), IBM Plex Mono via the `.figure` class for KPI values, clocks and table numbers, and
+  `.eyebrow` (11px uppercase, tracked) for labels above figures and table headers. Page titles 22px, card
+  titles 14.5px, table text 13.5px, notes 12.5px. Fonts ship in `public/fonts` (OFL) — no Google Fonts.
+  The yard map's trailer lettering alone uses Barlow Condensed (`--font-scene`).
 - **Shared class strings** in `src/ui.js` — use them, don't restyle:
-  - `btn` / `btnPrimary` (56px, gate forms), `btnSmall` / `btnSmallPrimary` (44px, boards and tables).
-    Primary = yellow `signal`; there is one primary action per area.
+  - `btn` / `btnPrimary` (48px, gate forms), `btnSmall` / `btnSmallPrimary` (40px, boards and tables).
+    Primary = blue `signal`; there is one primary action per area.
   - `input`, `label`, `required`, `errorText`, `inputError` for form fields (`Field.jsx` wraps them).
-  - `seg(on, bad)` for segmented choices; `tag` for status pills; `PURPOSE_STYLES` for Delivery /
+  - `seg(on, bad)` for segmented choices; `tag` for status chips; `PURPOSE_STYLES` for Delivery /
     Pickup / Drop Trailer colors.
-- **Shape**: cards `rounded-xl bg-panel shadow-card` (no outline; dark mode adds one via the token); dialogs and
-  popovers `shadow-raised`; buttons `rounded-[10px] border-2`; pills and header tabs `rounded-full`.
+- **Shape**: panels `rounded-xl` (8px) `bg-panel shadow-card` (a hairline); controls `rounded-lg` (6px)
+  with 1px `border-edge`; dialogs and popovers `shadow-raised`. Segmented controls are a `bg-track` well with
+  the chosen option as a raised white chip. KPI tiles sit in a `Strip` (one panel, hairline dividers).
+- **Sizes**: guard-facing screens (Gate, Dock, Shipping actions) keep 44px+ touch targets; Insights is a
+  desktop console and uses 36–40px controls.
 
 ## 3. Established patterns (copy these)
 

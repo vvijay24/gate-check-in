@@ -98,8 +98,8 @@ const checkOutForm = (entry, guard) =>
 
 // Section heading and field grid, matching guard-shack-log.html (h3 + .grid).
 const sectionTitle =
-  'mt-6 mb-2.5 border-t border-line pt-3.5 font-display text-[20px] leading-tight font-bold text-muted'
-const firstSectionTitle = 'mb-2.5 font-display text-[20px] leading-tight font-bold text-muted'
+  'mt-6 mb-2.5 border-t border-line pt-3.5 font-display text-[16px] leading-tight font-semibold text-muted'
+const firstSectionTitle = 'mb-2.5 font-display text-[16px] leading-tight font-semibold text-muted'
 // Fixed two columns (one on phones) so paired fields like name + phone stay side by side.
 const grid = 'grid grid-cols-1 gap-3.5 sm:grid-cols-2'
 // Save / confirm bar, pinned to the bottom of the screen while the form scrolls.
@@ -152,7 +152,7 @@ function Steps({ step, onPick }) {
               >
                 <span
                   className={
-                    'flex h-7 w-7 shrink-0 items-center justify-center rounded-full font-display text-[15px] font-bold ' +
+                    'flex h-7 w-7 shrink-0 items-center justify-center rounded-full font-display text-[14px] font-semibold ' +
                     (current ? 'bg-signal text-signal-ink' : done ? 'bg-ok text-panel' : 'bg-field text-muted ring-1 ring-line')
                   }
                 >
@@ -184,7 +184,7 @@ export function ErrorSummary({ errors, action, summaryRef, labels = FIELD_LABELS
   }
   return (
     <div ref={summaryRef} tabIndex={-1} role="alert" className="mb-5 rounded-lg border-l-[6px] border-danger bg-danger-soft px-4 py-3">
-      <p className="font-display text-[21px] leading-tight font-bold text-danger">
+      <p className="font-display text-[17px] leading-tight font-semibold text-danger">
         {names.length === 1 ? '1 thing needs' : `${names.length} things need`} fixing before {action}
       </p>
       <ul className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1">
@@ -220,7 +220,7 @@ function ArrivalSummary({ e }) {
   ].filter(([, v]) => v)
   return (
     <section className="rounded-lg bg-page p-4">
-      <div className="font-display text-[23px] leading-tight font-bold">
+      <div className="font-display text-[18px] leading-tight font-semibold">
         {e.trailerNumber} · {e.truckName}
       </div>
       <dl className="mt-2 grid grid-cols-1 gap-x-4 gap-y-1 text-[15px] sm:grid-cols-2">
@@ -417,7 +417,7 @@ export default function GuardForm({ mode = 'in', initial, defaultGuard, takenBay
     // No overflow-hidden here: it would stop the action bar below from sticking to the screen bottom.
     <form ref={formRef} onSubmit={handleSubmit} noValidate className="scroll-mt-[calc(var(--header-h,114px)+84px)] rounded-xl bg-panel shadow-card">
       <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-line px-5 pt-5 pb-3">
-        <h2 className="font-display text-[26px] leading-tight font-bold">{title}</h2>
+        <h2 className="font-display text-[20px] leading-tight font-semibold">{title}</h2>
         <span className="text-sm text-muted">
           <span className="text-danger">*</span> required to {isOut ? 'check out' : 'log arrival'}
         </span>
@@ -426,13 +426,13 @@ export default function GuardForm({ mode = 'in', initial, defaultGuard, takenBay
       <div className="p-5">
         {checkedIn && (
           <div role="status" className="mb-5 rounded-lg border-l-[6px] border-ok bg-ok-soft px-4 py-3">
-            <p className="font-display text-[23px] leading-tight font-bold text-ok">✓ Check In Confirmed</p>
+            <p className="font-display text-[18px] leading-tight font-semibold text-ok">✓ Check In Confirmed</p>
             <p className="text-[15px]">{checkedIn} is checked in. The form is ready for the next truck.</p>
           </div>
         )}
         {blocked && (
           <div role="alert" className="mb-5 rounded-lg border-l-[6px] border-danger bg-danger-soft px-4 py-3">
-            <p className="font-display text-[22px] leading-tight font-bold text-danger">⛔ This truck can't be checked out yet</p>
+            <p className="font-display text-[18px] leading-tight font-semibold text-danger">⛔ This truck can't be checked out yet</p>
             <p className="text-[15px]">{blocked}</p>
           </div>
         )}
@@ -495,7 +495,7 @@ export default function GuardForm({ mode = 'in', initial, defaultGuard, takenBay
                       <label
                         key={purpose}
                         className={
-                          'flex min-h-[52px] min-w-36 flex-1 cursor-pointer items-center gap-3 rounded-[10px] border-2 bg-field px-4 font-semibold ' +
+                          'flex min-h-[52px] min-w-36 flex-1 cursor-pointer items-center gap-3 rounded-lg border bg-field px-4 font-semibold ' +
                           (errors.visitPurpose ? 'border-danger ' : 'border-line ') +
                           ui.PURPOSE_STYLES[purpose].check
                         }
@@ -624,7 +624,7 @@ export default function GuardForm({ mode = 'in', initial, defaultGuard, takenBay
           scroll to the end of the form to save. */}
       {confirming ? (
         <div role="alertdialog" aria-labelledby="confirm-checkout-title" className={actionBar + ' bg-page'}>
-          <p id="confirm-checkout-title" className="font-display text-[23px] leading-tight font-bold">
+          <p id="confirm-checkout-title" className="font-display text-[18px] leading-tight font-semibold">
             Confirm Check Out?
           </p>
           <p className="mt-1 text-muted">

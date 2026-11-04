@@ -97,7 +97,7 @@ export default function OdometerPhoto({ value, onChange, required, error: requir
 
       <div
         className={
-          'flex min-h-48 items-center justify-center overflow-hidden rounded-[10px] border-2 border-dashed bg-field ' +
+          'flex min-h-48 items-center justify-center overflow-hidden rounded-lg border-2 border-dashed bg-field ' +
           (requiredError ? 'border-danger' : 'border-line')
         }
       >
