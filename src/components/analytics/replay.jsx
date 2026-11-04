@@ -1,10 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
-import * as ui from '../../ui'
 import { clockTime, dayKey, shortDate } from '../../time'
 import { dayMetrics, yardMetrics } from '../../metrics'
 import { detentionState } from '../../detention'
 import YardMap from '../YardMap'
-import { Card } from './ui'
 
 // Yard Replay (Overview): any day in the range on the isometric yard map. Drag the time slider or
 // press Play to watch trucks arrive, wait in a bay, back into a dock and leave; the light follows the
@@ -89,7 +87,7 @@ export function ReplaySection({ entries, range }) {
   const over = [...yard.atDock.values(), ...yard.bays.filter(Boolean)].filter((e) => detentionState(e, atMs)?.level === 'over').length
 
   const seg = (on) =>
-    'min-h-11 cursor-pointer rounded-md border px-3 text-[14px] font-semibold ' + (on ? 'border-signal bg-signal text-signal-ink' : 'border-edge bg-panel text-ink hover:bg-field')
+    'min-h-9 cursor-pointer rounded-md px-2.5 text-[13px] font-semibold transition-colors ' + (on ? 'bg-signal text-signal-ink' : 'text-ink hover:bg-field')
   const stats = [
     ['On site', onSite],
     ['At docks', yard.atDock.size],
@@ -97,41 +95,53 @@ export function ReplaySection({ entries, range }) {
     ['Past free time', over],
   ]
 
-  return (
-    <Card title="Yard Replay" sub="The yard on any day in the range, moment by moment. The light follows the clock.">
-      <div className="space-y-4 px-5 pt-3 pb-5">
-        <div className="no-print flex flex-wrap items-center gap-3">
-          <label className="flex items-center gap-2 font-semibold">
-            <span className="text-muted">Day</span>
-            <select
-              value={day}
-              onChange={(ev) => pickDay(ev.target.value)}
-              className="min-h-11 cursor-pointer rounded-md border border-edge bg-panel px-2 font-semibold text-ink"
-            >
-              {days.map((d) => (
-                <option key={d} value={d}>
-                  {shortDate(d)}
-                  {d === today ? '' : ` (${new Date(`${d}T00:00`).toLocaleDateString([], { weekday: 'short' })})`}
-                </option>
-              ))}
-            </select>
-          </label>
-          <button type="button" onClick={play} aria-pressed={playing} className={ui.btnSmallPrimary + ' min-w-28'}>
-            {playing ? '❚❚ Pause' : '▶ Play'}
+  // Day, Play and speed: laid over the map's top-right corner on wider screens (open sky there),
+  // above the map on phones, where the map scrolls sideways.
+  const controls = (
+    <div className="no-print flex flex-wrap items-center gap-2 rounded-xl border border-line bg-panel/90 p-1.5 shadow-lg backdrop-blur-md">
+      <label className="flex items-center">
+        <span className="sr-only">Day</span>
+        <select
+          value={day}
+          onChange={(ev) => pickDay(ev.target.value)}
+          className="min-h-9 cursor-pointer rounded-md border border-edge bg-panel px-2 text-[13px] font-semibold text-ink"
+        >
+          {days.map((d) => (
+            <option key={d} value={d}>
+              {shortDate(d)}
+              {d === today ? '' : ` (${new Date(`${d}T00:00`).toLocaleDateString([], { weekday: 'short' })})`}
+            </option>
+          ))}
+        </select>
+      </label>
+      <button
+        type="button"
+        onClick={play}
+        aria-pressed={playing}
+        className="min-h-9 min-w-24 cursor-pointer rounded-md bg-signal px-3 text-[13px] font-semibold text-signal-ink hover:brightness-110"
+      >
+        {playing ? '❚❚ Pause' : '▶ Play'}
+      </button>
+      <div role="group" aria-label="Replay speed" className="flex gap-0.5 rounded-md border border-edge p-0.5">
+        {SPEEDS.map((s) => (
+          <button key={s.id} type="button" aria-pressed={speed === s.id} onClick={() => setSpeed(s.id)} className={seg(speed === s.id)}>
+            {s.label}
           </button>
-          <div role="group" aria-label="Replay speed" className="flex gap-1">
-            {SPEEDS.map((s) => (
-              <button key={s.id} type="button" aria-pressed={speed === s.id} onClick={() => setSpeed(s.id)} className={seg(speed === s.id)}>
-                {s.label}
-              </button>
-            ))}
-          </div>
-          <span className="ml-auto font-display text-[24px] leading-none font-semibold tabular-nums" aria-live="off">
+        ))}
+      </div>
+    </div>
+  )
+
+  return (
+    // No card header: the page title above already says Yard Replay, so the time line starts at the top.
+    <section className="min-w-0 rounded-xl bg-panel shadow-card">
+      <div className="space-y-4 px-5 pt-4 pb-5">
+        <div className="md:hidden">{controls}</div>
+        <div className="no-print flex items-center gap-4">
+          <span className="w-[5.5rem] shrink-0 font-display text-[20px] leading-none font-semibold tabular-nums" aria-live="off">
             {clockTime(atMs)}
           </span>
-        </div>
-
-        <div className="no-print">
+          <div className="min-w-0 flex-1">
           <input
             type="range"
             min={0}
@@ -152,6 +162,7 @@ export function ReplaySection({ entries, range }) {
             ))}
             <span>{day === today ? 'Now' : '12 AM'}</span>
           </div>
+          </div>
         </div>
 
         <ul className="grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -163,8 +174,17 @@ export function ReplaySection({ entries, range }) {
           ))}
         </ul>
 
-        <YardMap yard={yard} gateCounts={gateCounts} at={atMs} clock={atMs} live={false} animate={playing} pace={speed >= 40 ? 5 : 2.5} />
+        <YardMap
+          yard={yard}
+          gateCounts={gateCounts}
+          at={atMs}
+          clock={atMs}
+          live={false}
+          animate={playing}
+          pace={speed >= 40 ? 5 : 2.5}
+          overlay={<div className="hidden md:block">{controls}</div>}
+        />
       </div>
-    </Card>
+    </section>
   )
 }

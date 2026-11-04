@@ -255,9 +255,12 @@ function SkyChip({ phase, clock }) {
   const x = VIEW.x + 14
   const y = VIEW.y + 14
   const dark = phase === 'Night'
+  const text = `${phase} · ${clockTime(clock)}`
+  // Wide enough for the words (about 7.6 units a character at this size), so "11:14 PM" fits.
+  const w = Math.round(44 + text.length * 7.6)
   return (
     <g transform={`translate(${x} ${y})`} aria-hidden="true">
-      <rect width={118} height={30} rx={15} fill="var(--color-panel)" opacity={0.9} />
+      <rect width={w} height={30} rx={15} fill="var(--color-panel)" opacity={0.9} />
       <g transform="translate(17 15)">
         {dark ? (
           <path d="M3 -7 A7.5 7.5 0 1 0 6.5 4.5 A6 6 0 1 1 3 -7 Z" fill="var(--color-ink)" />
@@ -271,7 +274,7 @@ function SkyChip({ phase, clock }) {
         )}
       </g>
       <text x={32} y={19.5} fontSize={12.5} fontWeight={700} fill="var(--color-ink)">
-        {phase} · {clockTime(clock)}
+        {text}
       </text>
     </g>
   )
@@ -477,7 +480,8 @@ function useReducedMotion() {
 // Loading); a rig tapped on the full map is selected here instead, and gets a floating card.
 // `animate`: trucks drive their routes when their spot changes (default: on a live map); `pace` speeds
 // them up (a replay running faster than real time).
-export default function YardMap({ yard, gateCounts, at, clock, live, onEdit, onCheckOut, compact, onExpand, focus, onInspect, highlightId, animate = live, pace = 1 }) {
+// `overlay`: controls laid over the full-size map's top-right corner (the open sky), such as a replay's.
+export default function YardMap({ yard, gateCounts, at, clock, live, onEdit, onCheckOut, compact, onExpand, focus, onInspect, highlightId, animate = live, pace = 1, overlay }) {
   const [tappedId, setSelectedId] = useState(null)
   const selectedId = tappedId ?? highlightId ?? null
   const motion = useReducedMotion() === false
@@ -651,6 +655,7 @@ export default function YardMap({ yard, gateCounts, at, clock, live, onEdit, onC
         <div className="overflow-x-auto rounded-lg">
           <div className="relative min-w-[700px]">
             {map}
+            {overlay && <div className="absolute top-3 right-3 z-[5]">{overlay}</div>}
             {card}
           </div>
         </div>
