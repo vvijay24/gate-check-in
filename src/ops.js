@@ -1,4 +1,4 @@
-// Operational figures for the Overview's control-tower views: how the yard filled up through a day,
+// Operational figures for Insights' control-tower views: how the yard filled up through a day,
 // what each dock did hour by hour, how stays and stage times are spread (not just their averages),
 // and what's on site right now. Times are ms; dates are "YYYY-MM-DD".
 import { arrivalMs, dayKey, departureMs, minutesLate } from './time'
@@ -6,7 +6,7 @@ import { isDrop } from './metrics'
 import { dockKey } from './components/AssignDock'
 import { DETENTION_FREE_MIN, DETENTION_RATE_PER_HOUR, DOCKS } from './yard'
 import { HANDOFFS } from './impactSettings'
-import { datesBetween, shiftDate, visitStages } from './analytics'
+import { datesBetween, percentile, shiftDate, visitStages } from './analytics'
 
 const MIN = 60000
 const HOUR = 60 * MIN
@@ -21,14 +21,7 @@ export const YARD_STATES = [
   { key: 'released', label: 'Released, heading out' },
 ]
 
-// p in 0..1, linear between the two nearest values.
-export function percentile(list, p) {
-  const v = list.filter((x) => x != null && Number.isFinite(x)).sort((a, b) => a - b)
-  if (!v.length) return null
-  const i = (v.length - 1) * p
-  const lo = Math.floor(i)
-  return v[lo] + (v[Math.min(lo + 1, v.length - 1)] - v[lo]) * (i - lo)
-}
+export { percentile }
 
 const finite = (x) => Number.isFinite(x)
 const dayStart = (date) => new Date(`${date}T00:00`).getTime()

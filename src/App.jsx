@@ -19,7 +19,7 @@ const TABS = [
   { id: 'gate', label: 'Gate' },
   { id: 'shipping', label: 'Shipping' },
   { id: 'docks', label: 'Dock & Loading', short: 'Docks' },
-  { id: 'analytics', label: 'Overview' },
+  { id: 'analytics', label: 'Insights' },
 ]
 
 const GATE_MODES = [
@@ -56,7 +56,14 @@ export default function App() {
   const notify = (text, tone = 'ok') => setNotice({ text, tone, id: Date.now() })
   const [storageError, setStorageError] = useState(false)
   const [clock, setClock] = useState(timeNow)
-  const [tab, setTab] = useState('gate')
+  // A shared Insights link (?tab=insights…) opens straight on Insights.
+  const [tab, setTab] = useState(() => {
+    try {
+      return new URLSearchParams(window.location.search).get('tab') === 'insights' ? 'analytics' : 'gate'
+    } catch {
+      return 'gate'
+    }
+  })
   // The header turns translucent once the page scrolls.
   const [scrolled, setScrolled] = useState(false)
   useEffect(() => {
@@ -77,7 +84,7 @@ export default function App() {
     return () => clearInterval(t)
   }, [])
 
-  // The header's height as --header-h, so things pinned below it (the Overview sidebar) start exactly
+  // The header's height as --header-h, so things pinned below it (the Insights sidebar) start exactly
   // where it ends, even when its contents wrap.
   const headerRef = useRef(null)
   useEffect(() => {
@@ -106,7 +113,7 @@ export default function App() {
     return () => clearTimeout(t)
   }, [notice])
 
-  // Gate events the Overview's Data Quality section counts; today only check-outs blocked because
+  // Gate events Insights' Data Quality section counts; today only check-outs blocked because
   // the truck wasn't inspected or released. Kept in this browser beside the entries.
   const [gateEvents, setGateEvents] = useState(() => {
     try {
@@ -119,7 +126,7 @@ export default function App() {
     try {
       localStorage.setItem(EVENTS_KEY, JSON.stringify(gateEvents))
     } catch {
-      // Only the Overview counts these; losing them doesn't affect the gate log.
+      // Only Insights counts these; losing them doesn't affect the gate log.
     }
   }, [gateEvents])
 
@@ -129,7 +136,7 @@ export default function App() {
     if (form.id) {
       const entry = { ...entries.find((e) => e.id === form.id), ...form }
       const checkedOut = gateMode === 'out' && !editing?.timeOut
-      // Anything but a first check-out is a correction to a saved entry; the Overview counts them.
+      // Anything but a first check-out is a correction to a saved entry; Insights counts them.
       setEntries((list) =>
         list.map((e) =>
           e.id === form.id
@@ -304,7 +311,7 @@ export default function App() {
       <Toast notice={notice} onClose={() => setNotice(null)} />
 
       <main className="mx-auto max-w-[1400px] space-y-5 px-4 py-5 sm:px-5">
-        {/* Storage trouble stays on the page (a pop-up would vanish); on the Overview it clears the rail. */}
+        {/* Storage trouble stays on the page (a pop-up would vanish); on Insights it clears the rail. */}
         {storageError && (
           <div className={tab === 'analytics' ? RAIL_PAD : ''}>
             <div role="alert" className="no-print rounded-md border-l-[6px] border-danger bg-danger-soft px-4 py-3 font-semibold text-danger">

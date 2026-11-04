@@ -222,7 +222,7 @@ const HANDOFF_COLUMNS = [
   { id: 'money', label: 'Money on the table', value: (h) => h.opportunityPerWeek, render: (h) => perWeek(h.opportunityPerWeek), numeric: true },
 ]
 
-const STUCK_COLUMNS = [
+export const STUCK_COLUMNS = [
   { id: 'visit', label: 'Truck', value: (s) => s.e.truckName ?? '', render: visitCell },
   { id: 'step', label: 'Stuck at', value: (s) => s.step, render: (s) => <b>{s.step}</b> },
   { id: 'since', label: 'For', value: (s) => s.sinceMs, render: (s) => dur(s.sinceMs), numeric: true },
@@ -349,7 +349,7 @@ export function HandoffSection({ trend, impact, prevImpact, onOpenSettings, ops 
         <SortTable columns={HANDOFF_COLUMNS} rows={impact.handoffs} rowKey={(h) => h.key} initial={{ id: 'label', dir: 'asc' }} minWidth={680} empty="No departed trucks in this range." />
       </Card>
 
-      <Card title="Stuck Right Now" sub="Trucks on site that are over a handoff's target at this moment, longest over first">
+      <Card title="Stuck Right Now" sub="Trucks on site that are over a handoff's target at this moment, longest over first · the same list is on Command Center">
         <SortTable columns={STUCK_COLUMNS} rows={impact.stuck} rowKey={(s) => s.e.id} initial={{ id: 'over', dir: 'desc' }} minWidth={640} empty="No trucks are over a handoff target right now." />
       </Card>
     </>

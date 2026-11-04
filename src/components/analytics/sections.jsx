@@ -3,6 +3,8 @@ import { DETENTION_FREE_MIN, DETENTION_RATE_PER_HOUR } from '../../yard'
 import { GATE_STYLE } from '../YardMap'
 import { Card, Meter, Tile } from './ui'
 import { ArrivalHistogram, DayView, StayHistogram } from './control'
+import { ProfileLink } from './nav'
+import { StageSpread } from './viz'
 import {
   BarList,
   DROP,
@@ -62,7 +64,9 @@ export function Takeaway({ children }) {
 // Visit identity used by the visit tables.
 export const visitCell = (s) => (
   <>
-    <b>{s.e.truckName || 'Unknown carrier'}</b>
+    <ProfileLink kind="visit" id={s.e.id}>
+      {s.e.truckName || 'Unknown carrier'}
+    </ProfileLink>
     <span className="block text-[13px] text-muted">
       Trailer {s.e.trailerNumber || '—'} · {weekdayDate(s.e.dateIn)} {s.e.timeIn}
     </span>
@@ -81,15 +85,24 @@ const stageColumns = STAGES.map((x) => ({
   },
 }))
 
-const VISIT_COLUMNS = [
-  { id: 'visit', label: 'Visit', value: (s) => s.e.truckName ?? '', render: visitCell },
+export const VISIT_COLUMNS = [
+  { id: 'visit', label: 'Visit', value: (s) => s.e.truckName ?? '', render: visitCell, minW: 190 },
   ...stageColumns,
   { id: 'total', label: 'Time on site', numeric: true, value: (s) => s.onSiteMs, render: (s) => <>{dur(s.onSiteMs)}{s.onSite && <span className="block text-[13px] text-muted">still on site</span>}</> },
   { id: 'cost', label: 'Est. detention', numeric: true, value: (s) => s.cost, render: (s) => (s.cost ? money(s.cost) : '—'), bar: 'danger' },
 ]
 
-const partnerColumns = (extra = []) => [
-  { id: 'name', label: 'Name', value: (r) => r.name, render: (r) => <b>{r.name}</b> },
+const partnerColumns = (kind, extra = []) => [
+  {
+    id: 'name',
+    label: 'Name',
+    value: (r) => r.name,
+    render: (r) => (
+      <ProfileLink kind={kind} id={r.name}>
+        {r.name}
+      </ProfileLink>
+    ),
+  },
   { id: 'visits', label: 'Visits', value: (r) => r.visits, numeric: true, bar: true },
   { id: 'turn', label: 'Avg turnaround', value: (r) => r.avgTurnMs, render: (r) => dur(r.avgTurnMs), numeric: true },
   ...extra,
@@ -181,7 +194,7 @@ export function OverviewSection({ r, prev, trend, ops }) {
   )
 }
 
-export function GateSection({ r, prev, trend, ops }) {
+export function ThroughputSection({ r, prev, trend, ops }) {
   const t = r.totals
   const p = prev.totals
   const a = r.arrivals
@@ -239,18 +252,23 @@ export function GateSection({ r, prev, trend, ops }) {
         </Card>
       </Pair>
 
+      <Pair>
+        <Card title="Departures per Day" sub="Trucks and trailers checked out at Gate 2 each day">
+          <DayBars days={ops.days} series={[{ key: 'departures', label: 'Departures', color: LIVE }]} />
+        </Card>
+        <Card title="Peak on Site per Day" sub="Most trucks and trailers on site at once, every 10 minutes">
+          <DayBars days={ops.days} series={[{ key: 'peakOnSite', label: 'Peak on site', color: LIVE }]} />
+        </Card>
+      </Pair>
+
       <Card title="Busiest Hours" sub="Check-ins by day and hour">
         <HourGrid days={r.days} field="hourly" noun="check-ins" />
-      </Card>
-
-      <Card title="Carriers" sub="Live visits (drops left out) · click a heading to sort">
-        <SortTable columns={partnerColumns()} rows={r.carriers} initial={{ id: 'cost', dir: 'desc' }} minWidth={720} empty="No live visits in this range." />
       </Card>
     </>
   )
 }
 
-export function ShippingSection({ r, prev, trend }) {
+export function CustomersSection({ r, prev, trend }) {
   const s = r.shipping
   const p = prev.shipping
   return (
@@ -294,9 +312,13 @@ export function ShippingSection({ r, prev, trend }) {
         <Tile size="compact" label="Customers" value={r.customers.length} note="With a pickup in this range" />
       </Tiles>
 
-      <Card title="Customers" sub="Pickups with a customer filled in · click a heading to sort">
+      <Card title="Stay by Customer" sub={`Typical (p50) to slow-end (p90) time on site for each customer's pickups, against the ${FREE_H} h free time · busiest 8`}>
+        <PartnerSpread rows={r.customers} kind="customer" />
+      </Card>
+
+      <Card title="Customers" sub="Pickups with a customer filled in · click a name to open it, a heading to sort">
         <SortTable
-          columns={partnerColumns([{ id: 'inspect', label: 'Dock → inspected', value: (c) => c.avgToInspectMs, render: (c) => dur(c.avgToInspectMs), numeric: true }])}
+          columns={partnerColumns('customer', [{ id: 'inspect', label: 'Dock → inspected', value: (c) => c.avgToInspectMs, render: (c) => dur(c.avgToInspectMs), numeric: true }])}
           rows={r.customers}
           initial={{ id: 'cost', dir: 'desc' }}
           minWidth={820}
@@ -308,7 +330,17 @@ export function ShippingSection({ r, prev, trend }) {
 }
 
 const DOCK_COLUMNS = [
-  { id: 'dock', label: 'Dock', value: (d) => Number(d.dock), render: (d) => <b>Dock {d.dock}</b>, numeric: true },
+  {
+    id: 'dock',
+    label: 'Dock',
+    value: (d) => Number(d.dock),
+    render: (d) => (
+      <ProfileLink kind="dock" id={d.dock}>
+        Dock {d.dock}
+      </ProfileLink>
+    ),
+    numeric: true,
+  },
   { id: 'loads', label: 'Loads', value: (d) => d.loads, numeric: true, bar: true },
   {
     id: 'util',
@@ -386,8 +418,124 @@ export function DockSection({ r, prev, trend, impact, ops, prevOps, entries, now
         <HourGrid days={r.days} field="dockHourly" noun="dock assignments" />
       </Card>
 
-      <Card title="Dock Performance" sub="Docks assigned in this range · utilization is the share of operating hours a dock was in use · click a heading to sort">
+      <Card title="Dock Performance" sub="Docks assigned in this range · utilization is the share of operating hours a dock was in use · click a dock to open it">
         <SortTable columns={DOCK_COLUMNS} rows={r.docks.map((d) => ({ ...d, utilization: ops.dockUseByDock[d.dock] ?? d.utilization }))} rowKey={(d) => d.dock} initial={{ id: 'dock', dir: 'asc' }} minWidth={820} empty="No docks assigned in this range." />
+      </Card>
+    </>
+  )
+}
+
+// Stay per partner as a p50–p90 spread against free time, busiest first.
+const FREE_MS = DETENTION_FREE_MIN * 60000
+export function PartnerSpread({ rows, kind, limit = 8 }) {
+  const list = [...rows]
+    .filter((p) => p.p50StayMs != null)
+    .sort((a, b) => b.visits - a.visits)
+    .slice(0, limit)
+    .map((p) => ({
+      key: p.name,
+      label: p.name,
+      node: (
+        <ProfileLink kind={kind} id={p.name}>
+          {p.name}
+        </ProfileLink>
+      ),
+      owner: `${p.visits} visits`,
+      n: p.departed,
+      p50: p.p50StayMs,
+      p90: p.p90StayMs,
+      max: p.maxStayMs,
+      target: FREE_MS,
+      onTargetPct: p.withinFreePct,
+    }))
+  if (!list.length) return <p className="px-5 pt-2 pb-5 text-muted">No departed visits in this range.</p>
+  return <StageSpread stages={list} words={{ target: `Free time (${FREE_H} h)`, on: 'within free time', unit: 'departed', over: 'Past free time' }} />
+}
+
+const CARRIER_COLUMNS = (total) => [
+  ...partnerColumns('carrier').slice(0, 2),
+  { id: 'share', label: 'Share', value: (r) => (total ? r.visits / total : null), render: (r) => pct(total ? r.visits / total : null), numeric: true },
+  { id: 'p50', label: 'Typical stay', value: (r) => r.p50StayMs, render: (r) => dur(r.p50StayMs), numeric: true },
+  { id: 'p90', label: 'Slow end', value: (r) => r.p90StayMs, render: (r) => dur(r.p90StayMs), numeric: true },
+  { id: 'ontime', label: 'On time', value: (r) => r.onTimePct, render: (r) => pct(r.onTimePct), numeric: true },
+  { id: 'within', label: 'Within free time', value: (r) => r.withinFreePct, render: (r) => pct(r.withinFreePct), numeric: true },
+  { id: 'per', label: '$ per visit', value: (r) => r.perVisit, render: (r) => (r.perVisit == null ? '—' : `$${r.perVisit.toFixed(2)}`), numeric: true },
+  { id: 'cost', label: 'Est. detention', value: (r) => r.detentionCost, render: (r) => money(r.detentionCost), numeric: true, bar: 'danger' },
+]
+
+export function CarriersSection({ r, prev, trend }) {
+  const list = [...r.carriers].sort((a, b) => b.detentionCost - a.detentionCost)
+  const total = r.carriers.reduce((s, c) => s + c.visits, 0)
+  const cost = r.totals.detentionCost
+  const top3 = list.slice(0, 3).reduce((s, c) => s + c.detentionCost, 0)
+  const onTime = [...r.carriers].filter((c) => c.onTimePct != null && c.visits >= 3).sort((a, b) => b.onTimePct - a.onTimePct)
+  return (
+    <>
+      <LeadRow
+        lead={
+          <Tile
+            size="lead"
+            label="Detention from the top 3 carriers"
+            value={money(top3)}
+            note={`${pct(cost ? top3 / cost : null)} of all est. detention · ${r.carriers.length} carriers made live visits`}
+            tone={top3 ? 'alert' : 'good'}
+            trend={trend(cost, prev.totals.detentionCost, money, true)}
+          />
+        }
+      >
+        <Card title="Detention by Carrier" sub="Est. detention in this range, costliest first · click a carrier to open it">
+          <BarList
+            rows={list.slice(0, 8).map((c, i) => ({
+              label: c.name,
+              node: (
+                <ProfileLink kind="carrier" id={c.name}>
+                  {c.name}
+                </ProfileLink>
+              ),
+              value: Math.round(c.detentionCost),
+              text: money(c.detentionCost),
+              note: `${c.overFree} over ${FREE_H} h`,
+              strong: i === 0,
+              color: i === 0 ? 'var(--color-danger)' : 'var(--color-ink)',
+            }))}
+            empty="No live visits in this range."
+          />
+        </Card>
+      </LeadRow>
+
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+        <Tile size="compact" label="Carriers" value={r.carriers.length} note={`${total} live visits between them`} />
+        <Tile
+          size="compact"
+          label="Most on time"
+          value={onTime[0]?.name ?? '—'}
+          note={onTime[0] ? `${pct(onTime[0].onTimePct)} of appointments on time` : 'Needs 3+ visits with an appointment'}
+          tone={onTime[0] ? 'good' : undefined}
+        />
+        <Tile
+          size="compact"
+          label="Least on time"
+          value={onTime.length > 1 ? onTime[onTime.length - 1].name : '—'}
+          note={onTime.length > 1 ? `${pct(onTime[onTime.length - 1].onTimePct)} of appointments on time` : 'Needs 2+ carriers to compare'}
+          tone={onTime.length > 1 ? 'warn' : undefined}
+        />
+        <Tile
+          size="compact"
+          label="Busiest carrier"
+          value={[...r.carriers].sort((a, b) => b.visits - a.visits)[0]?.name ?? '—'}
+          note={(() => {
+            const b = [...r.carriers].sort((a, b) => b.visits - a.visits)[0]
+            return b ? `${b.visits} visits · ${pct(total ? b.visits / total : null)} of all` : 'No visits'
+          })()}
+        />
+      </div>
+
+      <Card title="Stay by Carrier" sub={`Typical (p50) to slow-end (p90) time on site, against the ${FREE_H} h free time · busiest 8 carriers`}>
+        <PartnerSpread rows={r.carriers} kind="carrier" />
+      </Card>
+
+      <Card title="Carrier Scorecard" sub="Live visits (drops left out) · click a carrier to open it, a heading to sort">
+        <SortTable columns={CARRIER_COLUMNS(total)} rows={r.carriers} initial={{ id: 'cost', dir: 'desc' }} minWidth={980} empty="No live visits in this range." />
       </Card>
     </>
   )
@@ -546,6 +694,34 @@ export const SUMMARY = {
           {byHour[peak] > 0 && (
             <>
               Busiest hour: <b>{hourLabel(peak)}</b> with {byHour[peak]} check-ins.
+            </>
+          )}
+        </>
+      ),
+    }
+  },
+  carriers: (r, prev, days) => {
+    const list = [...r.carriers].sort((a, b) => b.detentionCost - a.detentionCost)
+    const w = list[0]
+    const slow = [...r.carriers].filter((c) => c.p90StayMs != null && c.visits >= 3).sort((a, b) => b.p90StayMs - a.p90StayMs)[0]
+    return {
+      key: `${r.carriers.length} carriers`,
+      tone: undefined,
+      takeaway: (
+        <>
+          {w?.detentionCost > 0 ? (
+            <>
+              <ProfileLink kind="carrier" id={w.name}>
+                {w.name}
+              </ProfileLink>{' '}
+              cost the most in detention ({money(w.detentionCost)}, {w.overFree} visits past free time).{' '}
+            </>
+          ) : (
+            'No carrier ran past free time in this range. '
+          )}
+          {slow && (
+            <>
+              Slowest slow end: <b>{slow.name}</b> ({dur(slow.p90StayMs)} at p90).
             </>
           )}
         </>

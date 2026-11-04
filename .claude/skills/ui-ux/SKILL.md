@@ -15,7 +15,7 @@ Before handing off, go through [checklist.md](checklist.md).
   Gate forms must be fast and forgiving: big targets, few required fields, clear errors.
 - **Shipping and dock staff** scan boards and tables for what needs action next (waiting trucks,
   free docks, inspections due).
-- **Managers** read the Overview tab (`src/components/Analytics.jsx`) for trends and detention cost.
+- **Managers** read the Insights tab (`src/components/Analytics.jsx`) for trends and detention cost.
 
 So: large controls, high contrast, plain words, and the next action always visible.
 
@@ -55,7 +55,7 @@ So: large controls, high contrast, plain words, and the next action always visib
 | Long entry form | Steps with a progress bar (Next checks only that step; Confirm shows a summary) | New check-in in `GuardForm.jsx` |
 | Tables on tablets | Below `lg`, a filter row and one card per row instead of the table | `EntryLog.jsx`, `ShippingDashboard.jsx` |
 | Headline numbers | `Tile` (label, big value, note, `tone` good/warn/alert, ▲/▼ `Trend` vs previous period) | `analytics/ui.jsx`, `analytics/charts.jsx` |
-| Section with sub-views | Left sidebar (sticky, `aria-current`) on `lg`, a row of buttons on small screens | Overview tab |
+| Section with sub-views | Left sidebar (sticky, `aria-current`) on `lg`, a row of buttons on small screens | Insights tab |
 | Notices | Pop-up `Toast` under the header via `notify(text, tone)` (`'ok'` draws a check, `'fail'` a cross), auto-clears after 3 s; lasting problems stay a `role="alert"` banner with `border-danger` | `App.jsx`, `Toast.jsx` |
 | Empty state | `EmptyState` (small isometric picture + text): say why it's empty and what to do | `EmptyState.jsx` |
 
@@ -83,6 +83,11 @@ Load the **`dataviz`** skill before writing any chart. In this app:
   `StageSpread` (p50–p90 per handoff against its target) and `OnSiteQueue`. Prefer a distribution or
   p50/p90 over a bare average when the slow trucks are what cost money. `DayView` in
   `analytics/control.jsx` puts yard load and docks on one shared time axis (`DAY_GRID`).
+- Insights is grouped (Live / Flow & Time / Partners / Quality / Value / Explore) in `SECTIONS` in
+  `Analytics.jsx`. Global filters (`src/insightsFilters.js`) apply before any figure is worked out;
+  the section, range, filters and open drill-down page are kept in the URL (`?tab=insights&…`).
+- Names, docks and visits open drill-down pages (`analytics/profiles.jsx`) through `ProfileLink`
+  (`analytics/nav.jsx`); use it wherever a carrier, customer, dock or visit is shown in Insights.
 - Sortable table columns can take `bar: true` (or `'danger'` for costs) for an in-cell data bar.
 - Run the palette validator for any new color set, in light **and** dark. Current sets:
   - live / drop = `chart-live` (blue) / `chart-drop` (magenta-purple, near the app's Drop purple). Light

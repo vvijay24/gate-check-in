@@ -1,147 +1,278 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import * as ui from '../ui'
 import { dayKey } from '../time'
 import { DETENTION_FREE_MIN } from '../yard'
 import { impactMetrics, previousRange, rangeMetrics, shiftDate } from '../analytics'
 import { opsMetrics } from '../ops'
+import { FILTER_KEYS, FILTER_LABEL, NO_FILTERS, PURPOSES, activeFilters, applyFilters, filterOptions } from '../insightsFilters'
 import { loadImpactSettings, saveImpactSettings } from '../impactSettings'
 import { Card } from './analytics/ui'
 import { Trend, shortDate } from './analytics/charts'
 import { HandoffSection, IMPACT_SUMMARY, ImpactSection, QualitySection, SettingsDialog } from './analytics/impact'
 import { REPLAY_SUMMARY, ReplaySection } from './analytics/replay'
 import { CONTROL_SUMMARY, ControlSection } from './analytics/control'
+import { EXPLORER_SUMMARY, ExplorerSection } from './analytics/explorer'
+import { ProfileView } from './analytics/profiles'
+import { InsightsNav } from './analytics/nav'
 import {
+  CarriersSection,
+  CustomersSection,
   DockSection,
-  GateSection,
   InspectionSection,
   OverviewSection,
   SUMMARY,
   SectionHeading,
-  ShippingSection,
   Takeaway,
+  ThroughputSection,
 } from './analytics/sections'
 
-// Analytics, shown as the "Overview" tab: how the yard did over a range of days, with a sidebar of
-// sections. Its purpose is showing what digitizing the yard saves: detention fees, miscommunication
-// between teams (handoffs) and mistakes, opening on Digitization Impact.
+// Insights: how the yard is doing, live and over a range of days. Sections are grouped by the
+// question they answer; every figure respects the global filters; names, docks and visits open their
+// own drill-down page; and the whole view (section, range, filters, open page) lives in the URL so a
+// link reopens it.
 
 // Range presets: a number of days, or 'golive' (from the go-live date to today).
 const PRESETS = [7, 14, 30, 'golive']
 
 const SECTIONS = [
-  { id: 'control', label: 'Operations Control', sub: 'The yard right now and through the day: load, docks, flow and where time is lost', View: ControlSection },
-  { id: 'impact', label: 'Digitization Impact', sub: "What going digital is saving, and the money still on the table", View: ImpactSection },
-  { id: 'overview', label: 'Detention & Wait Time', sub: 'Where trucks lose time on site, and what it costs in detention', View: OverviewSection },
-  { id: 'handoffs', label: 'Handoffs', sub: 'How quickly each team picks up a truck from the one before', View: HandoffSection },
-  { id: 'gate', label: 'Gate Operations', sub: 'Arrivals, appointments, gate traffic and carriers', View: GateSection },
-  { id: 'shipping', label: 'Shipping', sub: 'Pickups and customers', View: ShippingSection },
-  { id: 'docks', label: 'Dock & Loading', sub: 'Waits for a dock, dock use and time at each dock', View: DockSection },
-  { id: 'replay', label: 'Yard Replay', sub: 'Watch any day on the yard map: arrivals, docking and departures', View: ReplaySection },
-  { id: 'inspections', label: 'Inspections', sub: 'Loading inspections: results, timing and who did them', View: InspectionSection },
-  { id: 'quality', label: 'Data Quality', sub: 'Are the records complete, logged live, and catching mistakes?', View: QualitySection },
+  { id: 'command', group: 'Live', label: 'Command Center', sub: 'The yard right now and through the day: load, docks, queue and what is stuck', View: ControlSection },
+  { id: 'replay', group: 'Live', label: 'Yard Replay', sub: 'Watch any day on the yard map: arrivals, docking and departures', View: ReplaySection },
+  { id: 'throughput', group: 'Flow & Time', label: 'Throughput', sub: 'Arrivals, departures, appointments and gate traffic', View: ThroughputSection },
+  { id: 'turnaround', group: 'Flow & Time', label: 'Turnaround & Detention', sub: 'Where trucks lose time on site, and what it costs in detention', View: OverviewSection },
+  { id: 'docks', group: 'Flow & Time', label: 'Docks', sub: 'Waits for a dock, the dock schedule and how each dock performs', View: DockSection },
+  { id: 'handoffs', group: 'Flow & Time', label: 'Handoffs', sub: 'How quickly each team picks up a truck from the one before', View: HandoffSection },
+  { id: 'carriers', group: 'Partners', label: 'Carriers', sub: 'Who brings the trucks, how long they stay and what they cost', View: CarriersSection },
+  { id: 'customers', group: 'Partners', label: 'Customers', sub: 'Pickups and the customers they are for', View: CustomersSection },
+  { id: 'inspections', group: 'Quality', label: 'Inspections', sub: 'Loading inspections: results, timing and who did them', View: InspectionSection },
+  { id: 'quality', group: 'Quality', label: 'Data Quality', sub: 'Are the records complete, logged live, and catching mistakes?', View: QualitySection },
+  { id: 'impact', group: 'Value', label: 'Digitization Impact', sub: 'What going digital is saving, and the money still on the table', View: ImpactSection },
+  { id: 'explorer', group: 'Explore', label: 'Visit Explorer', sub: 'Every visit in the range: search, filter and open any one', View: ExplorerSection },
 ]
-const ALL_SUMMARIES = { ...SUMMARY, ...IMPACT_SUMMARY, replay: REPLAY_SUMMARY, control: CONTROL_SUMMARY }
+const GROUPS = [...new Set(SECTIONS.map((s) => s.group))]
+const ALL_SUMMARIES = {
+  command: CONTROL_SUMMARY,
+  replay: REPLAY_SUMMARY,
+  throughput: SUMMARY.gate,
+  turnaround: SUMMARY.overview,
+  docks: SUMMARY.docks,
+  handoffs: IMPACT_SUMMARY.handoffs,
+  carriers: SUMMARY.carriers,
+  customers: SUMMARY.shipping,
+  inspections: SUMMARY.inspections,
+  quality: IMPACT_SUMMARY.quality,
+  impact: IMPACT_SUMMARY.impact,
+  explorer: EXPLORER_SUMMARY,
+}
+const PROFILE_WORD = { carrier: 'Carrier', customer: 'Customer', dock: 'Dock', visit: 'Visit' }
+const profileName = (p) => (p.kind === 'dock' ? `Dock ${p.id}` : p.kind === 'visit' ? 'the visit' : p.id)
 
-// One toolbar for the whole tab: the range presets, the chosen dates (Custom… opens From / To),
-// what the ▲/▼ compare against, and Export.
-function Toolbar({ from, to, today, preset, onPreset, onRange, days, exportButton }) {
-  const custom = useRef(null)
-  const seg = (on) =>
-    'min-h-11 cursor-pointer rounded-md border-2 px-3.5 font-semibold ' + (on ? 'border-signal bg-signal text-signal-ink' : 'border-line bg-panel text-ink')
-  const dateCls = 'min-h-11 rounded-md border-2 border-line bg-panel px-2 text-ink'
-  const close = () => custom.current && (custom.current.open = false)
-  return (
-    <div className="no-print flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl bg-panel shadow-card p-2.5">
-      <div role="group" aria-label="Date range" className="flex flex-wrap items-center gap-2">
-        {PRESETS.map((n) => (
-          <button key={n} type="button" aria-pressed={preset === n} onClick={() => onPreset(n)} className={seg(preset === n)}>
-            {n === 'golive' ? 'Since go-live' : `Last ${n} days`}
-          </button>
+// ---------- URL ----------
+
+// ?tab=insights&s=carriers&range=7 (or from=…&to=…)&carrier=…&open=carrier:Schneider
+function readUrl() {
+  try {
+    const q = new URLSearchParams(window.location.search)
+    if (q.get('tab') !== 'insights') return {}
+    const open = q.get('open')
+    const at = open ? open.indexOf(':') : -1
+    return {
+      section: SECTIONS.some((x) => x.id === q.get('s')) ? q.get('s') : undefined,
+      preset: q.get('range') ? (q.get('range') === 'golive' ? 'golive' : Number(q.get('range'))) : q.get('from') ? null : undefined,
+      from: q.get('from'),
+      to: q.get('to'),
+      filters: Object.fromEntries(FILTER_KEYS.map((k) => [k, q.get(k) ?? ''])),
+      profile: at > 0 ? { kind: open.slice(0, at), id: open.slice(at + 1) } : null,
+    }
+  } catch {
+    return {}
+  }
+}
+
+function writeUrl({ section, preset, range, filters, profile }) {
+  try {
+    const q = new URLSearchParams({ tab: 'insights', s: section })
+    if (preset) q.set('range', String(preset))
+    else {
+      q.set('from', range.from)
+      q.set('to', range.to)
+    }
+    for (const k of FILTER_KEYS) if (filters[k]) q.set(k, filters[k])
+    if (profile) q.set('open', `${profile.kind}:${profile.id}`)
+    window.history.replaceState(null, '', `${window.location.pathname}?${q}`)
+  } catch {
+    // Some embedded pages don't allow it; the view still works, the link just won't carry it.
+  }
+}
+
+// ---------- Toolbar and filters ----------
+
+const segCls = (on) =>
+  'min-h-11 cursor-pointer rounded-md border-2 px-3.5 font-semibold ' + (on ? 'border-signal bg-signal text-signal-ink' : 'border-line bg-panel text-ink')
+
+function FilterPanel({ filters, options, onChange }) {
+  const sel = 'min-h-11 w-full rounded-md border-2 border-line bg-panel px-2 text-ink'
+  const field = (key, label, items) => (
+    <label className="text-sm font-semibold text-muted">
+      <span className="block">{label}</span>
+      <select value={filters[key]} onChange={(ev) => onChange({ ...filters, [key]: ev.target.value })} className={sel}>
+        {items.map(([v, l]) => (
+          <option key={v} value={v}>
+            {l}
+          </option>
         ))}
-        {/* The chosen dates; opening it shows From / To for a custom range. Esc or Done closes it. */}
-        <details ref={custom} className="relative" onKeyDown={(ev) => ev.key === 'Escape' && close()}>
-          <summary
-            className={
-              'flex min-h-11 cursor-pointer list-none items-center gap-1.5 rounded-md border-2 px-3.5 font-semibold [&::-webkit-details-marker]:hidden ' +
-              (preset ? 'border-line bg-panel text-ink' : 'border-signal bg-signal text-signal-ink')
-            }
-          >
-            {shortDate(from)} → {shortDate(to)} <span aria-hidden="true">▾</span>
-            <span className="sr-only">, choose custom dates</span>
-          </summary>
-          <div className="absolute left-0 z-20 mt-1.5 flex flex-wrap items-end gap-2 rounded-xl bg-panel shadow-raised p-3 shadow-lg">
-            <label className="text-sm font-semibold text-muted">
-              <span className="block">From</span>
-              <input type="date" value={from} max={to} onChange={(ev) => ev.target.value && onRange(ev.target.value, to)} className={dateCls} />
-            </label>
-            <label className="text-sm font-semibold text-muted">
-              <span className="block">To</span>
-              <input type="date" value={to} min={from} max={today} onChange={(ev) => ev.target.value && onRange(from, ev.target.value)} className={dateCls} />
-            </label>
-            <button type="button" onClick={close} className={ui.btnSmall}>
-              Done
-            </button>
-          </div>
-        </details>
-      </div>
-      <span className="text-sm text-muted">
-        {days} day{days === 1 ? '' : 's'} · ▲/▼ vs the {days} days before
-      </span>
-      <span className="ml-auto">{exportButton}</span>
+      </select>
+    </label>
+  )
+  return (
+    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+      {field('carrier', 'Carrier', [['', 'All carriers'], ...options.carriers.map((c) => [c, c])])}
+      {field('customer', 'Customer', [['', 'All customers'], ...options.customers.map((c) => [c, c])])}
+      {field('dock', 'Dock', [['', 'All docks'], ...options.docks.map((d) => [d, `Dock ${d}`])])}
+      {field('kind', 'Visit type', [
+        ['', 'Live and drops'],
+        ['live', 'Live visits only'],
+        ['drop', 'Dropped trailers only'],
+      ])}
+      {field('purpose', 'Purpose', [['', 'Any purpose'], ...PURPOSES.map((p) => [p, p])])}
     </div>
   )
 }
 
-// Left padding that clears the fixed Overview rail on wide screens (see the layout below). App uses it
-// for the notices above the Overview too, so the rail never covers them.
+function Toolbar({ from, to, today, preset, onPreset, onRange, days, filters, options, onFilters, exportButton, onCopyLink, copied }) {
+  const custom = useRef(null)
+  const [showFilters, setShowFilters] = useState(false)
+  const dateCls = 'min-h-11 rounded-md border-2 border-line bg-panel px-2 text-ink'
+  const close = () => custom.current && (custom.current.open = false)
+  const active = activeFilters(filters)
+  return (
+    <div className="no-print rounded-xl bg-panel p-2.5 shadow-card">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+        <div role="group" aria-label="Date range" className="flex flex-wrap items-center gap-2">
+          {PRESETS.map((n) => (
+            <button key={n} type="button" aria-pressed={preset === n} onClick={() => onPreset(n)} className={segCls(preset === n)}>
+              {n === 'golive' ? 'Since go-live' : `Last ${n} days`}
+            </button>
+          ))}
+          <details ref={custom} className="relative" onKeyDown={(ev) => ev.key === 'Escape' && close()}>
+            <summary
+              className={
+                'flex min-h-11 cursor-pointer list-none items-center gap-1.5 rounded-md border-2 px-3.5 font-semibold [&::-webkit-details-marker]:hidden ' +
+                (preset ? 'border-line bg-panel text-ink' : 'border-signal bg-signal text-signal-ink')
+              }
+            >
+              {shortDate(from)} → {shortDate(to)} <span aria-hidden="true">▾</span>
+              <span className="sr-only">, choose custom dates</span>
+            </summary>
+            <div className="absolute left-0 z-20 mt-1.5 flex flex-wrap items-end gap-2 rounded-xl bg-panel p-3 shadow-raised">
+              <label className="text-sm font-semibold text-muted">
+                <span className="block">From</span>
+                <input type="date" value={from} max={to} onChange={(ev) => ev.target.value && onRange(ev.target.value, to)} className={dateCls} />
+              </label>
+              <label className="text-sm font-semibold text-muted">
+                <span className="block">To</span>
+                <input type="date" value={to} min={from} max={today} onChange={(ev) => ev.target.value && onRange(from, ev.target.value)} className={dateCls} />
+              </label>
+              <button type="button" onClick={close} className={ui.btnSmall}>
+                Done
+              </button>
+            </div>
+          </details>
+          <button type="button" aria-expanded={showFilters} onClick={() => setShowFilters((v) => !v)} className={segCls(false) + ' flex items-center gap-2'}>
+            <span aria-hidden="true">⚲</span> Filters
+            {active.length > 0 && <span className="rounded-full bg-ink px-2 text-[12px] leading-5 text-panel">{active.length}</span>}
+          </button>
+        </div>
+        <span className="hidden text-sm text-muted 2xl:inline">
+          {days} day{days === 1 ? '' : 's'} · ▲/▼ vs the {days} days before
+        </span>
+        <span className="ml-auto flex items-center gap-2">
+          <button type="button" onClick={onCopyLink} className={ui.btnSmall} aria-live="polite">
+            {copied ? 'Link copied ✓' : 'Copy link'}
+          </button>
+          {exportButton}
+        </span>
+      </div>
+      {showFilters && (
+        <div className="mt-2.5 border-t border-line px-1 pt-3 pb-1">
+          <FilterPanel filters={filters} options={options} onChange={onFilters} />
+        </div>
+      )}
+      {active.length > 0 && (
+        <div className="mt-2.5 flex flex-wrap items-center gap-2 border-t border-line px-1 pt-2.5">
+          <span className="text-sm font-semibold text-muted">Showing only:</span>
+          {active.map((k) => (
+            <button
+              key={k}
+              type="button"
+              onClick={() => onFilters({ ...filters, [k]: '' })}
+              aria-label={`Remove filter ${FILTER_LABEL[k](filters[k])}`}
+              className="flex min-h-9 cursor-pointer items-center gap-1.5 rounded-full bg-signal-soft px-3 text-sm font-semibold text-ink ring-1 ring-signal-line/40 hover:ring-signal-line"
+            >
+              {FILTER_LABEL[k](filters[k])} <span aria-hidden="true">×</span>
+            </button>
+          ))}
+          <button type="button" onClick={() => onFilters(NO_FILTERS)} className="min-h-9 cursor-pointer text-sm font-semibold underline">
+            Clear all
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// Left padding that clears the fixed Insights rail on wide screens (see the layout below). App uses it
+// for the notices above Insights too, so the rail never covers them.
 export const RAIL_PAD = 'lg:pl-[max(0px,calc(240px_-_max(0px,(100vw_-_1400px)/2)))]'
 
 // Wide screens: a dark rail pinned to the window's left edge, from under the header (--header-h, set
-// in App) to the bottom of the window; it stays put while the section scrolls.
+// in App) to the bottom of the window, with the sections under their group headings.
 // Narrow screens: a row of light buttons above the content.
-// Each item shows its section's key figure (⚠ and colored when it needs attention); the sample-data
-// link sits below the menu.
-function Sidebar({ section, onSelect, keys, sampleControl, settingsControl }) {
+function Sidebar({ section, onSelect, keys, sampleControl, settingsControl, inProfile }) {
   const toneCls = { alert: 'font-semibold text-danger lg:text-rail-alert', warn: 'font-semibold text-ink lg:text-white' }
   return (
-    <aside className="rail no-print min-w-0 lg:fixed lg:bottom-0 lg:left-0 lg:top-[var(--header-h,114px)] lg:z-[5] lg:w-60 lg:overflow-y-auto lg:bg-rail">
-      {/* Wide screens: 12px panel margin + 12px item padding puts every line of text 24px from the
-          window edge; items are all 64px tall with 8px between them. */}
-      <nav aria-label="Analytics sections" className="lg:py-4">
-      <ul className="flex gap-2 overflow-x-auto pb-1 lg:flex-col lg:overflow-visible lg:px-3 lg:pb-0">
-        {SECTIONS.map((s) => {
-          const on = section === s.id
-          const k = keys[s.id]
-          return (
-            <li key={s.id} className="shrink-0">
-              <button
-                type="button"
-                aria-current={on ? 'page' : undefined}
-                onClick={() => onSelect(s.id)}
-                className={
-                  'min-h-11 w-full cursor-pointer rounded-md border-2 px-3.5 py-1.5 text-left whitespace-nowrap ' +
-                  'lg:flex lg:min-h-16 lg:flex-col lg:justify-center lg:border-0 lg:px-3 lg:py-2 ' +
-                  (on
-                    ? 'border-signal bg-signal text-signal-ink'
-                    : 'border-line bg-panel text-ink hover:bg-field lg:bg-transparent lg:text-rail-text lg:hover:bg-white/10 lg:hover:text-white')
-                }
-              >
-                <span className="block font-semibold lg:text-[17px] lg:leading-tight">{s.label}</span>
-                {k && (
-                  <span className={'block text-[13px] tabular-nums lg:mt-0.5 lg:text-[14px] ' + (on ? (k.tone ? 'font-semibold' : '') : (toneCls[k.tone] ?? 'text-muted lg:text-rail-muted'))}>
-                    {k.tone && '⚠ '}
-                    {k.key}
-                  </span>
-                )}
-              </button>
+    <aside className="rail no-print min-w-0 lg:fixed lg:top-[var(--header-h,114px)] lg:bottom-0 lg:left-0 lg:z-[5] lg:w-60 lg:overflow-y-auto lg:bg-rail">
+      <nav aria-label="Insights sections" className="lg:py-3">
+        <ul className="flex gap-2 overflow-x-auto pb-1 lg:block lg:overflow-visible lg:px-3 lg:pb-0">
+          {GROUPS.map((g) => (
+            <li key={g} className="contents lg:block">
+              <span className="hidden px-3 pt-3 pb-1 text-[11px] font-bold tracking-[0.12em] text-rail-muted uppercase lg:block">{g}</span>
+              <ul className="contents lg:block lg:space-y-1">
+                {SECTIONS.filter((s) => s.group === g).map((s) => {
+                  const on = section === s.id
+                  const k = keys[s.id]
+                  return (
+                    <li key={s.id} className="shrink-0">
+                      <button
+                        type="button"
+                        aria-current={on ? 'page' : undefined}
+                        onClick={() => onSelect(s.id)}
+                        className={
+                          'min-h-11 w-full cursor-pointer rounded-md border-2 px-3.5 py-1.5 text-left whitespace-nowrap ' +
+                          'lg:flex lg:min-h-14 lg:flex-col lg:justify-center lg:border-0 lg:border-l-[3px] lg:px-3 lg:py-1.5 ' +
+                          (on
+                            ? 'border-signal bg-signal text-signal-ink lg:border-l-signal-ink/40' + (inProfile ? ' lg:bg-signal/80' : '')
+                            : 'border-line bg-panel text-ink hover:bg-field lg:border-l-transparent lg:bg-transparent lg:text-rail-text lg:hover:bg-white/10 lg:hover:text-white')
+                        }
+                      >
+                        <span className="block font-semibold lg:text-[16px] lg:leading-tight">{s.label}</span>
+                        {k && (
+                          <span className={'block text-[13px] tabular-nums lg:mt-0.5 ' + (on ? (k.tone ? 'font-semibold' : '') : (toneCls[k.tone] ?? 'text-muted lg:text-rail-muted'))}>
+                            {k.tone && '⚠ '}
+                            {k.key}
+                          </span>
+                        )}
+                      </button>
+                    </li>
+                  )
+                })}
+              </ul>
             </li>
-          )
-        })}
-      </ul>
-      <div className="mx-3 mt-4 hidden flex-col items-start border-t border-white/15 px-3 pt-2 lg:flex">
-        {settingsControl}
-        {sampleControl}
-      </div>
+          ))}
+        </ul>
+        <div className="mx-3 mt-4 hidden flex-col items-start border-t border-white/15 px-3 pt-2 lg:flex">
+          {settingsControl}
+          {sampleControl}
+        </div>
       </nav>
     </aside>
   )
@@ -267,13 +398,22 @@ async function exportAnalytics(r, impact, ops) {
 export default function Analytics({ entries, gateEvents = [], sampleCount, onLoadSample, onRemoveSample }) {
   const [now, setNow] = useState(Date.now)
   const today = dayKey(new Date(now))
-  const [section, setSection] = useState('control')
-  const [preset, setPreset] = useState(7)
-  const [range, setRange] = useState(() => ({ from: shiftDate(today, -6), to: today }))
+  const [url] = useState(readUrl)
+  const [section, setSection] = useState(url.section ?? 'command')
+  const [preset, setPreset] = useState(url.preset === undefined ? 7 : url.preset)
+  const [range, setRange] = useState(() =>
+    url.from && url.to ? { from: url.from, to: url.to } : { from: shiftDate(today, -((typeof url.preset === 'number' ? url.preset : 7) - 1)), to: today },
+  )
+  const [filters, setFilters] = useState(() => ({ ...NO_FILTERS, ...url.filters }))
+  // Drill-down pages opened from one another; Back steps out one at a time.
+  const [trail, setTrail] = useState(() => (url.profile ? [url.profile] : []))
+  const profile = trail[trail.length - 1] ?? null
   const [exporting, setExporting] = useState(false)
   const [exportError, setExportError] = useState('')
+  const [copied, setCopied] = useState(false)
   const [settings, setSettings] = useState(loadImpactSettings)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const top = useRef(null)
 
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 60000)
@@ -287,36 +427,86 @@ export default function Analytics({ entries, gateEvents = [], sampleCount, onLoa
   const goLive = settings.goLive || defaultGoLive
   const effective = useMemo(() => ({ ...settings, goLive }), [settings, goLive])
 
+  // "Since go-live" from a link is worked out once the entries are known.
+  useEffect(() => {
+    if (preset === 'golive') setRange({ from: goLive <= today ? goLive : today, to: today })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [goLive])
+
+  useEffect(() => writeUrl({ section, preset, range, filters, profile }), [section, preset, range, filters, profile])
+  // Leaving Insights takes its view out of the address.
+  useEffect(
+    () => () => {
+      try {
+        window.history.replaceState(null, '', window.location.pathname)
+      } catch {
+        // Nothing to undo.
+      }
+    },
+    [],
+  )
+
   const choosePreset = (n) => {
     setPreset(n)
     setRange(n === 'golive' ? { from: goLive <= today ? goLive : today, to: today } : { from: shiftDate(today, -(n - 1)), to: today })
+  }
+  const chooseRange = (from, to) => {
+    setPreset(null)
+    setRange({ from, to })
   }
   const saveSettings = (next) => {
     setSettings(next)
     saveImpactSettings(next)
     setSettingsOpen(false)
   }
-  const chooseRange = (from, to) => {
-    setPreset(null)
-    setRange({ from, to })
+  const scrollUp = () => top.current?.scrollIntoView({ block: 'start', behavior: 'smooth' })
+  const selectSection = (id) => {
+    setSection(id)
+    setTrail([])
+    scrollUp()
+  }
+  const open = useCallback((p) => {
+    setTrail((t) => {
+      const last = t[t.length - 1]
+      return last && last.kind === p.kind && last.id === p.id ? t : [...t, p]
+    })
+    top.current?.scrollIntoView({ block: 'start', behavior: 'smooth' })
+  }, [])
+  const back = () => {
+    setTrail((t) => t.slice(0, -1))
+    scrollUp()
+  }
+  const nav = useMemo(() => ({ open }), [open])
+
+  const copyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.href)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      window.prompt('Copy this link:', window.location.href)
+    }
   }
 
-  const r = useMemo(() => rangeMetrics(entries, range.from, range.to, now), [entries, range, now])
+  // Everything below is worked out from the entries that pass the filters.
+  const scoped = useMemo(() => applyFilters(entries, filters), [entries, filters])
+  const options = useMemo(() => filterOptions(entries), [entries])
+
+  const r = useMemo(() => rangeMetrics(scoped, range.from, range.to, now), [scoped, range, now])
   const prev = useMemo(() => {
     const p = previousRange(range.from, range.to)
-    return rangeMetrics(entries, p.from, p.to, now)
-  }, [entries, range, now])
-  const impact = useMemo(() => impactMetrics(entries, range.from, range.to, now, effective, gateEvents), [entries, range, now, effective, gateEvents])
+    return rangeMetrics(scoped, p.from, p.to, now)
+  }, [scoped, range, now])
+  const impact = useMemo(() => impactMetrics(scoped, range.from, range.to, now, effective, gateEvents), [scoped, range, now, effective, gateEvents])
   const prevImpact = useMemo(() => {
     const p = previousRange(range.from, range.to)
-    return impactMetrics(entries, p.from, p.to, now, effective, gateEvents)
-  }, [entries, range, now, effective, gateEvents])
-
-  const ops = useMemo(() => opsMetrics(entries, range.from, range.to, now, effective.targets), [entries, range, now, effective])
+    return impactMetrics(scoped, p.from, p.to, now, effective, gateEvents)
+  }, [scoped, range, now, effective, gateEvents])
+  const ops = useMemo(() => opsMetrics(scoped, range.from, range.to, now, effective.targets), [scoped, range, now, effective])
   const prevOps = useMemo(() => {
     const p = previousRange(range.from, range.to)
-    return opsMetrics(entries, p.from, p.to, now, effective.targets)
-  }, [entries, range, now, effective])
+    return opsMetrics(scoped, p.from, p.to, now, effective.targets)
+  }, [scoped, range, now, effective])
 
   // The ▲/▼ line under a tile; blank when the previous period had no visits.
   const trend = (value, base, format, lowerIsBetter) => (
@@ -338,17 +528,17 @@ export default function Analytics({ entries, gateEvents = [], sampleCount, onLoa
   const current = SECTIONS.find((s) => s.id === section)
   const View = current.View
   const hasData = r.totals.visits > 0
-  // Sidebar figure and takeaway for every section (none when the range is empty).
   const extra = { impact, prevImpact, ops }
   const summaries = hasData ? Object.fromEntries(SECTIONS.map((s) => [s.id, ALL_SUMMARIES[s.id](r, prev, r.dayCount, extra)])) : {}
+  const backTo = trail.length > 1 ? trail[trail.length - 2] : null
+  const backLabel = backTo ? `Back to ${PROFILE_WORD[backTo.kind].toLowerCase()} ${profileName(backTo)}` : `Back to ${current.label}`
+
   const settingsControl = (colors = 'text-muted hover:text-ink') => (
     <button type="button" onClick={() => setSettingsOpen(true)} className={'min-h-11 cursor-pointer text-sm font-semibold underline ' + colors}>
       Targets &amp; go-live
     </button>
   )
-
-  // A demo control, so it's a quiet link rather than a button beside Export. `colors` suits where it
-  // sits: light text on the dark sidebar rail, muted text on the page.
+  // A demo control, so it's a quiet link rather than a button beside Export.
   const sampleControl = (colors = 'text-muted hover:text-ink') =>
     sampleCount > 0 ? (
       <button
@@ -374,65 +564,91 @@ export default function Analytics({ entries, gateEvents = [], sampleCount, onLoa
   )
 
   return (
-    // On wide screens the sidebar is pinned outside the page flow, so the content is pushed right
-    // just enough to clear it: the page column starts max(0, (100vw - 1400px) / 2) + 20px from the
-    // window edge, and the content should start at least 240px + 20px in.
-    // minmax(0, 1fr): below lg the one column may not grow to fit the sidebar's row of buttons
-    // (they scroll sideways instead), so the page never scrolls sideways.
-    <div className={'grid grid-cols-[minmax(0,1fr)] gap-5 lg:block ' + RAIL_PAD}>
-      <Sidebar
-        section={section}
-        onSelect={setSection}
-        keys={summaries}
-        sampleControl={sampleControl('text-rail-muted hover:text-white')}
-        settingsControl={settingsControl('text-rail-muted hover:text-white')}
-      />
-      <SettingsDialog open={settingsOpen} settings={settings} defaultGoLive={defaultGoLive} onSave={saveSettings} onClose={() => setSettingsOpen(false)} />
-
-      <div className="min-w-0 space-y-5">
-        <Toolbar
-          from={range.from}
-          to={range.to}
-          today={today}
-          preset={preset}
-          onPreset={choosePreset}
-          onRange={chooseRange}
-          days={r.dayCount}
-          exportButton={exportButton}
+    <InsightsNav.Provider value={nav}>
+      {/* On wide screens the sidebar is pinned outside the page flow, so the content is pushed right
+          just enough to clear it. minmax(0, 1fr): below lg the sidebar's row of buttons scrolls
+          sideways instead of widening the page. */}
+      <div ref={top} className={'grid scroll-mt-[calc(var(--header-h,114px)+12px)] grid-cols-[minmax(0,1fr)] gap-5 lg:block ' + RAIL_PAD}>
+        <Sidebar
+          section={section}
+          onSelect={selectSection}
+          keys={summaries}
+          inProfile={!!profile}
+          sampleControl={sampleControl('text-rail-muted hover:text-white')}
+          settingsControl={settingsControl('text-rail-muted hover:text-white')}
         />
+        <SettingsDialog open={settingsOpen} settings={settings} defaultGoLive={defaultGoLive} onSave={saveSettings} onClose={() => setSettingsOpen(false)} />
 
-        <SectionHeading title={current.label} sub={current.sub} />
+        <div className="min-w-0 space-y-5">
+          <Toolbar
+            from={range.from}
+            to={range.to}
+            today={today}
+            preset={preset}
+            onPreset={choosePreset}
+            onRange={chooseRange}
+            days={r.dayCount}
+            filters={filters}
+            options={options}
+            onFilters={setFilters}
+            exportButton={exportButton}
+            onCopyLink={copyLink}
+            copied={copied}
+          />
 
-        {!hasData ? (
-          <Card title="No visits in this range" sub="Pick a different range, or load the sample data to see how this tab works.">
-            <div className="px-5 pt-2 pb-5">{sampleControl()}</div>
-          </Card>
-        ) : (
-          <>
-            <Takeaway>{summaries[section].takeaway}</Takeaway>
-            <View
-              r={r}
-              prev={prev}
-              trend={trend}
-              impact={impact}
-              prevImpact={prevImpact}
-              settings={settings}
-              onOpenSettings={() => setSettingsOpen(true)}
-              entries={entries}
+          {profile ? (
+            <ProfileView
+              key={`${profile.kind}:${profile.id}`}
+              profile={profile}
+              entries={scoped}
+              allEntries={entries}
               range={range}
-              ops={ops}
-              prevOps={prevOps}
               now={now}
+              settings={effective}
+              fleet={r}
+              fleetOps={ops}
+              onBack={back}
+              backLabel={backLabel}
             />
-          </>
-        )}
+          ) : (
+            <>
+              <SectionHeading title={current.label} sub={`${current.group} · ${current.sub}`} />
+              {!hasData ? (
+                <Card
+                  title="No visits in this range"
+                  sub={activeFilters(filters).length ? 'Nothing matches the filters in this range. Clear a filter or pick a longer range.' : 'Pick a different range, or load the sample data to see how this tab works.'}
+                >
+                  <div className="px-5 pt-2 pb-5">{sampleControl()}</div>
+                </Card>
+              ) : (
+                <>
+                  <Takeaway>{summaries[section].takeaway}</Takeaway>
+                  <View
+                    r={r}
+                    prev={prev}
+                    trend={trend}
+                    impact={impact}
+                    prevImpact={prevImpact}
+                    settings={settings}
+                    onOpenSettings={() => setSettingsOpen(true)}
+                    entries={scoped}
+                    range={range}
+                    ops={ops}
+                    prevOps={prevOps}
+                    now={now}
+                  />
+                </>
+              )}
+            </>
+          )}
 
-        {/* On narrow screens the sidebar is a row of buttons, so the sample-data link sits here. */}
-        <div className="no-print flex flex-wrap gap-x-5 lg:hidden">
-          {settingsControl()}
-          {sampleControl()}
+          {/* On narrow screens the sidebar is a row of buttons, so these links sit here. */}
+          <div className="no-print flex flex-wrap gap-x-5 lg:hidden">
+            {settingsControl()}
+            {sampleControl()}
+          </div>
         </div>
       </div>
-    </div>
+    </InsightsNav.Provider>
   )
 }

@@ -4,6 +4,8 @@ import { DETENTION_FREE_MIN } from '../../yard'
 import { opsDay } from '../../ops'
 import { Card, Tile } from './ui'
 import { dur, money, pct, ptsDiff } from './charts'
+import { STUCK_COLUMNS } from './impact'
+import { SortTable } from './charts'
 import { DayPicker, DockGantt, DockLegend, Histogram, OnSiteQueue, StageSpread, YardLoad, YardLoadLegend } from './viz'
 
 // Operations Control: the control-tower view of the yard. What's on site now, how the yard and each
@@ -68,11 +70,15 @@ const Wide = ({ children }) => (
 
 // ---------- Day view: yard load and dock schedule on one time axis ----------
 
-export function DayView({ entries, now, dates, docksOnly = false }) {
+export function DayView({ entries, now, dates, docksOnly = false, onlyDock }) {
   const today = dayKey(new Date(now))
   const [picked, setPicked] = useState(null)
   const day = dates.includes(picked) ? picked : dates.includes(today) ? today : dates[dates.length - 1]
-  const d = useMemo(() => opsDay(entries, day, now), [entries, day, now])
+  const d = useMemo(() => {
+    const day0 = opsDay(entries, day, now)
+    if (!onlyDock) return day0
+    return { ...day0, schedule: day0.schedule.filter((row) => row.dock === onlyDock) }
+  }, [entries, day, now, onlyDock])
   const hours = `${clockTime(d.window.from)}–${clockTime(Math.min(d.window.to, now))}`
   const sub = docksOnly
     ? `Each bar is a truck at a dock, from dock assigned to check-out · in use = share of operating hours (${hours})`
@@ -114,7 +120,7 @@ export function DayView({ entries, now, dates, docksOnly = false }) {
 
 const KpiGrid = ({ children }) => <div className="grid grid-cols-2 gap-3 md:grid-cols-3 2xl:grid-cols-6">{children}</div>
 
-export function ControlSection({ r, prev, trend, ops, prevOps, entries, now }) {
+export function ControlSection({ r, prev, trend, ops, prevOps, entries, now, impact }) {
   const n = ops.now
   const today = dayKey(new Date(now))
   const todayOps = useMemo(() => opsDay(entries, today, now), [entries, today, now])
@@ -195,11 +201,15 @@ export function ControlSection({ r, prev, trend, ops, prevOps, entries, now }) {
         <Card title="On Site Now" sub={`${n.live} truck${n.live === 1 ? '' : 's'} and ${n.drops} dropped trailer${n.drops === 1 ? '' : 's'}, longest here first`}>
           <OnSiteQueue items={n.onSite} />
         </Card>
-        <Card
-          title="Arrivals vs Appointment"
-          sub={`Minutes early (−) or late (+) against the appointment · ${ops.arrival.count} with an appointment, ${r.arrivals.unscheduled} without`}
-        >
-          <ArrivalHistogram arrival={ops.arrival} />
+        <Card title="Stuck Right Now" sub="On site and over a handoff's target at this moment, longest over first">
+          <SortTable
+            columns={STUCK_COLUMNS}
+            rows={impact.stuck}
+            rowKey={(s) => s.e.id}
+            initial={{ id: 'over', dir: 'desc' }}
+            minWidth={520}
+            empty="No trucks are over a handoff target right now."
+          />
         </Card>
       </div>
     </>

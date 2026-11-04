@@ -2,6 +2,7 @@ import { useId, useState } from 'react'
 import { clockTime, dayKey } from '../../time'
 import { DETENTION_FREE_MIN } from '../../yard'
 import { YARD_STATES } from '../../ops'
+import { ProfileLink, useInsightsNav } from './nav'
 import { LIVE, TableView, dur, niceStep, tooltipCls, weekdayDate } from './charts'
 
 // Control-tower charts for the Overview: a sparkline, the yard's load through a day, each dock's
@@ -321,10 +322,13 @@ export function DockGantt({ schedule, win, now, use }) {
 }
 
 function DockRow({ row, first, win, now, X, use, hover, setHover }) {
+  const { open } = useInsightsNav()
   return (
     <>
       <div className="flex flex-col justify-center pr-2">
-        <b className="text-[14px] leading-tight">Dock {row.dock}</b>
+        <ProfileLink kind="dock" id={row.dock} className="text-[14px] leading-tight">
+          Dock {row.dock}
+        </ProfileLink>
         <span className="text-[12px] text-muted">
           {row.bars.length} load{row.bars.length === 1 ? '' : 's'}
         </span>
@@ -351,7 +355,10 @@ function DockRow({ row, first, win, now, X, use, hover, setHover }) {
               onMouseLeave={() => setHover(null)}
               onFocus={() => setHover({ dock: row.dock, i })}
               onBlur={() => setHover(null)}
-              className={'absolute inset-y-1.5 z-[1] outline-offset-2' + (on ? ' z-[3]' : '')}
+              onClick={() => open({ kind: 'visit', id: b.e.id })}
+              onKeyDown={(ev) => ev.key === 'Enter' && open({ kind: 'visit', id: b.e.id })}
+              role="button"
+              className={'absolute inset-y-1.5 z-[1] cursor-pointer outline-offset-2' + (on ? ' z-[3]' : '')}
               style={{ left: `${left}%`, width: `${width}%` }}
             >
               <div className={'relative flex h-full gap-[2px] overflow-hidden rounded-[4px] shadow-sm' + (on ? ' ring-2 ring-ink' : '')}>
@@ -377,6 +384,7 @@ function DockRow({ row, first, win, now, X, use, hover, setHover }) {
                   <span className="block">Docked → inspected: {dur(s.toInspectMs)}</span>
                   <span className="block">Inspected → released: {dur(s.toReleaseMs)}</span>
                   {b.freeEndsAt != null && b.to > b.freeEndsAt && <span className="block font-semibold">⚠ {dur(b.to - b.freeEndsAt)} past free time</span>}
+                  <span className="mt-1 block text-white/70">Click to open this visit</span>
                 </div>
               )}
             </div>
@@ -469,7 +477,15 @@ export function Histogram({ bins, edge, binLabel, noun, regions = [], markers = 
               className={'pointer-events-none absolute bottom-0 z-[2] border-l-2 ' + (m.dashed ? 'border-dashed ' : '') + (m.tone === 'danger' ? 'border-danger' : 'border-ink')}
               style={{ left: `${pos(m.value)}%`, top: -(markers.length - i) * 20 }}
             >
-              <span className={'absolute -top-0.5 text-[12px] font-bold whitespace-nowrap ' + (pos(m.value) > 60 ? 'right-1 ' : 'left-1 ') + (m.tone === 'danger' ? 'text-danger' : '')}>
+              {/* The first of several markers labels to its left (away from the others); the rest to the
+                  right unless that would run off the chart. The panel-colored backing hides any line it crosses. */}
+              <span
+                className={
+                  'absolute -top-1 rounded bg-panel/95 px-1 text-[12px] font-bold whitespace-nowrap ' +
+                  ((i === 0 && markers.length > 1 ? pos(m.value) > 25 : pos(m.value) > 60) ? 'right-0.5 ' : 'left-0.5 ') +
+                  (m.tone === 'danger' ? 'text-danger' : '')
+                }
+              >
                 {m.label}
               </span>
             </div>
@@ -495,7 +511,7 @@ export function Histogram({ bins, edge, binLabel, noun, regions = [], markers = 
 
 // One row per handoff: the typical time (p50, filled dot) to the slow end (p90, open dot), the target
 // as a dashed line, and the part of the spread past target in red.
-export function StageSpread({ stages }) {
+export function StageSpread({ stages, words = { target: 'Target', on: 'on target', unit: 'trucks' } }) {
   const [hover, setHover] = useState(null)
   const maxMin = Math.max(1, ...stages.flatMap((s) => [(s.p90 ?? 0) / 60000, s.target / 60000])) * 1.08
   // Steps a dispatcher counts in: 5, 10, 15, 30 min, 1 h, 2 h.
@@ -503,7 +519,7 @@ export function StageSpread({ stages }) {
   const top = step * Math.ceil(maxMin / step)
   const X = (ms) => Math.min(100, (ms / 60000 / top) * 100)
   const ticks = Array.from({ length: Math.round(top / step) + 1 }, (_, i) => i * step)
-  const grid = { gridTemplateColumns: 'minmax(120px, 190px) minmax(0, 1fr) 112px' }
+  const grid = { gridTemplateColumns: 'minmax(120px, 190px) minmax(0, 1fr) auto' }
 
   return (
     <div className="px-5 pb-5">
@@ -518,10 +534,10 @@ export function StageSpread({ stages }) {
         </li>
         <li className="flex items-center gap-1.5">
           <i className="inline-block h-3.5 border-l-2 border-dashed border-ink" />
-          Target
+          {words.target}
         </li>
         <li className="flex items-center gap-1.5">
-          <i className="inline-block h-1.5 w-4 rounded-full bg-danger" />⚠ Over target
+          <i className="inline-block h-1.5 w-4 rounded-full bg-danger" />⚠ {words.over ?? 'Over target'}
         </li>
       </ul>
       <div className="mt-3 grid items-center gap-x-3" style={grid}>
@@ -533,9 +549,9 @@ export function StageSpread({ stages }) {
           return (
             <div key={s.key} className="contents" onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)}>
               <div className="py-2.5">
-                <b className="block text-[14px] leading-tight">{s.label}</b>
+                <b className="block text-[14px] leading-tight">{s.node ?? s.label}</b>
                 <span className="text-[12px] text-muted">
-                  {s.owner} · {s.n} trucks
+                  {s.owner} · {s.n} {words.unit}
                 </span>
               </div>
               <div
@@ -568,17 +584,17 @@ export function StageSpread({ stages }) {
                       Typical {dur(s.p50)} · slow end {dur(s.p90)} · longest {dur(s.max)}
                     </span>
                     <span className="block">
-                      Target {dur(s.target)} · {s.onTargetPct == null ? '—' : `${Math.round(s.onTargetPct * 100)}%`} on target
+                      {words.target} {dur(s.target)} · {s.onTargetPct == null ? '—' : `${Math.round(s.onTargetPct * 100)}%`} {words.on}
                     </span>
                   </span>
                 )}
               </div>
-              <div className="text-right">
+              <div className="text-right whitespace-nowrap">
                 <b className="block text-[14px] tabular-nums">
                   {dur(s.p50)} <span className="font-normal text-muted">/</span> {dur(s.p90)}
                 </b>
                 <span className={'text-[12px] font-semibold ' + (ok == null ? 'text-muted' : ok ? 'text-ok' : 'text-danger')}>
-                  {ok == null ? 'No data' : `${ok ? '✓' : '⚠'} ${Math.round(s.onTargetPct * 100)}% on target`}
+                  {ok == null ? 'No data' : `${ok ? '✓' : '⚠'} ${Math.round(s.onTargetPct * 100)}% ${words.on}`}
                 </span>
               </div>
             </div>
@@ -595,7 +611,7 @@ export function StageSpread({ stages }) {
         <div className="pt-1 text-right text-[12px] text-muted">p50 / p90</div>
       </div>
       <TableView
-        head={['Handoff', 'Typical (p50)', 'Slow end (p90)', 'Target', 'On target']}
+        head={['', 'Typical (p50)', 'Slow end (p90)', words.target, words.on]}
         rows={stages.map((s) => [s.label, dur(s.p50), dur(s.p90), dur(s.target), s.onTargetPct == null ? '—' : `${Math.round(s.onTargetPct * 100)}%`])}
       />
     </div>
@@ -617,7 +633,9 @@ export function OnSiteQueue({ items, limit = 8 }) {
         {shown.map((x) => (
           <li key={x.e.id} className="grid grid-cols-[minmax(0,1fr)_minmax(80px,1.3fr)_auto] items-center gap-3 py-2.5">
             <span className="min-w-0">
-              <b className="block truncate text-[14px]">{shortName(x.e)}</b>
+              <ProfileLink kind="visit" id={x.e.id} className="block max-w-full truncate text-[14px]">
+                {shortName(x.e)}
+              </ProfileLink>
               <span className="flex items-center gap-1.5 text-[12px] text-muted">
                 <i
                   className="inline-block h-2.5 w-2.5 shrink-0 rounded-[3px]"

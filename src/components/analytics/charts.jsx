@@ -352,7 +352,7 @@ export function BarList({ rows, color = 'var(--color-ink)', empty }) {
       {rows.map((r) => (
         <li key={r.label} className="grid grid-cols-[minmax(0,200px)_minmax(0,1fr)_auto] items-center gap-3 text-[14px]">
           <span className={'truncate ' + (r.strong ? 'font-bold' : 'font-semibold')} title={r.label}>
-            {r.label}
+            {r.node ?? r.label}
           </span>
           <span className="h-3 overflow-hidden rounded bg-track">
             <span className="block h-full rounded-r" style={{ width: `${(r.value / max) * 100}%`, background: r.color ?? color }} />
@@ -449,7 +449,8 @@ function DataBar({ value, max, danger }) {
 }
 
 // A table whose headers sort it; `columns` give each column's value (for sorting) and how it shows.
-export function SortTable({ columns, rows, initial, empty, rowKey = (r) => r.name, minWidth = 640 }) {
+// `pageSize` / `page` show one page of the sorted rows.
+export function SortTable({ columns, rows, initial, empty, rowKey = (r) => r.name, minWidth = 640, pageSize, page = 0 }) {
   const [sort, setSort] = useState(initial)
   const col = columns.find((c) => c.id === sort.id)
   const sorted = [...rows].sort((a, b) => {
@@ -471,7 +472,7 @@ export function SortTable({ columns, rows, initial, empty, rowKey = (r) => r.nam
         <thead className="text-[13px] font-semibold text-muted">
           <tr className="border-y border-line">
             {columns.map((c) => (
-              <th key={c.id} className={th + (c.numeric ? ' text-right' : '')} aria-sort={sort.id === c.id ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}>
+              <th key={c.id} className={th + (c.numeric ? ' text-right' : '')} style={c.minW ? { minWidth: c.minW } : undefined} aria-sort={sort.id === c.id ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}>
                 <button type="button" onClick={() => toggle(c)} className="cursor-pointer font-semibold hover:text-ink">
                   {c.label}
                   <span aria-hidden="true" className="ml-1">
@@ -490,7 +491,7 @@ export function SortTable({ columns, rows, initial, empty, rowKey = (r) => r.nam
               </td>
             </tr>
           ) : (
-            sorted.map((r) => (
+            (pageSize ? sorted.slice(page * pageSize, page * pageSize + pageSize) : sorted).map((r) => (
               <tr key={rowKey(r)} className="hover:bg-field/70">
                 {columns.map((c) => (
                   <td key={c.id} className={td + (c.numeric ? ' text-right tabular-nums' : '')}>

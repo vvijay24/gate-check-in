@@ -19,6 +19,14 @@ const LONGEST = 10
 const average = (list) => (list.length ? list.reduce((a, b) => a + b, 0) / list.length : null)
 const sum = (list) => list.reduce((a, b) => a + b, 0)
 const avgOf = (list, pick) => average(list.map(pick).filter((v) => v != null && Number.isFinite(v) && v >= 0))
+// p in 0..1, linear between the two nearest values.
+export function percentile(list, p) {
+  const v = list.filter((x) => x != null && Number.isFinite(x)).sort((a, b) => a - b)
+  if (!v.length) return null
+  const i = (v.length - 1) * p
+  const lo = Math.floor(i)
+  return v[lo] + (v[Math.min(lo + 1, v.length - 1)] - v[lo]) * (i - lo)
+}
 const isPickup = (e) => (e.visitPurpose ?? []).includes('Pickup')
 
 export const shiftDate = (key, days) => {
@@ -87,15 +95,23 @@ function rollup(stages, nameOf) {
   return [...groups.values()].map(({ name, items }) => {
     const lates = items.map((s) => minutesLate(s.e)).filter((m) => m !== null)
     const results = items.map((s) => s.e.loadingInspection?.result).filter(Boolean)
+    const stays = items.filter((s) => !s.onSite).map((s) => s.onSiteMs)
+    const det = detentionOf(items)
     return {
       name,
       visits: items.length,
+      p50StayMs: percentile(stays, 0.5),
+      p90StayMs: percentile(stays, 0.9),
+      maxStayMs: stays.length ? Math.max(...stays) : null,
+      departed: stays.length,
+      withinFreePct: stays.length ? stays.filter((v) => v <= FREE_MS).length / stays.length : null,
+      perVisit: items.length ? det.detentionCost / items.length : null,
       avgTurnMs: avgOf(items.filter((s) => !s.onSite), (s) => s.onSiteMs),
       avgToInspectMs: avgOf(items, (s) => s.toInspectMs),
       onTimePct: lates.length ? lates.filter((m) => m <= LATE_GRACE_MIN).length / lates.length : null,
       late: lates.filter((m) => m > LATE_GRACE_MIN).length,
       passPct: results.length ? results.filter((r) => r === 'Pass').length / results.length : null,
-      ...detentionOf(items),
+      ...det,
     }
   })
 }
