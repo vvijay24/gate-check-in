@@ -3,7 +3,7 @@ import * as ui from '../ui'
 import { arrivalMs, clockTime, duration } from '../time'
 import { yardStatus, isDrop } from '../metrics'
 import { DETENTION_FREE_MIN, DOCKS, STALE_WARN_H } from '../yard'
-import { BAY_WY, Foreground, GATE_WX, Headlights, LOT_D, NightLights, P, RIG_L, RIG_W, Rig, SHACK, Scene, SkyTint, VIEW, colWX, daylight, pts, rigOrigin } from './YardScene'
+import { BAY_WY, Foreground, GATE_WX, LOT_D, NightLighting, P, RIG_L, RIG_W, Rig, SHACK, Scene, VIEW, colWX, daylight, pts, rigOrigin } from './YardScene'
 import { poseAt, spotCenter, useYardDrives } from './yardMotion'
 import { detentionState } from '../detention'
 import { GATES } from '../formConfig'
@@ -531,13 +531,12 @@ export default function YardMap({ yard, gateCounts, at, clock, live, onEdit, onC
         />
       ))}
       <Foreground gateFills={GATES.map((g) => GATE_STYLE[g]?.fill ?? 'var(--color-signal)')} night={sky.night} />
-      <SkyTint night={sky.night} warm={sky.warm} />
-      <NightLights occupied={occupied} night={sky.night} />
-      {items
-        .filter((u) => u.driving)
-        .map((u) => (
-          <Headlights key={'lights-' + u.e.id} {...u.pose} night={sky.night} />
-        ))}
+      <NightLighting
+        occupied={occupied}
+        night={sky.night}
+        warm={sky.warm}
+        rigs={items.map((u) => ({ ...u.pose, driving: u.driving }))}
+      />
       {DOCKS.map((d, i) => (yard.atDock.has(d) ? null : <FreeMark key={d} wx={colWX(i)} wy={26} text="✓ Free" />))}
       {yard.bays.map((e, i) => (e ? null : <FreeMark key={i} wx={colWX(i)} wy={BAY_WY + 26} text="✓ Open" />))}
       {parked.map((u) => (

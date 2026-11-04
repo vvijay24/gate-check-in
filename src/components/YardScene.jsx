@@ -4,6 +4,7 @@
 // to the screen (2:1 isometric), so a box shows its top, its +y face (facing lower left) and its +x
 // face (facing lower right). Light comes from the upper right: tops are brightest, +x faces a little
 // darker and +y faces darker still, done with black overlays so one color per part is enough.
+import { useId } from 'react'
 import { DOCKS, STAGING_BAYS } from '../yard'
 
 export const C = 2.5
@@ -362,7 +363,7 @@ function Tree({ x, y, s = 1 }) {
   )
 }
 
-// Pole with a lamp (its light pool after dark is drawn by NightLights).
+// Pole with a lamp (its light pool after dark is drawn by NightLighting).
 function LightPole({ x, y }) {
   return (
     <g>
@@ -559,38 +560,136 @@ export function Foreground({ gateFills, night = 0 }) {
   )
 }
 
-const Pool = ({ x, y, z = 0, rx, ry, opacity }) => {
-  const [cx, cy] = P(x, y, z)
-  return <ellipse cx={cx} cy={cy} rx={rx} ry={ry} fill="var(--color-iso-glow)" opacity={Math.min(1, opacity * 1.25)} filter="url(#iso-halo)" style={{ mixBlendMode: 'screen' }} />
+// ---- Night lighting ----
+// Night works like a lit stage, not a fog: the scene is darkened by multiplying a deep blue over it
+// (which keeps contrast), and every light source cuts a soft pool out of that darkness, so whatever
+// stands in the light shows its true colors. A warm soft-light cast tints the pools like sodium
+// lamps, and the lamp heads themselves glow. Trucks always get some yard light so they stay readable.
+
+const ISO_ANGLE = (Math.atan2(0.5, 1) * 180) / Math.PI // a world-x line on screen, in degrees
+
+// Light sources: where each pool falls (world x, y), its size on screen, strength (0..1), and the
+// lamp head that makes it (world x, y, z).
+function nightLights(occupied) {
+  const B = BUILDING
+  const docks = DOCKS.map((d, i) => ({
+    key: 'dock' + d,
+    x: colWX(i) + 2,
+    y: 13,
+    rx: 54,
+    ry: 27,
+    k: occupied?.has(d) ? 1 : 0.8,
+    lamp: [colWX(i) + 6.3, 0.2, 15.9],
+  }))
+  return [
+    ...docks,
+    { key: 'pole-l', x: -1, y: 70, rx: 118, ry: 58, k: 0.95, lamp: [-3.2, 64.8, 24.4] },
+    { key: 'pole-r', x: LOT_W + 1, y: 70, rx: 118, ry: 58, k: 0.95, lamp: [LOT_W + 5.8, 64.8, 24.4] },
+    // Wall packs along the building front light the drive lane between the docks and the bays.
+    ...[0.22, 0.5, 0.78].map((f, i) => ({ key: 'lane' + i, x: LOT_W * f, y: 60, rx: 120, ry: 50, k: 0.5 })),
+    // Spill over the staging bays.
+    { key: 'bays', x: LOT_W / 2, y: BAY_WY + 26, rx: 190, ry: 70, k: 0.45 },
+    ...[0, 1, 2].map((i) => ({ key: 'office' + i, x: B.x + B.w + 6, y: B.y + 10 + i * 11, rx: 26, ry: 14, k: 0.8, lamp: [B.x + B.w + 0.4, B.y + 9.5 + i * 11, 11] })),
+    { key: 'shack', x: SHACK.x + 9, y: SHACK.y + 13, rx: 34, ry: 17, k: 0.9, lamp: [SHACK.x + 5, SHACK.y + 10.2, 6] },
+  ]
 }
 
-// Lights after dark, drawn above the night tint so they glow: a pool under each dock light (brighter
-// at a dock in use), under each pole lamp, and a glow at the lit office and guard-shack windows.
-export function NightLights({ occupied, night }) {
-  if (night < 0.05) return null
-  const B = BUILDING
+// `rigs`: [{ cx, cy, heading, driving }] for the trucks on the map (world center and heading).
+export function NightLighting({ occupied, night, warm, rigs = [] }) {
+  const uid = 'nl' + useId().replace(/[^a-zA-Z0-9]/g, '')
+  if (night < 0.01 && warm < 0.01) return null
+  const lights = night >= 0.01 ? nightLights(occupied) : []
+  const pool = (l, fill, extra = {}) => {
+    const [cx, cy] = P(l.x, l.y, l.z ?? 0)
+    return <ellipse key={l.key} cx={cx} cy={cy} rx={l.rx} ry={l.ry} fill={fill} {...extra} />
+  }
+  // Each truck sits in some yard light (longer along its heading); driving trucks throw headlight beams.
+  const rigGlow = rigs.map((r, i) => {
+    const [cx, cy] = P(r.cx, r.cy)
+    const along = r.heading === 'E' || r.heading === 'W' ? ISO_ANGLE : 180 - ISO_ANGLE
+    return (
+      <ellipse key={'rig' + i} cx={cx} cy={cy} rx={RIG_L * C * 0.72} ry={RIG_W * C * 1.6} transform={`rotate(${along} ${cx} ${cy})`} fill={`url(#${uid}-hole)`} opacity={r.driving ? 0.55 : 0.62} />
+    )
+  })
+  const beams = rigs
+    .filter((r) => r.driving)
+    .map((r, i) => {
+      const [ox, oy] = rigOrigin(r.heading, r.cx, r.cy)
+      const map = RIG_FRAME[r.heading] ?? RIG_FRAME.S
+      const corners = [map(49, 1, 0), map(49, 8, 0), map(76, 17, 0), map(76, -8, 0)].map(([x, y]) => [x + ox, y + oy, 0])
+      return <polygon key={'beam' + i} points={pts(corners)} />
+    })
+
   return (
     <g aria-hidden="true" pointerEvents="none">
-      {DOCKS.map((d, i) => (
-        <Pool key={d} x={colWX(i)} y={9} rx={40} ry={19} opacity={(occupied?.has(d) ? 0.55 : 0.3) * night} />
-      ))}
-      <Pool x={-2} y={70} rx={80} ry={40} opacity={0.4 * night} />
-      <Pool x={LOT_W + 7} y={70} rx={80} ry={40} opacity={0.4 * night} />
-      {[0, 1, 2].map((i) => (
-        <Pool key={i} x={B.x + B.w + 2} y={B.y + 9.5 + i * 11} z={11} rx={16} ry={10} opacity={0.5 * night} />
-      ))}
-      <Pool x={SHACK.x + 8} y={SHACK.y + 12} z={4} rx={22} ry={12} opacity={0.5 * night} />
+      <defs>
+        <radialGradient id={`${uid}-hole`}>
+          <stop offset="0" stopColor="#000" stopOpacity="0.95" />
+          <stop offset="0.3" stopColor="#000" stopOpacity="0.78" />
+          <stop offset="0.6" stopColor="#000" stopOpacity="0.38" />
+          <stop offset="0.85" stopColor="#000" stopOpacity="0.1" />
+          <stop offset="1" stopColor="#000" stopOpacity="0" />
+        </radialGradient>
+        <radialGradient id={`${uid}-warm`}>
+          <stop offset="0" style={{ stopColor: 'var(--color-iso-glow)', stopOpacity: 0.7 }} />
+          <stop offset="0.4" style={{ stopColor: 'var(--color-iso-glow)', stopOpacity: 0.3 }} />
+          <stop offset="1" style={{ stopColor: 'var(--color-iso-glow)', stopOpacity: 0 }} />
+        </radialGradient>
+        <radialGradient id={`${uid}-lamp`}>
+          <stop offset="0" stopColor="#fffbe8" stopOpacity="1" />
+          <stop offset="0.25" style={{ stopColor: 'var(--color-iso-light)', stopOpacity: 0.85 }} />
+          <stop offset="1" style={{ stopColor: 'var(--color-iso-glow)', stopOpacity: 0 }} />
+        </radialGradient>
+        <filter id={`${uid}-feather`} x="-30%" y="-30%" width="160%" height="160%">
+          <feGaussianBlur stdDeviation="6" />
+        </filter>
+        {/* White = full darkness; each pool, truck and beam lifts it. */}
+        <mask id={`${uid}-mask`} maskUnits="userSpaceOnUse" x={VIEW.x} y={VIEW.y} width={VIEW.w} height={VIEW.h}>
+          <rect x={VIEW.x} y={VIEW.y} width={VIEW.w} height={VIEW.h} fill="white" />
+          {lights.map((l) => pool(l, `url(#${uid}-hole)`, { opacity: l.k }))}
+          {rigGlow}
+          <g fill="black" opacity={0.85} filter={`url(#${uid}-feather)`}>
+            {beams}
+          </g>
+        </mask>
+      </defs>
+
+      {/* Dawn and dusk: a warm wash over everything. */}
+      {warm > 0.01 && (
+        <rect x={VIEW.x} y={VIEW.y} width={VIEW.w} height={VIEW.h} fill="var(--color-iso-dusk)" style={{ mixBlendMode: 'multiply', opacity: `calc(var(--iso-tint) * ${(0.28 * warm).toFixed(3)})` }} />
+      )}
+      {night >= 0.01 && (
+        <>
+          {/* The dark, with the lit places cut out of it. */}
+          <rect
+            x={VIEW.x}
+            y={VIEW.y}
+            width={VIEW.w}
+            height={VIEW.h}
+            fill="var(--color-iso-night)"
+            mask={`url(#${uid}-mask)`}
+            style={{ mixBlendMode: 'multiply', opacity: `calc(var(--iso-tint) * ${(0.86 * night).toFixed(3)})` }}
+          />
+          {/* Warm sodium-lamp color in the pools: soft-light tints and brightens without fogging. */}
+          <g style={{ mixBlendMode: 'soft-light' }} opacity={0.6 * night}>
+            {lights.map((l) => pool(l, `url(#${uid}-warm)`, { opacity: l.k }))}
+            <g fill="var(--color-iso-glow)" opacity={0.7} filter={`url(#${uid}-feather)`}>
+              {beams}
+            </g>
+          </g>
+          {/* The lamp heads. */}
+          <g style={{ mixBlendMode: 'screen' }} opacity={night}>
+            {lights
+              .filter((l) => l.lamp)
+              .map((l) => {
+                const [cx, cy] = P(...l.lamp)
+                return <circle key={l.key} cx={cx} cy={cy} r={l.key.startsWith('pole') ? 13 : 8} fill={`url(#${uid}-lamp)`} />
+              })}
+          </g>
+        </>
+      )}
     </g>
   )
-}
-
-// Headlight beams on the ground ahead of a driving rig centered at (cx, cy), after dark.
-export function Headlights({ cx, cy, heading, night }) {
-  if (night < 0.05) return null
-  const [ox, oy] = rigOrigin(heading, cx, cy)
-  const map = RIG_FRAME[heading] ?? RIG_FRAME.S
-  const corners = [map(49, 0.5, 0), map(49, 8.5, 0), map(70, 14, 0), map(70, -5, 0)].map(([x, y]) => [x + ox, y + oy, 0])
-  return <polygon points={pts(corners)} fill="var(--color-iso-glow)" opacity={0.7 * night} filter="url(#iso-halo)" style={{ mixBlendMode: 'screen' }} aria-hidden="true" />
 }
 
 // How dark it is (0 day .. 1 night) and how warm the light is (dawn, dusk) at a moment, by the local
@@ -600,23 +699,8 @@ export function daylight(ms) {
   const h = d.getHours() + d.getMinutes() / 60
   const night = h < 5 ? 1 : h < 7 ? 1 - (h - 5) / 2 : h < 18.6 ? 0 : h < 20.6 ? (h - 18.6) / 2 : 1
   const warm = Math.max(0, 1 - Math.abs(h - 6.4) / 1.4, 1 - Math.abs(h - 18.6) / 1.4)
-  const phase = night > 0.7 ? 'Night' : warm > 0.3 ? (h < 12 ? 'Dawn' : 'Dusk') : 'Day'
+  const phase = night > 0.7 ? 'Night' : night > 0.15 || warm > 0.3 ? (h < 12 ? 'Dawn' : 'Dusk') : 'Day'
   return { night, warm, phase }
-}
-
-// The night and dusk wash over the whole scene (below the pins and labels). Its strength follows
-// --iso-tint, lower in the app's dark theme, whose scene colors are already dark.
-export function SkyTint({ night, warm }) {
-  return (
-    <g aria-hidden="true" pointerEvents="none">
-      {warm > 0.01 && (
-        <rect x={VIEW.x} y={VIEW.y} width={VIEW.w} height={VIEW.h} fill="var(--color-iso-dusk)" style={{ mixBlendMode: 'multiply', opacity: `calc(var(--iso-tint) * ${(0.3 * warm).toFixed(3)})` }} />
-      )}
-      {night > 0.01 && (
-        <rect x={VIEW.x} y={VIEW.y} width={VIEW.w} height={VIEW.h} fill="var(--color-iso-night)" style={{ mixBlendMode: 'multiply', opacity: `calc(var(--iso-tint) * ${(0.7 * night).toFixed(3)})` }} />
-      )}
-    </g>
-  )
 }
 
 // The scene's frame in screen units, sized to the lot with the warehouse roof and the street in view.
