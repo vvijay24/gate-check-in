@@ -131,13 +131,15 @@ const NowLine = ({ win, now }) =>
 
 // Dropped trailers: a pale magenta band with a solid top edge, on top of the live trucks.
 const DROP_FILL = 'color-mix(in oklab, var(--color-chart-drop) 38%, var(--color-panel))'
-const LAYERS = [...YARD_STATES.map((s) => ({ ...s, fill: STATE_FILL[s.key] })), { key: 'drops', label: 'Dropped trailers', fill: 'drop' }]
+const LAYERS = [...YARD_STATES.map((s) => ({ ...s, fill: STATE_FILL[s.key] })), { key: 'drops', label: 'Dropped trailers', short: 'Drops', fill: 'drop' }]
+// Chart keys: short words in the muted small text (the long words are in the tooltips and tables).
+const KEY_CLS = 'flex flex-wrap gap-x-3.5 gap-y-1 text-[12px] font-medium text-muted'
 
 export function YardLoadLegend() {
   return (
-    <ul className="flex flex-wrap gap-x-4 gap-y-1 text-[13px] font-semibold">
+    <ul className={KEY_CLS}>
       {LAYERS.map((l) => (
-        <li key={l.key} className="flex items-center gap-1.5">
+        <li key={l.key} className="flex items-center gap-1.5" title={l.label}>
           <i
             className="inline-block h-3 w-3 rounded-[3px]"
             style={{
@@ -145,12 +147,12 @@ export function YardLoadLegend() {
               boxShadow: l.fill === 'drop' ? 'inset 0 2px 0 var(--color-chart-drop)' : undefined,
             }}
           />
-          {l.label}
+          {l.short ?? l.label}
         </li>
       ))}
       <li className="flex items-center gap-1.5">
         <i className="inline-block w-4 border-t-2 border-dashed border-danger" />
-        <span>⚠ Past free time</span>
+        <span>⚠ Over free time</span>
       </li>
     </ul>
   )
@@ -177,6 +179,20 @@ export function YardLoad({ timeline, win, now }) {
     return { k, d: `M${upper.join(' L')} L${lower.join(' L')} Z`, edge: upper.join(' ') }
   })
   const over = slots.map((s) => `${X(s.t)},${Y(s.overFree)}`).join(' ')
+  // Each band named on the chart where it is thickest, if there's room for the words.
+  const peakAt = timeline.peak?.total > 0 ? [X(timeline.peak.t), Y(timeline.peak.total)] : null
+  const bandLabels = LAYERS.map((l, li) => {
+    let best = -1
+    slots.forEach((s, i) => {
+      if (best < 0 || s[l.key] > slots[best][l.key]) best = i
+    })
+    const n = best < 0 ? 0 : slots[best][l.key]
+    if (n / top < 0.13) return null
+    const x = Math.min(93, X(slots[slots.length - 1].t) - 5, Math.max(7, X(slots[best].t)))
+    const y = Y(cum[best][li] - n / 2)
+    if (peakAt && Math.abs(x - peakAt[0]) < 12 && Math.abs(y - peakAt[1]) < 14) return null
+    return { key: l.key, text: l.short ?? l.label, x, y }
+  }).filter(Boolean)
   const ticks = Array.from({ length: top / step }, (_, i) => (i + 1) * step)
   const h = hover == null ? null : slots[hover]
 
@@ -235,6 +251,17 @@ export function YardLoad({ timeline, win, now }) {
             {h && <line x1={X(h.t)} x2={X(h.t)} y1="0" y2="100" stroke="var(--color-ink)" strokeWidth="1" vectorEffect="non-scaling-stroke" />}
           </svg>
           <NowLine win={win} now={now} />
+          {!h &&
+            bandLabels.map((b) => (
+              <span
+                key={b.key}
+                aria-hidden="true"
+                className="pointer-events-none absolute -translate-x-1/2 -translate-y-1/2 rounded bg-panel/85 px-1 text-[11px] font-semibold whitespace-nowrap text-ink"
+                style={{ left: `${b.x}%`, top: `${b.y}%` }}
+              >
+                {b.text}
+              </span>
+            ))}
           {timeline.peak?.total > 0 && !h && (
             <span
               className="pointer-events-none absolute -translate-x-1/2 -translate-y-full rounded bg-panel/90 px-1 pb-1 text-[12px] font-bold whitespace-nowrap"
@@ -272,22 +299,22 @@ export function YardLoad({ timeline, win, now }) {
 // ---------- Dock schedule (Gantt) ----------
 
 const DOCK_SEGS = [
-  { key: 'atDock', label: 'At dock, not inspected' },
-  { key: 'awaitingRelease', label: 'Inspected, awaiting release' },
-  { key: 'released', label: 'Released, heading out' },
+  { key: 'atDock', label: 'At dock, not inspected', short: 'At dock' },
+  { key: 'awaitingRelease', label: 'Inspected, awaiting release', short: 'Inspected' },
+  { key: 'released', label: 'Released, heading out', short: 'Released' },
 ]
 
 export function DockLegend() {
   return (
-    <ul className="flex flex-wrap gap-x-4 gap-y-1 text-[13px] font-semibold">
+    <ul className={KEY_CLS}>
       {DOCK_SEGS.map((s) => (
-        <li key={s.key} className="flex items-center gap-1.5">
+        <li key={s.key} className="flex items-center gap-1.5" title={s.label}>
           <i className="inline-block h-3 w-3 rounded-[3px]" style={{ background: STATE_FILL[s.key] }} />
-          {s.label}
+          {s.short}
         </li>
       ))}
       <li className="flex items-center gap-1.5">
-        <i className="inline-block h-3 w-4 rounded-[3px] border border-danger" style={{ background: OVERRUN }} />⚠ Past free time
+        <i className="inline-block h-3 w-4 rounded-[3px] border border-danger" style={{ background: OVERRUN }} />⚠ Over free time
       </li>
       <li className="flex items-center gap-1.5">
         <i className="inline-block h-3 w-[3px] bg-warn" />
@@ -523,14 +550,14 @@ export function StageSpread({ stages, words = { target: 'Target', on: 'on target
 
   return (
     <div className="px-5 pb-5">
-      <ul className="mt-4 flex flex-wrap gap-x-4 gap-y-1 text-[13px] font-semibold">
-        <li className="flex items-center gap-1.5">
+      <ul className={'mt-4 ' + KEY_CLS}>
+        <li className="flex items-center gap-1.5" title="Typical (p50): half the trucks were quicker">
           <i className="inline-block h-3 w-3 rounded-full" style={{ background: LIVE }} />
-          Typical (p50)
+          Typical
         </li>
-        <li className="flex items-center gap-1.5">
+        <li className="flex items-center gap-1.5" title="Slow end (p90): 9 in 10 trucks were quicker">
           <i className="inline-block h-3 w-3 rounded-full border-2 bg-panel" style={{ borderColor: LIVE }} />
-          Slow end (p90)
+          Slow end
         </li>
         <li className="flex items-center gap-1.5">
           <i className="inline-block h-3.5 border-l-2 border-dashed border-ink" />
@@ -631,21 +658,19 @@ export function OnSiteQueue({ items, limit = 8 }) {
     <div className="px-5 pt-2 pb-5">
       <ul className="divide-y divide-line">
         {shown.map((x) => (
-          <li key={x.e.id} className="grid grid-cols-[minmax(0,1fr)_minmax(80px,1.3fr)_auto] items-center gap-3 py-2.5">
-            <span className="min-w-0">
-              <ProfileLink kind="visit" id={x.e.id} className="block max-w-full truncate text-[14px]">
+          <li key={x.e.id} className="grid grid-cols-[minmax(0,1fr)_minmax(80px,1.3fr)_auto] items-center gap-3 py-2">
+            {/* One line: status dot (its words on hover and for screen readers), truck, dock. */}
+            <span className="flex min-w-0 items-center gap-2">
+              <i
+                className="inline-block h-2.5 w-2.5 shrink-0 rounded-full"
+                style={{ background: x.drop ? 'var(--color-chart-drop)' : STATE_FILL[x.state] }}
+                title={STATE_LABEL[x.drop ? 'drop' : x.state]}
+              />
+              <span className="sr-only">{STATE_LABEL[x.drop ? 'drop' : x.state]}: </span>
+              <ProfileLink kind="visit" id={x.e.id} className="min-w-0 truncate text-[14px]">
                 {shortName(x.e)}
               </ProfileLink>
-              <span className="flex items-center gap-1.5 text-[12px] text-muted">
-                <i
-                  className="inline-block h-2.5 w-2.5 shrink-0 rounded-[3px]"
-                  style={{ background: x.drop ? 'var(--color-chart-drop)' : STATE_FILL[x.state] }}
-                />
-                <span className="truncate">
-                  {STATE_LABEL[x.state]}
-                  {x.e.dockDoor ? ` · Dock ${x.e.dockDoor}` : ''}
-                </span>
-              </span>
+              {x.e.dockDoor && <span className="shrink-0 text-[12px] text-muted">D{x.e.dockDoor}</span>}
             </span>
             <span className="relative h-2.5 rounded-full bg-track" role="img" aria-label={`On site ${dur(x.ageMs)}`}>
               {x.drop ? (
@@ -658,17 +683,14 @@ export function OnSiteQueue({ items, limit = 8 }) {
                 </>
               )}
             </span>
-            <span className="text-right text-[14px] tabular-nums">
+            <span className="text-right text-[14px] whitespace-nowrap tabular-nums">
+              {x.overMs > 0 && <span className="mr-1.5 text-[12px] font-semibold text-danger">⚠ +{dur(x.overMs)}</span>}
               <b>{dur(x.ageMs)}</b>
-              {x.overMs > 0 && <span className="block text-[12px] font-semibold text-danger">⚠ +{dur(x.overMs)}</span>}
-              {x.drop && <span className="block text-[12px] text-muted">no driver</span>}
             </span>
           </li>
         ))}
       </ul>
-      <p className="mt-2 text-[12px] text-muted">
-        The tick on each bar is the end of the {DETENTION_FREE_MIN / 60} h free time.{items.length > limit ? ` ${items.length - limit} more on site.` : ''}
-      </p>
+      {items.length > limit && <p className="mt-2 text-[12px] text-muted">{items.length - limit} more on site.</p>}
     </div>
   )
 }

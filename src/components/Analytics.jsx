@@ -265,7 +265,7 @@ function Sidebar({ section, onSelect, keys, sampleControl, settingsControl, inPr
                         onClick={() => onSelect(s.id)}
                         className={
                           'relative min-h-10 w-full cursor-pointer rounded-md border px-3 py-1.5 text-left whitespace-nowrap transition-colors ' +
-                          'lg:flex lg:min-h-12 lg:flex-col lg:justify-center lg:border-0 lg:py-1.5 ' +
+                          'lg:flex lg:min-h-10 lg:flex-col lg:justify-center lg:border-0 lg:py-1.5 ' +
                           'lg:before:absolute lg:before:top-2 lg:before:bottom-2 lg:before:left-0 lg:before:w-[3px] lg:before:rounded-full ' +
                           (on
                             ? 'border-signal bg-signal-soft text-signal-line lg:bg-white/[0.07] lg:text-white lg:before:bg-signal' + (inProfile ? ' lg:before:bg-signal/60' : '')
@@ -273,10 +273,10 @@ function Sidebar({ section, onSelect, keys, sampleControl, settingsControl, inPr
                         }
                       >
                         <span className="block text-[13.5px] leading-tight font-medium">{s.label}</span>
-                        {k && (
-                          <span className={'figure block text-[11.5px] lg:mt-0.5 ' + (toneCls[k.tone] ?? (on ? 'lg:text-rail-text' : 'text-muted lg:text-rail-muted'))}>
-                            {k.tone && '⚠ '}
-                            {k.key}
+                        {/* The section's figure only when it needs attention; otherwise just the name. */}
+                        {k?.tone && (
+                          <span className={'figure block text-[11.5px] lg:mt-0.5 ' + toneCls[k.tone]}>
+                            ⚠ {k.key}
                           </span>
                         )}
                       </button>
@@ -630,17 +630,27 @@ export default function Analytics({ entries, gateEvents = [], sampleCount, onLoa
             />
           ) : (
             <>
-              <SectionHeading title={current.label} sub={current.sub} crumbs={['Insights', current.group]} />
+              <SectionHeading
+                title={current.label}
+                crumbs={['Insights', current.group]}
+                info={
+                  <>
+                    {current.sub}.
+                    {hasData && <span className="mt-1.5 block">{summaries[section].takeaway}</span>}
+                  </>
+                }
+              />
               {!hasData ? (
                 <Card
                   title="No visits in this range"
+                  showSub
                   sub={activeFilters(filters).length ? 'Nothing matches the filters in this range. Clear a filter or pick a longer range.' : 'Pick a different range, or load the sample data to see how this tab works.'}
                 >
                   <div className="px-5 pt-2 pb-5">{sampleControl()}</div>
                 </Card>
               ) : (
                 <>
-                  <Takeaway>{summaries[section].takeaway}</Takeaway>
+                  {summaries[section].tone && summaries[section].alert && <Takeaway tone={summaries[section].tone}>{summaries[section].alert}</Takeaway>}
                   <View
                     r={r}
                     prev={prev}

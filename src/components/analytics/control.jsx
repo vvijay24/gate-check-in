@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { clockTime, dayKey, duration } from '../../time'
 import { DETENTION_FREE_MIN } from '../../yard'
 import { opsDay } from '../../ops'
-import { Card, Strip, Tile } from './ui'
+import { Card, ClearChip, Strip, Tile } from './ui'
 import { dur, money, pct, ptsDiff } from './charts'
 import { STUCK_COLUMNS } from './impact'
 import { SortTable } from './charts'
@@ -197,10 +197,16 @@ export function ControlSection({ r, prev, trend, ops, prevOps, entries, now, imp
         </Card>
       </div>
 
-      <div className="grid gap-5 xl:grid-cols-2">
-        <Card title="On Site Now" sub={`${n.live} truck${n.live === 1 ? '' : 's'} and ${n.drops} dropped trailer${n.drops === 1 ? '' : 's'}, longest here first`}>
+      {/* Nothing stuck: the On Site list takes the full width and says so in its header. */}
+      <div className={'grid gap-5 ' + (impact.stuck.length ? 'xl:grid-cols-2' : '')}>
+        <Card
+          title="On Site Now"
+          sub={`${n.live} truck${n.live === 1 ? '' : 's'} and ${n.drops} dropped trailer${n.drops === 1 ? '' : 's'}, longest here first. The tick on each bar is the end of the ${FREE_H} h free time.`}
+          legend={!impact.stuck.length && <ClearChip>Nothing stuck</ClearChip>}
+        >
           <OnSiteQueue items={n.onSite} />
         </Card>
+        {impact.stuck.length > 0 && (
         <Card title="Stuck Right Now" sub="On site and over a handoff's target at this moment, longest over first">
           <SortTable
             columns={STUCK_COLUMNS}
@@ -211,6 +217,7 @@ export function ControlSection({ r, prev, trend, ops, prevOps, entries, now, imp
             empty="No trucks are over a handoff target right now."
           />
         </Card>
+        )}
       </div>
     </>
   )
@@ -223,6 +230,7 @@ export const CONTROL_SUMMARY = (r, prev, days, { ops }) => {
   return {
     key: `${n.live} on site${n.over ? ` · ${n.over} over` : ''}`,
     tone: n.over ? 'alert' : undefined,
+    alert: n.over ? `${n.over} truck${n.over === 1 ? '' : 's'} past free time · ${money(n.accruingPerHour)}/h detention accruing` : null,
     takeaway: (
       <>
         Right now <b>{n.live}</b> truck{n.live === 1 ? '' : 's'} on site

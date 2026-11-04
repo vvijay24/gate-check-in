@@ -3,7 +3,7 @@ import { duration } from '../../time'
 import { DETENTION_FREE_MIN } from '../../yard'
 
 // Charts, tables and small pieces shared by the Analytics sections. Every chart has hover details
-// and a "Show as table" view, so nothing depends on color alone.
+// and a table view (the small table icon under each chart), so nothing depends on color alone.
 
 export const LIVE = 'var(--color-chart-live)'
 // Drops are striped as well as colored: the blue / magenta pair is borderline for color-blind readers
@@ -65,8 +65,17 @@ export function Legend({ items }) {
 
 export function TableView({ head, rows }) {
   return (
-    <details className="mt-3">
-      <summary className="inline-flex min-h-8 cursor-pointer items-center text-[12.5px] font-medium text-muted hover:text-ink">Show as table</summary>
+    <details className="group mt-2">
+      <summary
+        aria-label="Show as table"
+        title="Show as table"
+        className="ml-auto flex h-8 w-8 cursor-pointer list-none items-center justify-center rounded-md text-muted/70 hover:bg-field hover:text-ink group-open:bg-field group-open:text-ink [&::-webkit-details-marker]:hidden"
+      >
+        <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true">
+          <rect x="1.8" y="2.6" width="12.4" height="10.8" rx="1.6" fill="none" stroke="currentColor" strokeWidth="1.4" />
+          <path d="M1.8 6.2h12.4M1.8 9.8h12.4M6.4 6.2v7.2" stroke="currentColor" strokeWidth="1.3" />
+        </svg>
+      </summary>
       <div className="overflow-x-auto">
       <table className="mt-2 w-full max-w-md text-sm">
         <thead className="text-muted">

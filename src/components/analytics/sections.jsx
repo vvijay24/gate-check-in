@@ -1,7 +1,7 @@
 import { duration } from '../../time'
 import { DETENTION_FREE_MIN, DETENTION_RATE_PER_HOUR } from '../../yard'
 import { GATE_STYLE } from '../YardMap'
-import { Card, Meter, Strip, Tile } from './ui'
+import { Card, Info, Meter, Strip, Tile } from './ui'
 import { ArrivalHistogram, DayView, StayHistogram } from './control'
 import { ProfileLink } from './nav'
 import { StageSpread } from './viz'
@@ -43,8 +43,9 @@ export const LeadRow = ({ lead, children }) => (
   </div>
 )
 
-// Breadcrumb trail, title and one-line description at the top of a section or drill-down page.
-export function SectionHeading({ title, sub, crumbs = [] }) {
+// Breadcrumb trail and title at the top of a section or drill-down page; `info` (what the section
+// shows, and its summary in words) sits behind the ⓘ beside the title.
+export function SectionHeading({ title, sub, info, crumbs = [] }) {
   return (
     <div className="min-w-0">
       {crumbs.length > 0 && (
@@ -57,18 +58,28 @@ export function SectionHeading({ title, sub, crumbs = [] }) {
           ))}
         </nav>
       )}
-      <h2 className="text-[22px] leading-tight font-semibold tracking-[-0.015em] break-words">{title}</h2>
+      <h2 className="text-[22px] leading-tight font-semibold tracking-[-0.015em] break-words">
+        {title}
+        {info && <Info label={typeof title === 'string' ? title : undefined}>{info}</Info>}
+      </h2>
       {sub && <p className="mt-0.5 text-[13px] text-muted">{sub}</p>}
     </div>
   )
 }
 
-// The section's one-line takeaway, read before the numbers.
-export function Takeaway({ children }) {
+// One short line at the top of a section, only when something there needs attention.
+export function Takeaway({ tone = 'alert', children }) {
+  const alert = tone === 'alert'
   return (
-    <div role="note" className="flex flex-col gap-1 rounded-xl border-l-[3px] border-l-signal bg-panel px-4 py-3 shadow-card sm:flex-row sm:gap-4">
-      <span className="eyebrow shrink-0 pt-0.5 text-signal-line">Summary</span>
-      <p className="text-[14px] leading-relaxed">{children}</p>
+    <div
+      role="status"
+      className={
+        'flex items-center gap-2.5 rounded-lg border-l-[3px] px-4 py-2.5 text-[13.5px] font-medium ' +
+        (alert ? 'border-l-danger bg-danger-soft text-danger' : 'border-l-warn bg-warn-soft text-warn-line')
+      }
+    >
+      <span aria-hidden="true">⚠</span>
+      <span>{children}</span>
     </div>
   )
 }
@@ -631,11 +642,15 @@ export function InspectionSection({ r, prev, trend }) {
         <Tile size="compact" label="Avg released → out" value={dur(i.avgReleaseToOutMs)} note="Shipping release to gate check-out" trend={trend(i.avgReleaseToOutMs, p.avgReleaseToOutMs, duration, true)} />
       </Tiles>
 
-      <Card title="Failure Reasons" sub="Issues noted on failed inspections">
+      <Card title="Failure Reasons" sub="Issues noted on failed inspections" clear={!i.issues.length && 'No failed inspections'}>
         <BarList rows={i.issues.map((x) => ({ label: x.issue, value: x.count }))} color="var(--color-danger)" empty="No failed inspections in this range." />
       </Card>
 
-      <Card title="Inspected After Free Time" sub={`Inspections saved more than ${FREE_H} h after the truck arrived, latest first · these trucks were already in detention`}>
+      <Card
+        title="Inspected After Free Time"
+        sub={`Inspections saved more than ${FREE_H} h after the truck arrived, latest first · these trucks were already in detention`}
+        clear={!i.late.length && 'All within free time'}
+      >
         <SortTable
           columns={LATE_INSPECTION_COLUMNS}
           rows={i.late}
@@ -680,6 +695,7 @@ export const SUMMARY = {
     return {
       key: money(t.detentionCost),
       tone: t.overFree ? 'alert' : undefined,
+      alert: `${t.overFree} visit${t.overFree === 1 ? '' : 's'} went past free time · est. ${money(t.detentionCost)} detention`,
       takeaway: (
         <>
           {r.stages.count ? (
@@ -700,6 +716,7 @@ export const SUMMARY = {
     return {
       key: `${pct(t.onTimePct)} on time`,
       tone: t.onTimePct != null && t.onTimePct < 0.8 ? 'warn' : undefined,
+      alert: `Only ${pct(t.onTimePct)} of appointments arrived on time · ${r.arrivals.late} late`,
       takeaway: (
         <>
           <b>{pct(t.onTimePct)}</b> of appointments arrived on time ({r.arrivals.late} late){change(t.onTimePct, base, ptsDiff, days)}.{' '}
@@ -747,6 +764,7 @@ export const SUMMARY = {
     return {
       key: `${s.overFree} over ${FREE_H} h`,
       tone: s.overFree ? 'alert' : undefined,
+      alert: `${s.overFree} of ${s.pickups} pickups went past free time · est. ${money(s.detentionCost)} detention`,
       takeaway: (
         <>
           <b>{s.overFree}</b> of {s.pickups} pickups went past free time, est. <b>{money(s.detentionCost)}</b>
@@ -769,6 +787,7 @@ export const SUMMARY = {
     return {
       key: `${dur(t.avgWaitDockMs)} wait`,
       tone: t.avgWaitDockMs > 30 * 60000 ? 'warn' : undefined,
+      alert: `Trucks waited ${dur(t.avgWaitDockMs)} on average for a dock`,
       takeaway: (
         <>
           Trucks waited <b>{dur(t.avgWaitDockMs)}</b> on average for a dock{change(t.avgWaitDockMs, base, duration, days)}.{' '}
@@ -787,6 +806,7 @@ export const SUMMARY = {
     return {
       key: `${i.late.length} late`,
       tone: i.late.length ? 'alert' : undefined,
+      alert: `${i.late.length} inspection${i.late.length === 1 ? ' was' : 's were'} done after the ${FREE_H} h free time`,
       takeaway: (
         <>
           {i.count} inspections, <b>{pct(i.passPct)}</b> passed. Average <b>{dur(i.avgToInspectMs)}</b> from dock to inspection;{' '}

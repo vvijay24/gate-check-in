@@ -15,10 +15,10 @@ const SLOT_MS = 10 * MIN
 
 // The yard states a truck moves through, in order. Drops (a trailer with no driver) sit apart.
 export const YARD_STATES = [
-  { key: 'waiting', label: 'Waiting for a dock' },
-  { key: 'atDock', label: 'At dock, not inspected' },
-  { key: 'awaitingRelease', label: 'Inspected, awaiting release' },
-  { key: 'released', label: 'Released, heading out' },
+  { key: 'waiting', label: 'Waiting for a dock', short: 'Waiting' },
+  { key: 'atDock', label: 'At dock, not inspected', short: 'At dock' },
+  { key: 'awaitingRelease', label: 'Inspected, awaiting release', short: 'Inspected' },
+  { key: 'released', label: 'Released, heading out', short: 'Released' },
 ]
 
 export { percentile }

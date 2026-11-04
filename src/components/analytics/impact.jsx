@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import * as ui from '../../ui'
 import { duration } from '../../time'
 import { BASELINE_FIELDS, DEFAULT_TARGETS, DOCK_RESPONSE, HANDOFFS } from '../../impactSettings'
-import { Card, Meter, Tile } from './ui'
+import { Card, CardAction, Meter, Tile } from './ui'
 import { BarList, DayBars, DayLine, LIVE, SortTable, count, dur, money, pct, ptsDiff, shortDate } from './charts'
 import { LeadRow, Pair, Tiles, visitCell } from './sections'
 import { StageSpread } from './viz'
@@ -257,15 +257,8 @@ function GateShippingCard({ impact, prevImpact, onOpenSettings }) {
   return (
     <Card
       title="Gate → Shipping"
-      sub={
-        <>
-          From the truck's arrival to its dock, once on two paper forms. The wait for a dock is split into time with no dock free for it (capacity) and time
-          with a dock free but not yet assigned (response) ·{' '}
-          <button type="button" onClick={onOpenSettings} className="cursor-pointer font-semibold text-ink underline">
-            Change target
-          </button>
-        </>
-      }
+      sub="From the truck's arrival to its dock, once on two paper forms. The wait for a dock is split into time with no dock free for it (capacity) and time with a dock free but not yet assigned (response)."
+      action={<CardAction onClick={onOpenSettings}>Change target</CardAction>}
     >
       <div className="grid gap-3 px-5 pt-3 pb-5 lg:grid-cols-[1fr_auto_1fr_auto_1fr_auto_1fr]">
         <ChainStep title="1 · Arrival → check-in saved" value={dur(g.avgLoggedMs)} note={`${pct(g.livePct)} saved within 15 min`} tone={toneLive}>
@@ -337,19 +330,17 @@ export function HandoffSection({ trend, impact, prevImpact, onOpenSettings, ops 
 
       <Card
         title="Each Handoff"
-        sub={
-          <>
-            Average time, target and money on the table per week ·{' '}
-            <button type="button" onClick={onOpenSettings} className="cursor-pointer font-semibold text-ink underline">
-              Change targets
-            </button>
-          </>
-        }
+        sub="Average time, target and money on the table per week"
+        action={<CardAction onClick={onOpenSettings}>Change targets</CardAction>}
       >
         <SortTable columns={HANDOFF_COLUMNS} rows={impact.handoffs} rowKey={(h) => h.key} initial={{ id: 'label', dir: 'asc' }} minWidth={680} empty="No departed trucks in this range." />
       </Card>
 
-      <Card title="Stuck Right Now" sub="Trucks on site that are over a handoff's target at this moment, longest over first · the same list is on Command Center">
+      <Card
+        title="Stuck Right Now"
+        sub="Trucks on site that are over a handoff's target at this moment, longest over first · the same list is on Command Center"
+        clear={!impact.stuck.length && 'Nothing stuck'}
+      >
         <SortTable columns={STUCK_COLUMNS} rows={impact.stuck} rowKey={(s) => s.e.id} initial={{ id: 'over', dir: 'desc' }} minWidth={640} empty="No trucks are over a handoff target right now." />
       </Card>
     </>
@@ -438,6 +429,7 @@ export const IMPACT_SUMMARY = {
     return {
       key: `${perWeek(impact.allOpportunityPerWeek)} on the table`,
       tone: impact.allOpportunity > 0 ? 'alert' : undefined,
+      alert: `About ${perWeek(impact.allOpportunityPerWeek)} still on the table${b?.opportunity > 0 ? ` · biggest lever: ${lcFirst(b.label)}` : ''}`,
       takeaway: (
         <>
           Est. detention <b>{money(r.totals.detentionCost)}</b> in these {days} days. Meeting every handoff target would save about{' '}
@@ -460,7 +452,10 @@ export const IMPACT_SUMMARY = {
     const weakest = [...impact.handoffs].filter((h) => h.onTargetPct != null).sort((a, b) => a.onTargetPct - b.onTargetPct)[0]
     return {
       key: `${pct(impact.onTargetPct)} on target`,
-      tone: impact.onTargetPct != null && impact.onTargetPct < 0.8 ? 'warn' : undefined,
+      tone: impact.stuck.length ? 'alert' : impact.onTargetPct != null && impact.onTargetPct < 0.8 ? 'warn' : undefined,
+      alert: impact.stuck.length
+        ? `${impact.stuck.length} truck${impact.stuck.length === 1 ? ' is' : 's are'} over a handoff target right now`
+        : `Only ${pct(impact.onTargetPct)} of handoffs met their targets${weakest ? ` · weakest: ${lcFirst(weakest.label)}` : ''}`,
       takeaway: (
         <>
           <b>{pct(impact.onTargetPct)}</b> of handoffs met their targets.{' '}
@@ -481,6 +476,7 @@ export const IMPACT_SUMMARY = {
     return {
       key: `${pct(q.completePct)} complete`,
       tone: q.completePct != null && q.completePct < 0.9 ? 'warn' : undefined,
+      alert: `Only ${pct(q.completePct)} of docked trucks have every timestamp`,
       takeaway: (
         <>
           <b>{pct(q.completePct)}</b> of docked trucks have every timestamp and <b>{pct(q.livePct)}</b> of check-ins were logged live. The system
