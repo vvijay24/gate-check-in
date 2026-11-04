@@ -3,7 +3,7 @@ import * as ui from '../ui'
 import { arrivalMs, clockTime, duration } from '../time'
 import { yardStatus, isDrop } from '../metrics'
 import { DETENTION_FREE_MIN, DOCKS, STALE_WARN_H } from '../yard'
-import { BAY_WY, Foreground, GATE_WX, LOT_D, NightLighting, P, RIG_L, RIG_W, Rig, SHACK, Scene, VIEW, colWX, daylight, pts, rigOrigin } from './YardScene'
+import { BAY_WY, Foreground, GATE_WX, LOT_D, NightLighting, P, PARKED_ART, RIG_L, RIG_W, Rig, SHACK, Scene, VIEW, colWX, daylight, pts, rigOrigin } from './YardScene'
 import { poseAt, spotCenter, useYardDrives } from './yardMotion'
 import { detentionState } from '../detention'
 import { GATES } from '../formConfig'
@@ -108,6 +108,12 @@ function Plate({ lines, tone }) {
 
 // Screen translate for a rig's origin: a parked rig sits in its spot facing S; a driving one is posed
 // along its route.
+// A parked rig's articulated pose in world units (straight, facing south) for lighting and tooling.
+const parkedAbsolute = (cx, cy) => {
+  const [ox, oy] = rigOrigin('S', cx, cy)
+  return { K: [ox + PARKED_ART.K[0], oy + PARKED_ART.K[1]], tt: PARKED_ART.tt, tr: PARKED_ART.tr }
+}
+
 const placeAt = (pose) => {
   const [ox, oy] = rigOrigin(pose.heading, pose.cx, pose.cy)
   const [sx, sy] = P(ox, oy, 0)
@@ -146,12 +152,12 @@ function Unit({ e, pose, driving, at, clock, selected, onSelect, focus, motion }
       drop={drop && !driving}
       reefer={e.reefer === 'Yes'}
       glow={selected && !driving}
-      heading={pose.heading}
+      art={driving ? pose.art : undefined}
     />
   )
   if (driving) {
     return (
-      <g transform={placeAt(pose)} opacity={(focus === 'off' ? 0.3 : 1) * pose.opacity} aria-hidden="true">
+      <g opacity={(focus === 'off' ? 0.3 : 1) * pose.opacity} aria-hidden="true">
         {rig}
       </g>
     )
@@ -468,8 +474,9 @@ function useReducedMotion() {
 // does it directly, so the map is no longer one Enlarge button).
 // `highlightId` selects a rig from outside the map (e.g. the truck picked or being inspected on Dock &
 // Loading); a rig tapped on the full map is selected here instead, and gets a floating card.
-// `animate`: trucks drive their routes when their spot changes (default: on a live map).
-export default function YardMap({ yard, gateCounts, at, clock, live, onEdit, onCheckOut, compact, onExpand, focus, onInspect, highlightId, animate = live }) {
+// `animate`: trucks drive their routes when their spot changes (default: on a live map); `pace` speeds
+// them up (a replay running faster than real time).
+export default function YardMap({ yard, gateCounts, at, clock, live, onEdit, onCheckOut, compact, onExpand, focus, onInspect, highlightId, animate = live, pace = 1 }) {
   const [tappedId, setSelectedId] = useState(null)
   const selectedId = tappedId ?? highlightId ?? null
   const motion = useReducedMotion() === false
@@ -484,13 +491,13 @@ export default function YardMap({ yard, gateCounts, at, clock, live, onEdit, onC
   yard.bays.forEach((e, i) => {
     if (e) units.push({ e, spot: { kind: 'bay', i }, place: `Bay ${i + 1}` })
   })
-  const { drives, now } = useYardDrives(units, { enabled: motion && Boolean(animate), live: Boolean(live) })
+  const { drives, now } = useYardDrives(units, { enabled: motion && Boolean(animate), live: Boolean(live), pace })
 
   // Everything drawn on the lot: parked rigs at their spots, driving ones (and ones leaving, no longer
   // among `units`) posed along their routes; nearer ones (larger x + y) drawn later.
   const parkedPose = (spot) => {
     const [cx, cy] = spotCenter(spot)
-    return { cx, cy, heading: 'S', opacity: 1 }
+    return { cx, cy, heading: 'S', opacity: 1, art: parkedAbsolute(cx, cy) }
   }
   const items = units.map((u) => {
     const d = drives.get(u.e.id)

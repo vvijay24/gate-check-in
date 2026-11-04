@@ -163,7 +163,7 @@ export function ReplaySection({ entries, range }) {
           ))}
         </ul>
 
-        <YardMap yard={yard} gateCounts={gateCounts} at={atMs} clock={atMs} live={false} animate={playing} />
+        <YardMap yard={yard} gateCounts={gateCounts} at={atMs} clock={atMs} live={false} animate={playing} pace={speed >= 40 ? 5 : 2.5} />
       </div>
     </Card>
   )

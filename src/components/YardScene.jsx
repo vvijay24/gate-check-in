@@ -119,52 +119,105 @@ function GlowFilters({ motion }) {
 
 const short = (s, n) => (s && s.length > n ? s.slice(0, n - 1) + '…' : s || '')
 
-// A rig in its own frame: `a` runs along it from the trailer's rear (0) to the tractor's bumper (49),
-// `c` across it (0..9), `z` up. `heading` places that frame in the world with the cab facing
-// S (+y, toward the viewer's lower left: how trucks park), N (-y), E (+x) or W (-x); the rig then
-// fills [0, 9] × [0, 49] (S, N) or [0, 49] × [0, 9] (E, W) from the origin. The c = 9 side is always
-// the long side the viewer sees, so wheels and lettering go there; the cab front shows for S and E,
-// the trailer's rear doors for N and W.
-const RIG_FRAME = {
-  S: (a, c, z) => [c, a, z],
-  N: (a, c, z) => [c, RIG_L - a, z],
-  E: (a, c, z) => [a, c, z],
-  W: (a, c, z) => [RIG_L - a, c, z],
-}
-// Where a rig of this heading centered at (cx, cy) has its origin.
+// A rig is two bodies joined at the hitch (the fifth wheel / kingpin): the trailer and the tractor,
+// each with its own heading, so the trailer swings behind the cab through a turn like a real rig.
+// Positions along the rig use `a`, from the trailer's rear (0) to the tractor's bumper (49), and `c`
+// across it (0..9), `z` up. Key points along it: the trailer axles (A), the hitch (K), the front axle (F).
+export const A_AT = 5.8
+export const K_AT = 32
+export const F_AT = 45.4
+// The tractor's parts and the trailer's parts are placed by their own body's heading.
+// `art`: { K: [x, y] hitch in world units, tt: tractor heading, tr: trailer heading } (radians; 0 = +x
+// east, π/2 = +y south, how trucks park). A parked rig's hitch sits 32 from its origin corner.
+export const PARKED_ART = { K: [RIG_W / 2, K_AT], tt: Math.PI / 2, tr: Math.PI / 2 }
+
+// Where a parked (south-facing) rig centered at (cx, cy) has its origin corner.
 export const rigOrigin = (heading, cx, cy) =>
   heading === 'E' || heading === 'W' ? [cx - RIG_L / 2, cy - RIG_W / 2] : [cx - RIG_W / 2, cy - RIG_L / 2]
 
-function rigKit(heading) {
-  const map = RIG_FRAME[heading] ?? RIG_FRAME.S
-  const frontShows = heading === 'S' || heading === 'E'
-  // The visible long side is the plane x = 9 (S, N) or y = 9 (E, W).
-  const sideIsX = heading === 'S' || heading === 'N'
-  const quad = (corners, props) => <polygon points={pts(corners.map(([a, c, z]) => map(a, c, z)))} {...props} />
-  const box = (a0, a1, c0, c1, z, h, props) => {
-    const [x0, y0] = map(a0, c0, 0)
-    const [x1, y1] = map(a1, c1, 0)
-    return <Box x={Math.min(x0, x1)} y={Math.min(y0, y1)} z={z} w={Math.abs(x1 - x0)} d={Math.abs(y1 - y0)} h={h} {...props} />
+// Rig coordinates (a, c, z) → world, for a body at hitch K with heading th. `u` runs along the body
+// (toward the cab), `v` across it.
+export function frameMap(K, th) {
+  const ux = Math.cos(th)
+  const uy = Math.sin(th)
+  return (a, c, z = 0) => [K[0] + ux * (a - K_AT) + uy * (c - RIG_W / 2), K[1] + uy * (a - K_AT) - ux * (c - RIG_W / 2), z]
+}
+
+// A box with any heading: its four sides and top, drawing only the faces turned toward the viewer
+// (outward normal toward +x + y) and shading each by how it faces, as Box does for square-on boxes.
+function OBox({ corners, z, h, color, top = color, front = color, side = color, line, shade = true }) {
+  const n = corners.length
+  const cx = corners.reduce((s, p) => s + p[0], 0) / n
+  const cy = corners.reduce((s, p) => s + p[1], 0) / n
+  const stroke = line ? { stroke: line, strokeWidth: 0.6, strokeLinejoin: 'round' } : {}
+  const faces = []
+  for (let i = 0; i < n; i++) {
+    const p = corners[i]
+    const q = corners[(i + 1) % n]
+    let nx = q[1] - p[1]
+    let ny = -(q[0] - p[0])
+    const len = Math.hypot(nx, ny) || 1
+    nx /= len
+    ny /= len
+    if (nx * ((p[0] + q[0]) / 2 - cx) + ny * ((p[1] + q[1]) / 2 - cy) < 0) {
+      nx = -nx
+      ny = -ny
+    }
+    if (nx + ny <= 0.001) continue
+    const poly = pts([[p[0], p[1], z], [q[0], q[1], z], [q[0], q[1], z + h], [p[0], p[1], z + h]])
+    faces.push(
+      <g key={i}>
+        <polygon points={poly} fill={ny >= nx ? front : side} {...stroke} />
+        {shade && <polygon points={poly} fill="black" opacity={SHADE.side * nx * nx + SHADE.front * ny * ny} />}
+      </g>,
+    )
   }
-  // On the long side (c = cs): a quad spanning a0..a1 and z0..z1, a vertical line, a wheel, lettering.
+  return (
+    <g>
+      {faces}
+      <polygon points={pts(corners.map(([x, y]) => [x, y, z + h]))} fill={top} {...stroke} />
+    </g>
+  )
+}
+
+// Drawing helpers for one body. Details are designed for the long side at c = 9; when the other long
+// side is the one facing the viewer, `c` is mirrored so wheels, stripes and lettering stay in view.
+function rigKit(K, th) {
+  const raw = frameMap(K, th)
+  const ux = Math.cos(th)
+  const uy = Math.sin(th)
+  // `c` grows along (uy, -ux), so that is the c = 9 side's outward normal; it shows when it points toward +x + y.
+  const nineFaces = uy - ux > 0
+  const map = (a, c, z = 0) => raw(a, nineFaces ? c : RIG_W - c, z)
+  const frontShows = ux + uy > 0.02
+  const rearShows = ux + uy < -0.02
+  const quad = (corners, props) => <polygon points={pts(corners.map(([a, c, z]) => map(a, c, z)))} {...props} />
+  const box = (a0, a1, c0, c1, z, h, props) => (
+    <OBox corners={[map(a0, c0), map(a1, c0), map(a1, c1), map(a0, c1)].map(([x, y]) => [x, y])} z={z} h={h} {...props} />
+  )
   const side = (a0, a1, z0, z1, props, cs = RIG_W) => quad([[a0, cs, z0], [a1, cs, z0], [a1, cs, z1], [a0, cs, z1]], props)
   const sideLine = (key, a, z0, z1, props) => <polyline key={key} points={pts([map(a, RIG_W, z0), map(a, RIG_W, z1)])} {...props} />
-  const planeMatrix = (x, y, z) => {
+  // Screen direction of one unit along the body; text and wheels on the long side use this plane.
+  const ex = [ux - uy, (ux + uy) / 2]
+  const read = ex[0] >= 0 ? ex : [-ex[0], -ex[1]]
+  const planeMatrix = (x, y, z, m = read) => {
     const [sx, sy] = P(x, y, z)
-    return `matrix(1 ${sideIsX ? -0.5 : 0.5} 0 1 ${r1(sx)} ${r1(sy)})`
+    return `matrix(${r1(m[0] * 100) / 100} ${r1(m[1] * 100) / 100} 0 1 ${r1(sx)} ${r1(sy)})`
   }
   const wheel = (a, key, r = 1.7) => {
     const [x, y, z] = map(a, RIG_W - 0.2, r)
     return (
-      <g key={key} transform={planeMatrix(x, y, z)}>
+      <g key={key} transform={planeMatrix(x, y, z, ex)}>
         <circle r={r * C} fill="var(--color-iso-tire)" />
         <circle r={r * C * 0.5} fill="var(--color-iso-steel)" />
         <circle r={r * C * 0.18} fill="var(--color-iso-tire)" />
       </g>
     )
   }
-  // Text along the long side between a0 and a1, reading left to right on screen whatever the heading.
+  // Text along the long side between a0 and a1, reading left to right on screen; hidden while the
+  // side is nearly end-on to the viewer.
   const sideText = (a0, a1, z, text, props) => {
+    if (Math.abs(ex[0]) < 0.3) return null
     const e0 = map(a0, RIG_W, z)
     const e1 = map(a1, RIG_W, z)
     const start = P(...e0)[0] <= P(...e1)[0] ? e0 : e1
@@ -174,17 +227,22 @@ function rigKit(heading) {
       </text>
     )
   }
-  // Faces across the rig at a fixed a (the cab front at its a1, the trailer rear at a = 0).
   const across = (a, c0, c1, z0, z1, props) => quad([[a, c0, z0], [a, c1, z0], [a, c1, z1], [a, c0, z1]], props)
-  return { map, frontShows, box, side, sideLine, wheel, sideText, across, quad }
+  const depth = (a) => {
+    const [x, y] = map(a, RIG_W / 2)
+    return x + y
+  }
+  return { map, frontShows, rearShows, box, side, sideLine, wheel, sideText, across, quad, depth }
 }
 
-// One rig, drawn from the origin in the given `heading` (default S, parked). `drop` draws the trailer
+// One rig, posed by `art` (default: parked, facing south from the origin). `drop` draws the trailer
 // alone on its landing gear; `reefer` adds the refrigeration unit; `glow` (selected) surrounds the rig
 // with a glow in its carrier's paint.
-export function Rig({ carrier, trailerNumber, drop, reefer, glow, heading = 'S' }) {
+export function Rig({ carrier, trailerNumber, drop, reefer, glow, art = PARKED_ART }) {
   const paint = paintOf(carrier)
-  const k = rigKit(heading)
+  // `k` places trailer parts, `t` tractor parts.
+  const k = rigKit(art.K, art.tr)
+  const t = rigKit(art.K, drop ? art.tr : art.tt)
   const Z = 4.2
   const H = 9.4
   const name = short(String(carrier || '').toUpperCase(), 15)
@@ -226,7 +284,7 @@ export function Rig({ carrier, trailerNumber, drop, reefer, glow, heading = 'S' 
         fill: 'var(--color-iso-band)',
       })}
       {k.side(33, 33.7, Z + H - 0.5, Z + H - 0.1, { fill: 'var(--color-paint-2)' })}
-      {!k.frontShows && (
+      {k.rearShows && (
         <>
           {/* Rear doors: two panels, lock bars, reflective tape and tail lights. */}
           {k.across(0, 0.4, 4.4, Z + 0.4, Z + H - 0.4, { fill: 'var(--color-iso-trailer)', stroke: 'var(--color-iso-steel)', strokeWidth: 0.5 })}
@@ -259,32 +317,32 @@ export function Rig({ carrier, trailerNumber, drop, reefer, glow, heading = 'S' 
         [
           32,
           <g key="frame">
-            {k.box(29, 48.4, 1.6, 7.4, 1.4, 1.6, { color: 'var(--color-iso-tire)', shade: false })}
-            {k.wheel(31.2, 'd1')}
-            {k.wheel(34.4, 'd2')}
-            {k.wheel(45.4, 'f1')}
-            {k.box(37.2, 40.8, RIG_W - 0.6, RIG_W + 0.4, 1.8, 1.8, { color: 'var(--color-iso-chrome)', line: 'var(--color-iso-steel)' })}
+            {t.box(29, 48.4, 1.6, 7.4, 1.4, 1.6, { color: 'var(--color-iso-tire)', shade: false })}
+            {t.wheel(31.2, 'd1')}
+            {t.wheel(34.4, 'd2')}
+            {t.wheel(45.4, 'f1')}
+            {t.box(37.2, 40.8, RIG_W - 0.6, RIG_W + 0.4, 1.8, 1.8, { color: 'var(--color-iso-chrome)', line: 'var(--color-iso-steel)' })}
           </g>,
         ],
         [
           36,
-          <g key="stack">{k.box(35.6, 36.2, 8.1, 8.7, 3.5, 11.6, { color: 'var(--color-iso-chrome)', line: 'var(--color-iso-steel)' })}</g>,
+          <g key="stack">{t.box(35.6, 36.2, 8.1, 8.7, 3.5, 11.6, { color: 'var(--color-iso-chrome)', line: 'var(--color-iso-steel)' })}</g>,
         ],
         [
           39.6,
           <g key="cab">
-            {k.box(36.2, 43, 0.3, 8.7, 3, 8.4, { color: paint.color, line: cabLine })}
-            {k.box(36.2, 39.8, 0.9, 8.1, 11.4, 1.6, { color: paint.color, line: cabLine })}
+            {t.box(36.2, 43, 0.3, 8.7, 3, 8.4, { color: paint.color, line: cabLine })}
+            {t.box(36.2, 39.8, 0.9, 8.1, 11.4, 1.6, { color: paint.color, line: cabLine })}
             {/* Side window, door seam and mirror. */}
-            {k.side(40.2, 42.6, 8, 10.6, { fill: 'var(--color-iso-glass)' }, 8.7)}
-            {k.side(39.6, 42.8, 3.6, 11, { fill: 'none', stroke: 'rgb(0 0 0 / 0.35)', strokeWidth: 0.4 }, 8.7)}
-            {k.box(42.4, 42.8, 8.9, 9.4, 8.2, 1.8, { color: 'var(--color-iso-tire)', shade: false })}
-            {k.frontShows && (
+            {t.side(40.2, 42.6, 8, 10.6, { fill: 'var(--color-iso-glass)' }, 8.7)}
+            {t.side(39.6, 42.8, 3.6, 11, { fill: 'none', stroke: 'rgb(0 0 0 / 0.35)', strokeWidth: 0.4 }, 8.7)}
+            {t.box(42.4, 42.8, 8.9, 9.4, 8.2, 1.8, { color: 'var(--color-iso-tire)', shade: false })}
+            {t.frontShows && (
               <>
                 {/* Two-pane windshield with a glint. */}
-                {k.across(43, 0.9, 4.2, 8, 11, { fill: 'var(--color-iso-glass)' })}
-                {k.across(43, 4.8, 8.1, 8, 11, { fill: 'var(--color-iso-glass)' })}
-                {k.across(43, 1.2, 2.4, 10, 10.6, { fill: 'white', opacity: 0.35 })}
+                {t.across(43, 0.9, 4.2, 8, 11, { fill: 'var(--color-iso-glass)' })}
+                {t.across(43, 4.8, 8.1, 8, 11, { fill: 'var(--color-iso-glass)' })}
+                {t.across(43, 1.2, 2.4, 10, 10.6, { fill: 'white', opacity: 0.35 })}
               </>
             )}
           </g>,
@@ -292,35 +350,35 @@ export function Rig({ carrier, trailerNumber, drop, reefer, glow, heading = 'S' 
         [
           45.6,
           <g key="hood">
-            {k.box(43, 48.3, 1, 8, 3, 5.4, { color: paint.color, line: cabLine })}
-            {k.frontShows && (
+            {t.box(43, 48.3, 1, 8, 3, 5.4, { color: paint.color, line: cabLine })}
+            {t.frontShows && (
               <>
                 {/* Grille, headlights. */}
-                {k.across(48.3, 2.6, 6.4, 3.6, 7.8, { fill: 'var(--color-iso-chrome)' })}
+                {t.across(48.3, 2.6, 6.4, 3.6, 7.8, { fill: 'var(--color-iso-chrome)' })}
                 {[0, 1, 2, 3, 4].map((i) => (
-                  <polyline key={i} points={pts([k.map(48.3, 2.9, 4.2 + i * 0.75), k.map(48.3, 6.1, 4.2 + i * 0.75)])} stroke="var(--color-iso-steel)" strokeWidth={0.45} />
+                  <polyline key={i} points={pts([t.map(48.3, 2.9, 4.2 + i * 0.75), t.map(48.3, 6.1, 4.2 + i * 0.75)])} stroke="var(--color-iso-steel)" strokeWidth={0.45} />
                 ))}
-                {k.across(48.3, 1.2, 2.3, 5.4, 6.4, { fill: 'var(--color-iso-light)' })}
-                {k.across(48.3, 6.7, 7.8, 5.4, 6.4, { fill: 'var(--color-iso-light)' })}
+                {t.across(48.3, 1.2, 2.3, 5.4, 6.4, { fill: 'var(--color-iso-light)' })}
+                {t.across(48.3, 6.7, 7.8, 5.4, 6.4, { fill: 'var(--color-iso-light)' })}
               </>
             )}
           </g>,
         ],
-        [48.7, <g key="bumper">{k.box(48.3, 49.1, 0.6, 8.4, 2.2, 1.3, { color: 'var(--color-iso-chrome)', line: 'var(--color-iso-steel)' })}</g>],
+        [48.7, <g key="bumper">{t.box(48.3, 49.1, 0.6, 8.4, 2.2, 1.3, { color: 'var(--color-iso-chrome)', line: 'var(--color-iso-steel)' })}</g>],
       ]
 
-  // Back to front: rising `a` when the cab faces the viewer (S, E), falling when it faces away (N, W).
-  const parts = [[17, trailer], [34.7, reeferUnit], ...tractor].filter(([, el]) => el)
-  parts.sort((p, q) => (k.frontShows ? p[0] - q[0] : q[0] - p[0]))
+  // Back to front: farther parts (smaller x + y) first.
+  const parts = [[k.depth(17), trailer], [k.depth(34.7), reeferUnit], ...tractor.map(([a, el]) => [t.depth(a), el])].filter(([, el]) => el)
+  parts.sort((p, q) => p[0] - q[0])
 
-  // Shadow: the rig's footprint, nudged toward the lower left.
-  const [ox0, oy0] = k.map(0, 0, 0)
-  const [ox1, oy1] = k.map(len, RIG_W, 0)
-  const fx = Math.min(ox0, ox1)
-  const fy = Math.min(oy0, oy1)
+  // Shadow: each body's footprint, nudged toward the lower left.
+  const foot = (kit, a0, a1) => pts([kit.map(a0, 0), kit.map(a1, 0), kit.map(a1, RIG_W), kit.map(a0, RIG_W)].map(([x, y]) => [x - 2.5, y + 1.2, 0]))
   return (
     <g>
-      <Ground x={fx - 3} y={fy + 1} w={Math.abs(ox1 - ox0) + 2} d={Math.abs(oy1 - oy0)} fill="var(--color-iso-shadow)" filter="url(#iso-soft)" />
+      <g fill="var(--color-iso-shadow)" filter="url(#iso-soft)">
+        <polygon points={foot(k, 0, drop ? 36 : 34)} />
+        {!drop && <polygon points={foot(t, 33, len)} />}
+      </g>
       <g filter={glow ? `url(#iso-glow-${paint.index})` : undefined}>{parts.map(([, el]) => el)}</g>
     </g>
   )
@@ -594,7 +652,7 @@ function nightLights(occupied) {
   ]
 }
 
-// `rigs`: [{ cx, cy, heading, driving }] for the trucks on the map (world center and heading).
+// `rigs`: [{ cx, cy, art, driving }] for the trucks on the map (world center and articulated pose).
 export function NightLighting({ occupied, night, warm, rigs = [] }) {
   const uid = 'nl' + useId().replace(/[^a-zA-Z0-9]/g, '')
   if (night < 0.01 && warm < 0.01) return null
@@ -603,20 +661,20 @@ export function NightLighting({ occupied, night, warm, rigs = [] }) {
     const [cx, cy] = P(l.x, l.y, l.z ?? 0)
     return <ellipse key={l.key} cx={cx} cy={cy} rx={l.rx} ry={l.ry} fill={fill} {...extra} />
   }
-  // Each truck sits in some yard light (longer along its heading); driving trucks throw headlight beams.
+  // Each truck sits in some yard light (longer along its length); driving trucks throw headlight beams.
   const rigGlow = rigs.map((r, i) => {
     const [cx, cy] = P(r.cx, r.cy)
-    const along = r.heading === 'E' || r.heading === 'W' ? ISO_ANGLE : 180 - ISO_ANGLE
+    const th = (r.art.tt + r.art.tr) / 2
+    const along = (Math.atan2((Math.cos(th) + Math.sin(th)) / 2, Math.cos(th) - Math.sin(th)) * 180) / Math.PI
     return (
-      <ellipse key={'rig' + i} cx={cx} cy={cy} rx={RIG_L * C * 0.72} ry={RIG_W * C * 1.6} transform={`rotate(${along} ${cx} ${cy})`} fill={`url(#${uid}-hole)`} opacity={r.driving ? 0.55 : 0.62} />
+      <ellipse key={'rig' + i} cx={cx} cy={cy} rx={RIG_L * C * 0.72} ry={RIG_W * C * 1.6} transform={`rotate(${r1(along)} ${cx} ${cy})`} fill={`url(#${uid}-hole)`} opacity={r.driving ? 0.55 : 0.62} />
     )
   })
   const beams = rigs
-    .filter((r) => r.driving)
+    .filter((r) => r.driving && !r.reversing)
     .map((r, i) => {
-      const [ox, oy] = rigOrigin(r.heading, r.cx, r.cy)
-      const map = RIG_FRAME[r.heading] ?? RIG_FRAME.S
-      const corners = [map(49, 1, 0), map(49, 8, 0), map(76, 17, 0), map(76, -8, 0)].map(([x, y]) => [x + ox, y + oy, 0])
+      const map = frameMap(r.art.K, r.art.tt)
+      const corners = [map(49, 1), map(49, 8), map(76, 17), map(76, -8)].map(([x, y]) => [x, y, 0])
       return <polygon key={'beam' + i} points={pts(corners)} />
     })
 
