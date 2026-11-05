@@ -1,11 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import GuardForm from './components/GuardForm'
 import OnDuty, { loadOnDuty, saveOnDuty } from './components/OnDuty'
 import { visitMemory } from './visitMemory'
-import CheckOutPicker from './components/CheckOutPicker'
-import EntryLog from './components/EntryLog'
-import ShippingDashboard from './components/ShippingDashboard'
-import { DockBoard, dockPhase } from './components/Dashboard'
+import { dockPhase } from './components/Dashboard'
+import GateHub from './components/hub/GateHub'
+import ShippingHub from './components/hub/ShippingHub'
+import DockHub from './components/hub/DockHub'
 import Messages, { ChatButton } from './components/Messages'
 import Toast from './components/Toast'
 import Analytics, { RAIL_PAD } from './components/Analytics'
@@ -30,11 +29,6 @@ const TabIcon = ({ d }) => (
     <path d={d} />
   </svg>
 )
-
-const GATE_MODES = [
-  { id: 'in', label: 'Check In' },
-  { id: 'out', label: 'Check Out' },
-]
 
 const timeNow = () => new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
 
@@ -165,7 +159,6 @@ export default function App() {
     setGateMode(mode)
     setEditingId(entry?.id ?? null)
     setTab('gate')
-    window.scrollTo({ top: 0, behavior: 'smooth' })
   }
   const handleEdit = (entry) => openGate('in', entry)
   // A guard trying to check out a truck that can't leave yet is a mistake the system stopped; it's
@@ -367,79 +360,53 @@ export default function App() {
 
       <Toast notice={notice} onClose={() => setNotice(null)} />
 
-      {/* Insights uses the full width beside its rail; the other tabs sit centered. */}
-      <main className={'space-y-5 px-4 py-5 sm:px-5 ' + (tab === 'analytics' ? 'lg:px-6 lg:py-6' : 'mx-auto max-w-[1440px] lg:px-6')}>
+      {/* Insights uses the full width beside its rail; the work tabs fill the screen below the header. */}
+      <main className={tab === 'analytics' ? 'space-y-5 px-4 py-5 sm:px-5 lg:px-6 lg:py-6' : 'px-3 py-3 sm:px-4'}>
         {/* Storage trouble stays on the page (a pop-up would vanish); on Insights it clears the rail. */}
         {storageError && (
           <div className={tab === 'analytics' ? RAIL_PAD : ''}>
-            <div role="alert" className="no-print rounded-md border-l-[6px] border-danger bg-danger-soft px-4 py-3 font-semibold text-danger">
+            <div role="alert" className="no-print mb-3 rounded-md border-l-[6px] border-danger bg-danger-soft px-4 py-3 font-semibold text-danger">
               Browser storage is full — the latest changes are NOT saved and will be lost when this page closes. Delete
               old entries to free up space.
             </div>
           </div>
         )}
 
-        {/* The Gate panel stays mounted while another tab is open, so a half-typed check-in or check-out
-            isn't lost when the guard glances at Shipping; it follows the live entry meanwhile. */}
-        <div
-          role="tabpanel"
-          id="panel-gate"
-          aria-labelledby="tab-gate"
-          hidden={tab !== 'gate'}
-          className="mx-auto max-w-[620px]"
-        >
-          {/* The Check In / Check Out form, kept narrow and centered. */}
-          <div className="min-w-0 space-y-3">
-            <div role="tablist" aria-label="Gate form" className="no-print grid grid-cols-2 gap-1 rounded-lg bg-track p-1">
-              {GATE_MODES.map((m) => (
-                <button
-                  key={m.id}
-                  role="tab"
-                  aria-selected={gateMode === m.id}
-                  onClick={() => openGate(m.id, null)}
-                  className={
-                    'min-h-12 cursor-pointer rounded-md text-[15px] font-semibold transition-colors ' +
-                    (gateMode === m.id ? 'bg-panel text-ink shadow-[0_1px_2px_rgb(15_23_42/0.12),0_0_0_1px_var(--color-line)]' : 'text-muted hover:text-ink')
-                  }
-                >
-                  {m.label}
-                </button>
-              ))}
-            </div>
-
-            {gateMode === 'out' && !editing ? (
-              <CheckOutPicker entries={entries} onPick={handleCheckOut} />
-            ) : (
-              <GuardForm
-                key={`${gateMode}-${editing?.id ?? 'new'}`}
-                mode={gateMode}
-                initial={editing}
-                guard={guard}
-                onSetGuard={setGuard}
-                memory={memory}
-                takenBays={takenBays(entries)}
-                onSave={handleSave}
-                onCancel={editing ? () => setEditingId(null) : undefined}
-                active={tab === 'gate'}
-                carriers={carriers}
-              />
-            )}
-          </div>
+        {/* The Gate stays mounted while another tab is open, so a half-typed check-in or check-out isn't
+            lost when the guard glances at Shipping; it follows the live entry meanwhile. */}
+        <div role="tabpanel" id="panel-gate" aria-labelledby="tab-gate" hidden={tab !== 'gate'}>
+          <GateHub
+            entries={entries}
+            active={tab === 'gate'}
+            gateMode={gateMode}
+            editing={editing}
+            onOpenGate={openGate}
+            form={{
+              guard,
+              onSetGuard: setGuard,
+              memory,
+              takenBays: takenBays(entries),
+              onSave: handleSave,
+              onCancel: editing ? () => setEditingId(null) : undefined,
+              carriers,
+            }}
+            onCheckOut={handleCheckOut}
+            onEdit={handleEdit}
+            onDelete={handleDelete}
+            onAssignDock={handleAssignDock}
+          />
         </div>
         {tab === 'gate' ? null : tab === 'docks' ? (
           <div role="tabpanel" id="panel-docks" aria-labelledby="tab-docks">
-            <DockBoard
+            <DockHub
               entries={entries}
-              onAssignDock={handleAssignDock}
               onEdit={handleEdit}
-              onCheckOut={handleCheckOut}
               onSaveInspection={handleSaveInspection}
               onSaveTrailerCheck={handleSaveTrailerCheck}
               onLoading={handleLoading}
               onRelease={handleRelease}
               inspector={inspector}
               onSetInspector={setInspector}
-              wide
             />
           </div>
         ) : tab === 'analytics' ? (
@@ -454,15 +421,7 @@ export default function App() {
           </div>
         ) : (
           <div role="tabpanel" id="panel-shipping" aria-labelledby="tab-shipping">
-            <ShippingDashboard
-              entries={entries}
-              onAssignDock={handleAssignDock}
-              onEdit={handleEdit}
-              onCheckOut={handleCheckOut}
-              top={
-                <EntryLog entries={entries} onEdit={handleEdit} onCheckOut={handleCheckOut} onDelete={handleDelete} onAssignDock={handleAssignDock} />
-              }
-            />
+            <ShippingHub entries={entries} onAssignDock={handleAssignDock} onEdit={handleEdit} onCheckOut={handleCheckOut} onDelete={handleDelete} />
           </div>
         )}
         {chatTab && <Messages open={chatOpen} onClose={() => setChatOpen(false)} />}

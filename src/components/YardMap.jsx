@@ -135,7 +135,7 @@ function trouble(e, clock) {
 // `focus` (inspection view): 'on' highlights the rig with an INSPECT / RE-CHECK tag and its time at the
 // dock; 'off' fades it into the background; undefined draws it normally. `pose` places it (parked or
 // driving); a driving rig is drawn as a whole rig without its ground patch, glow or click target.
-function Unit({ e, pose, driving, at, clock, selected, onSelect, focus, motion }) {
+function Unit({ e, pose, driving, at, clock, selected, onSelect, focus, focusText, motion }) {
   const status = yardStatus(e, at)
   const alert = attention(e, clock)
   const on = focus === 'on'
@@ -143,7 +143,7 @@ function Unit({ e, pose, driving, at, clock, selected, onSelect, focus, motion }
   const recheck = e.loadingInspection?.result === 'Fail'
   const atDockFor = e.dockAssignedAt ? `${duration(clock - e.dockAssignedAt)} at dock` : ''
   const label =
-    (on ? `${recheck ? 'Re-check' : 'Inspect'} Dock ${e.dockDoor}: ` : '') +
+    (on ? `${focusText ?? (recheck ? 'Re-check' : 'Inspect')}${e.dockDoor ? ` Dock ${e.dockDoor}` : ''}: ` : '') +
     `Trailer ${e.trailerNumber}, ${e.truckName}, ${STATUS[status].label}${on && atDockFor ? `, ${atDockFor}` : ''}${alert ? `, ${alert}` : ''}`
   const rig = (
     <Rig
@@ -212,7 +212,7 @@ function Unit({ e, pose, driving, at, clock, selected, onSelect, focus, motion }
 
 // What floats above and in front of a parked rig: the status pin (or the INSPECT tag), the alert badge
 // and the trailer # plate on the ground in front of the cab. Drawn after every rig so nothing covers them.
-function UnitLabels({ e, pose, at, clock, focus }) {
+function UnitLabels({ e, pose, at, clock, focus, focusText }) {
   const status = yardStatus(e, at)
   const alert = attention(e, clock)
   const on = focus === 'on'
@@ -227,13 +227,13 @@ function UnitLabels({ e, pose, at, clock, focus }) {
       <g transform={`translate(${pinX} ${pinY})`}>
         {on ? (
           <g transform="translate(0 -12)">
-            <Plate tone="inspect" lines={[{ text: recheck ? 'RE-CHECK' : 'INSPECT', bold: true, size: 12 }]} />
+            <Plate tone="inspect" lines={[{ text: (focusText ?? (recheck ? 'Re-check' : 'Inspect')).toUpperCase(), bold: true, size: 12 }]} />
           </g>
         ) : (
           <StatusPin status={status} />
         )}
         {alert && (
-          <g transform={on ? 'translate(38 -10)' : 'translate(12 -10)'}>
+          <g transform={on ? `translate(${Math.max(38, (focusText ?? 'INSPECT').length * 4 + 10)} -10)` : 'translate(12 -10)'}>
             <AlertBadge />
           </g>
         )}
@@ -281,7 +281,7 @@ function SkyChip({ phase, clock }) {
 }
 
 // "✓ Free" / "✓ Open" written on the ground of an empty dock or bay.
-function FreeMark({ wx, wy, text }) {
+function FreeMark({ wx, wy, text, tone = 'var(--color-ok)' }) {
   const [x, y] = P(wx, wy, 0)
   return (
     <text
@@ -290,7 +290,8 @@ function FreeMark({ wx, wy, text }) {
       textAnchor="middle"
       fontSize={13}
       fontWeight={700}
-      fill="var(--color-ok)"
+      fill={tone}
+      pointerEvents="none"
       stroke="var(--color-panel)"
       strokeWidth={3.5}
       paintOrder="stroke"
@@ -331,7 +332,7 @@ function GateChips({ gateCounts }) {
   )
 }
 
-function Legend() {
+export function Legend() {
   const items = [
     ['waiting', false, 'Waiting for a dock', 'In a staging bay'],
     ['dock', false, 'At dock', 'Loading or unloading'],
@@ -481,11 +482,41 @@ function useReducedMotion() {
 // `animate`: trucks drive their routes when their spot changes (default: on a live map); `pace` speeds
 // them up (a replay running faster than real time).
 // `overlay`: controls laid over the full-size map's top-right corner (the open sky), such as a replay's.
-export default function YardMap({ yard, gateCounts, at, clock, live, onEdit, onCheckOut, compact, onExpand, focus, onInspect, highlightId, animate = live, pace = 1, overlay }) {
+export default function YardMap({
+  yard,
+  gateCounts,
+  at,
+  clock,
+  live,
+  onEdit,
+  onCheckOut,
+  compact,
+  onExpand,
+  focus,
+  fade = true,
+  onInspect,
+  highlightId,
+  animate = live,
+  pace = 1,
+  overlay,
+  bare,
+  picked,
+  onPick,
+  dockTargets,
+  onDockTap,
+  footer,
+}) {
   const [tappedId, setSelectedId] = useState(null)
-  const selectedId = tappedId ?? highlightId ?? null
+  // `onPick` (the work hubs): selection lives outside the map, which only draws it; no floating card.
+  const selectedId = onPick ? (picked ?? null) : (tappedId ?? highlightId ?? null)
+  const select = onPick ?? setSelectedId
   const motion = useReducedMotion() === false
-  const focusOf = (e) => (focus ? (focus(e) ? 'on' : 'off') : undefined)
+  // `focus(e)` is true, or the words for the tag over the rig (e.g. "Check out"); others fade unless `fade` is off.
+  const focusOf = (e) => (focus ? (focus(e) ? 'on' : fade ? 'off' : undefined) : undefined)
+  const focusTextOf = (e) => {
+    const f = focus?.(e)
+    return typeof f === 'string' ? f : undefined
+  }
   const inspectTap = compact && focus && onInspect
 
   const units = []
@@ -525,7 +556,7 @@ export default function YardMap({ yard, gateCounts, at, clock, live, onEdit, onC
       role={compact && !inspectTap ? undefined : 'group'}
       aria-label={compact && !inspectTap ? undefined : focus ? 'Inspection map: trucks at docks that need their loading inspection' : 'Yard map: docks, staging bays and gates'}
       aria-hidden={(compact && !inspectTap) || undefined}
-      className="block h-auto w-full"
+      className={bare ? 'absolute inset-0 h-full w-full' : 'block h-auto w-full'}
     >
       <Scene occupied={occupied} motion={motion} night={sky.night} />
       {items.map((u) => (
@@ -537,9 +568,10 @@ export default function YardMap({ yard, gateCounts, at, clock, live, onEdit, onC
           at={at}
           clock={clock}
           focus={focusOf(u.e)}
+          focusText={focusTextOf(u.e)}
           motion={motion}
           selected={u.e.id === selectedId}
-          onSelect={inspectTap ? (focus(u.e) ? () => onInspect(u.e) : undefined) : compact ? undefined : setSelectedId}
+          onSelect={inspectTap ? (focus(u.e) ? () => onInspect(u.e) : undefined) : compact ? undefined : select}
         />
       ))}
       <Foreground gateFills={GATES.map((g) => GATE_STYLE[g]?.fill ?? 'var(--color-signal)')} night={sky.night} />
@@ -549,15 +581,75 @@ export default function YardMap({ yard, gateCounts, at, clock, live, onEdit, onC
         warm={sky.warm}
         rigs={items.map((u) => ({ ...u.pose, driving: u.driving }))}
       />
-      {DOCKS.map((d, i) => (yard.atDock.has(d) ? null : <FreeMark key={d} wx={colWX(i)} wy={26} text="✓ Free" />))}
+      {/* Free docks a picked truck can go to (Shipping): tap one to assign it. */}
+      {onDockTap &&
+        DOCKS.map((d, i) =>
+          yard.atDock.has(d) || !dockTargets?.has(d) ? null : (
+            <g
+              key={`t${d}`}
+              role="button"
+              tabIndex={0}
+              aria-label={`Assign to dock ${d}`}
+              onClick={() => onDockTap(d)}
+              onKeyDown={(ev) => {
+                if (ev.key === 'Enter' || ev.key === ' ') {
+                  ev.preventDefault()
+                  onDockTap(d)
+                }
+              }}
+              className="dock-target cursor-pointer"
+              transform={placeAt(parkedPose({ kind: 'dock', i }))}
+            >
+              <polygon points={footprint(false, 1)} fill="var(--color-signal)" opacity={0.16} />
+              <polygon points={footprint(false, 1)} fill="none" stroke="var(--color-signal-line)" strokeWidth={3} strokeDasharray="8 5">
+                {motion && <animate attributeName="stroke-dashoffset" values="0;26" dur="1.4s" repeatCount="indefinite" />}
+              </polygon>
+            </g>
+          ),
+        )}
+      {DOCKS.map((d, i) =>
+        yard.atDock.has(d) ? null : dockTargets?.has(d) ? (
+          <FreeMark key={d} wx={colWX(i)} wy={26} text={`Tap · Dock ${d}`} tone="var(--color-signal-line)" />
+        ) : (
+          <FreeMark key={d} wx={colWX(i)} wy={26} text="✓ Free" />
+        ),
+      )}
       {yard.bays.map((e, i) => (e ? null : <FreeMark key={i} wx={colWX(i)} wy={BAY_WY + 26} text="✓ Open" />))}
       {parked.map((u) => (
-        <UnitLabels key={u.e.id} e={u.e} pose={u.pose} at={at} clock={clock} focus={focusOf(u.e)} />
+        <UnitLabels key={u.e.id} e={u.e} pose={u.pose} at={at} clock={clock} focus={focusOf(u.e)} focusText={focusTextOf(u.e)} />
       ))}
       <GateChips gateCounts={gateCounts} />
       <SkyChip phase={sky.phase} clock={clock} />
     </svg>
   )
+
+  // Work hubs: just the map, filling its box, with the hub's own overlay and footer notes.
+  if (bare) {
+    const more = [...yard.overflow, ...yard.otherDocks]
+    return (
+      <div className="relative h-full w-full overflow-hidden rounded-xl">
+        {map}
+        {overlay && <div className="absolute top-2 right-2 z-[5]">{overlay}</div>}
+        <div className="pointer-events-none absolute inset-x-2 bottom-2 z-[5] flex flex-wrap items-end gap-2 [&>*]:pointer-events-auto">
+          {footer}
+          {more.length > 0 && (
+            <p className="rounded-lg bg-panel/90 px-2.5 py-1.5 text-[12.5px] shadow-card">
+              <b className={yard.overflow.length ? 'text-danger' : ''}>{yard.overflow.length ? `⚠ ${yard.overflow.length} without a bay` : 'At docks off the map'}:</b>{' '}
+              {more.map((e, i) => (
+                <span key={e.id}>
+                  {i > 0 && ', '}
+                  <button type="button" onClick={() => select(e.id)} className="min-h-8 cursor-pointer font-semibold underline">
+                    {e.trailerNumber}
+                    {e.dockDoor ? ` (Dock ${e.dockDoor})` : ''}
+                  </button>
+                </span>
+              ))}
+            </p>
+          )}
+        </div>
+      </div>
+    )
+  }
 
   // Compact inspection view: highlighted trucks are the buttons; Enlarge stays in the card header.
   if (inspectTap) {

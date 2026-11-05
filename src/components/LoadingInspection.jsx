@@ -173,7 +173,7 @@ function StatusPanel({ entry, issues, answered, total, now }) {
     </ul>
   )
   return (
-    <aside className="space-y-3 lg:sticky lg:top-[calc(var(--header-h,114px)+16px)] lg:self-start">
+    <aside className="space-y-3 @3xl:sticky @3xl:top-0 @3xl:self-start">
       {/* Pass / Fail is given only once every required field is answered; until then, problems
           already found are listed without calling the result. */}
       {done ? (
@@ -261,7 +261,7 @@ function StatusPanel({ entry, issues, answered, total, now }) {
 
 // `part`: 'trailer' (the empty trailer, before loading) or 'load' (the full inspection after loading;
 // the trailer check's answers come along). `inspector`: the inspector on duty, filled in as Inspected By.
-function InspectionForm({ entry, part = 'load', inspector = '', onSave, onSaveTrailerCheck, onCancel, onChangeTruck }) {
+export function InspectionForm({ entry, part = 'load', inspector = '', onSave, onSaveTrailerCheck, onCancel, onChangeTruck }) {
   const trailer = part === 'trailer'
   const draftKey = `${entry.id}:${part}`
   const [form, setForm] = useState(() => {
@@ -426,18 +426,20 @@ function InspectionForm({ entry, part = 'load', inspector = '', onSave, onSaveTr
               .join(' · ') || 'No order details entered at check-in'}
           </div>
         </div>
-        <button type="button" onClick={onChangeTruck} className={ui.btnSmall + ' no-print'}>
-          Change truck
-        </button>
+        {onChangeTruck && (
+          <button type="button" onClick={onChangeTruck} className={ui.btnSmall + ' no-print'}>
+            Change truck
+          </button>
+        )}
       </div>
 
-      <div className="mt-4 grid gap-5 lg:grid-cols-[minmax(0,1fr)_300px]">
+      <div className="mt-4 grid gap-5 @3xl:grid-cols-[minmax(0,1fr)_300px]">
         {/* On narrow screens the status panel comes first, above the questions. */}
-        <div className="lg:order-2">
+        <div className="@3xl:order-2">
           <StatusPanel entry={entry} issues={issues} answered={answered} total={required.length} now={now} />
         </div>
 
-        <div className="min-w-0 lg:order-1">
+        <div className="min-w-0 @3xl:order-1">
           <ErrorSummary errors={errors} action="saving the inspection" summaryRef={summaryRef} labels={LABELS} />
 
           {!trailer && (

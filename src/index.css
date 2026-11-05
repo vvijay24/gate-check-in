@@ -338,4 +338,8 @@ body {
   body[data-print="outbound"] #outbound { position: absolute; inset: 0 0 auto 0; border: 0; }
   body[data-print="outbound"] #outbound .overflow-x-auto { overflow: visible; }
   body[data-print="outbound"] #outbound table { min-width: 0; }
+
+  /* The work hubs fill the screen with their own scroll areas; printing a table lets them grow. */
+  body[data-print] .hub-fit,
+  body[data-print] .hub-fit .overflow-y-auto { height: auto !important; max-height: none !important; overflow: visible !important; }
 }

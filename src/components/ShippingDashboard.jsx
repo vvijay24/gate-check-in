@@ -94,7 +94,8 @@ function printOutbound() {
 }
 
 // `top` renders above the outbound table (the Gate Log); `children` render below it.
-export default function ShippingDashboard({ entries, onAssignDock, onEdit, onCheckOut, top, children }) {
+// `bare`: only the Outbound Shipments table (the Shipping hub's Outbound view).
+export default function ShippingDashboard({ entries, onAssignDock, onEdit, onCheckOut, top, children, bare }) {
   const [now, setNow] = useState(Date.now)
   // The truck whose Release to gate pop-up is open.
   // Header dropdown choices by column id; '' = All.
@@ -200,15 +201,7 @@ export default function ShippingDashboard({ entries, onAssignDock, onEdit, onChe
     ? 'No pickups match these filters.'
     : 'No pickups today and none still on site. Visits with Pickup ticked on the Gate form appear here.'
 
-  return (
-    <Dashboard
-      entries={entries}
-      onAssignDock={onAssignDock}
-      onEdit={onEdit}
-      onCheckOut={onCheckOut}
-    >
-      {top}
-
+  const table = (
       <section id="outbound" className="rounded-xl bg-panel shadow-card">
         <div className="flex flex-wrap items-center justify-between gap-3 px-5 pt-5 pb-3">
           <h2 className="font-display text-[20px] leading-tight font-semibold">
@@ -335,6 +328,12 @@ export default function ShippingDashboard({ entries, onAssignDock, onEdit, onChe
           </button>
         </div>
       </section>
+  )
+  if (bare) return table
+  return (
+    <Dashboard entries={entries} onAssignDock={onAssignDock} onEdit={onEdit} onCheckOut={onCheckOut}>
+      {top}
+      {table}
       {children}
     </Dashboard>
   )

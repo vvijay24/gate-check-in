@@ -16,12 +16,12 @@ import ReleaseDialog from './ReleaseDialog'
 import { hasDraft } from './LoadingInspection'
 
 // Detention pill (past or near free time), or nothing when the truck is fine.
-function DetentionPill({ e, now }) {
+export function DetentionPill({ e, now }) {
   const det = detentionState(e, now)
   return det ? <span className={ui.tag + ' ' + DETENTION_TAG[det.level]}>{det.text}</span> : null
 }
 
-function Stripe({ purposes }) {
+export function Stripe({ purposes }) {
   return (
     <div className="flex flex-col">
       {purposes.length ? (
@@ -39,7 +39,7 @@ function Meta({ items }) {
   return <div className="text-[13px] leading-snug text-muted">{shown.reduce((acc, m, i) => (i ? [...acc, ' · ', m] : [m]), [])}</div>
 }
 
-function WaitingCard({ e, now, occupied, onAssignDock, onEdit }) {
+export function WaitingCard({ e, now, occupied, onAssignDock, onEdit }) {
   const waited = now - arrivalMs(e)
   const purposes = e.visitPurpose ?? []
 
@@ -98,7 +98,7 @@ function WaitingCard({ e, now, occupied, onAssignDock, onEdit }) {
 
 // Inspection and handoff state as a tag; the word carries the meaning, color only reinforces it.
 // `wrap` lets the tag break onto two lines in a narrow tile instead of running past its edge.
-function InspectionTag({ e, wrap }) {
+export function InspectionTag({ e, wrap }) {
   const tag = wrap ? ui.tag.replace('whitespace-nowrap', 'whitespace-normal') : ui.tag
   const inspection = e.loadingInspection
   if (!inspection) return <span className={tag + ' bg-warn-soft text-ink ring-1 ring-warn-line/40'}>Not inspected</span>
@@ -166,17 +166,17 @@ export function dockPhase(e) {
   if (e.loadingInspection.result !== 'Pass') return 'failed'
   return isReleased(e) ? 'released' : 'release'
 }
-const WORK_STEPS = [
+export const WORK_STEPS = [
   { key: 'trailer', label: 'Trailer' },
   { key: 'load', label: 'Loading' },
   { key: 'inspect', label: 'Inspection' },
   { key: 'release', label: 'Release' },
 ]
-const stepIndex = { trailer: 0, trailerFail: 0, ready: 1, loading: 1, inspect: 2, failed: 2, release: 3, released: 4 }
+export const stepIndex = { trailer: 0, trailerFail: 0, ready: 1, loading: 1, inspect: 2, failed: 2, release: 3, released: 4 }
 
 // One truck at a dock on Dock & Loading: its steps, the timer for the step it's in, and the button for
 // what comes next.
-function DockWorkCard({ e, now, selected, onOpen, onLoading, onRelease }) {
+export function DockWorkCard({ e, now, selected, onOpen, onLoading, onRelease }) {
   const phase = dockPhase(e)
   const at = stepIndex[phase]
   const stage = currentStage(e)
@@ -260,7 +260,7 @@ function DockWorkCard({ e, now, selected, onOpen, onLoading, onRelease }) {
 
 // Docks assigned outside DOCKS still appear under At the Docks.
 // At-a-glance board of which docks are free. Status is written out, not shown by color alone.
-function DockStatus({ occupied, now, wide }) {
+export function DockStatus({ occupied, now, wide }) {
   const free = DOCKS.filter((d) => !occupied.has(dockKey(d))).length
   return (
     <section className="rounded-xl bg-panel shadow-card p-4">
@@ -300,7 +300,7 @@ function DockStatus({ occupied, now, wide }) {
 }
 
 // Trucks without a dock, in the staging bay picked at check-in (or the next free bay if none was picked).
-function StagingBays({ entries, now, wide }) {
+export function StagingBays({ entries, now, wide }) {
   const { bays, overflow } = stagingBays(entries)
   const open = bays.filter((e) => !e).length
   return (
@@ -629,7 +629,7 @@ function Sparkline({ values, title }) {
 // "Right now" row at the top of the Shipping page: the figures that say what needs action next, each
 // with its trend over the last 8 hours. Each figure's tone is also written in its note, so it never
 // relies on color alone.
-function SummaryStrip({ entries }) {
+export function SummaryStrip({ entries }) {
   const [now, setNow] = useState(Date.now)
 
   useEffect(() => {
@@ -707,7 +707,7 @@ function SummaryStrip({ entries }) {
 // Trucks that passed their inspection and wait for Shipping to release them to the gate, oldest first.
 // Shipping's view of a truck at a dock: where it is in the work and its timer (the work itself is done
 // on Dock & Loading).
-function LaneDockCard({ e, now }) {
+export function LaneDockCard({ e, now }) {
   const phase = dockPhase(e)
   const at = stepIndex[phase]
   const stage = currentStage(e)
@@ -749,7 +749,7 @@ function LaneDockCard({ e, now }) {
 
 // A passed truck as Shipping sees it: waiting for the inspector's release, or released and heading
 // to the gate (with the checkout timer).
-function LanePassedCard({ e, now }) {
+export function LanePassedCard({ e, now }) {
   const released = isReleased(e)
   return (
     <div className="grid grid-cols-[6px_1fr] overflow-hidden rounded-lg bg-page">
@@ -800,7 +800,7 @@ function Lane({ title, count, target, empty, children }) {
 }
 
 // Shipping's work board: who needs a dock, who's at one (and where in the work), who has passed.
-function WorkBoard({ entries, onAssignDock, onEdit }) {
+export function WorkBoard({ entries, onAssignDock, onEdit }) {
   const [now, setNow] = useState(Date.now)
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 30000)
@@ -863,7 +863,7 @@ function stageMinutesToday(entries, now) {
   })
 }
 
-function StageToday({ entries }) {
+export function StageToday({ entries }) {
   const [now] = useState(Date.now)
   const rows = stageMinutesToday(entries, now)
   const scale = Math.max(...rows.map((r) => Math.max(r.avg ?? 0, r.stage.max))) * 1.1
