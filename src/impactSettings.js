@@ -2,13 +2,18 @@
 // - goLive: the day the yard started using the app ("YYYY-MM-DD"); blank = the first real entry's date
 // - targets: minutes each handoff should take at most
 // - baseline: optional figures from before digitization (blank until someone finds them)
-const KEY = 'impact-settings'
+import { DOCK_TARGET, STAGE_TARGETS } from './turnaround/targets'
 
+const KEY = 'impact-settings'
+const STAGE = Object.fromEntries(STAGE_TARGETS.map((t) => [t.key, t]))
+
+// Defaults follow the stage targets in turnaround/targets.js (METRICS.md): dock assignment ≤ 30 min,
+// pre-load + loading + inspection ≤ 85 min at the door, gate checkout ≤ 5 min.
 export const HANDOFFS = [
-  { key: 'waitDockMs', label: 'Arrived → dock assigned', owner: 'Shipping', target: 30 },
-  { key: 'toInspectMs', label: 'Docked → inspected', owner: 'Dock / QA', target: 60 },
-  { key: 'toReleaseMs', label: 'Passed → released by Shipping', owner: 'Shipping', target: 10 },
-  { key: 'releaseToOutMs', label: 'Released → checked out', owner: 'Gate', target: 10 },
+  { key: 'waitDockMs', label: 'Arrived → dock assigned', owner: 'Shipping', target: STAGE.dockAssign.max },
+  { key: 'toInspectMs', label: 'Docked → inspected', owner: 'Dock / QA', target: DOCK_TARGET.max },
+  { key: 'toReleaseMs', label: 'Passed → released by the inspector', owner: 'Dock / QA', target: STAGE.checkout.max },
+  { key: 'releaseToOutMs', label: 'Released → checked out', owner: 'Gate', target: STAGE.checkout.max },
 ]
 // Part of "arrived → dock assigned": the time a dock was free for the truck but Shipping hadn't
 // assigned it yet (the Gate → Shipping response). Kept apart from HANDOFFS so it isn't counted twice.

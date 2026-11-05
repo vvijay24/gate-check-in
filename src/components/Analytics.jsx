@@ -14,6 +14,7 @@ import { CONTROL_SUMMARY, ControlSection } from './analytics/control'
 import { EXPLORER_SUMMARY, ExplorerSection } from './analytics/explorer'
 import { ProfileView } from './analytics/profiles'
 import { InsightsNav } from './analytics/nav'
+import { DigitalSection, DIGITAL_SUMMARY } from './analytics/digital'
 import {
   CarriersSection,
   CustomersSection,
@@ -46,6 +47,7 @@ const SECTIONS = [
   { id: 'inspections', group: 'Quality', label: 'Inspections', sub: 'Loading inspections: results, timing and who did them', View: InspectionSection },
   { id: 'quality', group: 'Quality', label: 'Data Quality', sub: 'Are the records complete, logged live, and catching mistakes?', View: QualitySection },
   { id: 'impact', group: 'Value', label: 'Digitization Impact', sub: 'What going digital is saving, and the money still on the table', View: ImpactSection },
+  { id: 'digital', group: 'Value', label: 'Manual vs Digital', sub: 'The paper-log week against a digital week: time, detention, calls and staff time saved', View: DigitalSection },
   { id: 'explorer', group: 'Explore', label: 'Visit Explorer', sub: 'Every visit in the range: search, filter and open any one', View: ExplorerSection },
 ]
 const GROUPS = [...new Set(SECTIONS.map((s) => s.group))]
@@ -61,6 +63,7 @@ const ALL_SUMMARIES = {
   inspections: SUMMARY.inspections,
   quality: IMPACT_SUMMARY.quality,
   impact: IMPACT_SUMMARY.impact,
+  digital: DIGITAL_SUMMARY,
   explorer: EXPLORER_SUMMARY,
 }
 const PROFILE_WORD = { carrier: 'Carrier', customer: 'Customer', dock: 'Dock', visit: 'Visit' }
@@ -254,7 +257,7 @@ function Sidebar({ section, onSelect, keys, sampleControl, settingsControl, inPr
         <ul className="flex gap-1.5 overflow-x-auto pb-1 lg:block lg:overflow-visible lg:pb-0">
           {GROUPS.map((g) => (
             <li key={g} className="contents lg:block">
-              <span className="eyebrow hidden px-3 pt-[clamp(3px,1.3vh,16px)] pb-[clamp(2px,0.5vh,6px)] text-[10.5px] text-rail-muted/80 lg:block">{g}</span>
+              <span className="eyebrow hidden px-3 pt-[clamp(3px,1.1vh,16px)] pb-[clamp(2px,0.5vh,6px)] text-[10.5px] text-rail-muted/80 lg:block">{g}</span>
               <ul className="contents lg:block lg:space-y-0.5">
                 {SECTIONS.filter((s) => s.group === g).map((s) => {
                   const on = section === s.id
@@ -267,7 +270,7 @@ function Sidebar({ section, onSelect, keys, sampleControl, settingsControl, inPr
                         onClick={() => onSelect(s.id)}
                         className={
                           'relative min-h-10 w-full cursor-pointer rounded-md border px-3 py-1.5 text-left whitespace-nowrap transition-colors ' +
-                          'lg:flex lg:min-h-[clamp(26px,4.3vh,44px)] lg:flex-col lg:justify-center lg:border-0 lg:py-[clamp(2px,0.5vh,6px)] ' +
+                          'lg:flex lg:min-h-[clamp(26px,3.9vh,44px)] lg:flex-col lg:justify-center lg:border-0 lg:py-[clamp(2px,0.5vh,6px)] ' +
                           'lg:before:absolute lg:before:top-2 lg:before:bottom-2 lg:before:left-0 lg:before:w-[3px] lg:before:rounded-full ' +
                           (on
                             ? 'border-signal bg-signal-soft text-signal-line lg:bg-white/[0.07] lg:text-white lg:before:bg-signal' + (inProfile ? ' lg:before:bg-signal/60' : '')
@@ -372,7 +375,7 @@ async function exportAnalytics(r, impact, ops) {
     ['Avg time on site (min)', minutes(t.avgOnSiteMs)],
     ['Avg wait for dock (min)', minutes(t.avgWaitDockMs)],
     ['Avg dock to inspected (min)', minutes(t.avgToInspectMs)],
-    ['Avg waiting for Shipping release (min)', minutes(t.avgToReleaseMs)],
+    ['Avg waiting for release (min)', minutes(t.avgToReleaseMs)],
     ['Avg release to check-out (min)', minutes(t.avgReleaseToOutMs)],
     ['Dock utilization %', percent(t.dockUtilization)],
     [`Visits over ${DETENTION_FREE_MIN} min`, t.overFree],

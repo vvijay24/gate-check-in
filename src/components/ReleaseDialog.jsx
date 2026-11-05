@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import * as ui from '../ui'
 import { ago } from '../time'
 
-// Shipping's sign-off before a truck that passed its inspection may leave: confirm the order and
+// The inspector's sign-off before a truck that passed its inspection may leave: confirm the order and
 // seal, tick the paperwork, and say who released it. Opens as a pop-up while `entry` is set.
 const BY_KEY = 'release-by'
 
@@ -14,7 +14,8 @@ const lastReleasedBy = () => {
   }
 }
 
-export default function ReleaseDialog({ entry, onRelease, onClose }) {
+// `by`: the inspector on duty, filled in as Released by.
+export default function ReleaseDialog({ entry, by = '', onRelease, onClose }) {
   const dialog = useRef(null)
   const [form, setForm] = useState(null)
   const [errors, setErrors] = useState({})
@@ -26,7 +27,7 @@ export default function ReleaseDialog({ entry, onRelease, onClose }) {
         orderNo: entry.pickupNumber ?? '',
         seal: entry.loadingInspection?.sealApplied || entry.outgoingSeals || '',
         paperwork: false,
-        releasedBy: lastReleasedBy(),
+        releasedBy: by || lastReleasedBy(),
         note: '',
       })
       setErrors({})

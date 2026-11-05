@@ -37,10 +37,10 @@ export function ChatButton({ open, onToggle }) {
     >
       <span aria-hidden="true" className="hidden h-1.5 w-1.5 rounded-full bg-ok sm:inline-block" />
       <span>
-        Chat<span className="hidden sm:inline"> with Shipping</span>
+        Chat<span className="hidden sm:inline lg:hidden 2xl:inline"> with Shipping</span>
       </span>
       {/* Phones drop the tag to keep the header on one row; the panel itself says it's a demo. */}
-      <span className={ui.tag.replace('inline-block', 'hidden sm:inline-block') + ' bg-signal text-signal-ink'}>Demo</span>
+      <span className={ui.tag.replace('inline-block', 'hidden sm:inline-block lg:hidden xl:inline-block') + ' bg-signal text-signal-ink'}>Demo</span>
     </button>
   )
 }

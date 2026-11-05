@@ -1,15 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import GuardForm from './components/GuardForm'
+import OnDuty, { loadOnDuty, saveOnDuty } from './components/OnDuty'
+import { visitMemory } from './visitMemory'
 import CheckOutPicker from './components/CheckOutPicker'
 import EntryLog from './components/EntryLog'
 import ShippingDashboard from './components/ShippingDashboard'
-import { DockBoard } from './components/Dashboard'
+import { DockBoard, dockPhase } from './components/Dashboard'
 import Messages, { ChatButton } from './components/Messages'
 import Toast from './components/Toast'
 import Analytics, { RAIL_PAD } from './components/Analytics'
 import { makeSampleEntries } from './sampleData'
-import { takenBays } from './metrics'
-import { awaitingRelease, checkOutBlock, isReleased } from './handoff'
+import { isDrop, takenBays } from './metrics'
+import { checkOutBlock, isReleased } from './handoff'
 
 const STORAGE_KEY = 'guard-load-log'
 const EVENTS_KEY = 'gate-events'
@@ -24,7 +26,7 @@ const TABS = [
 
 // A 16px line icon for a header tab.
 const TabIcon = ({ d }) => (
-  <svg viewBox="0 0 24 24" aria-hidden="true" className="hidden h-4 w-4 shrink-0 sm:block" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+  <svg viewBox="0 0 24 24" aria-hidden="true" className="hidden h-4 w-4 shrink-0 sm:block lg:hidden xl:block" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
     <path d={d} />
   </svg>
 )
@@ -187,8 +189,24 @@ export default function App() {
     notify(`Trailer ${entry?.trailerNumber ?? ''} assigned to dock ${dockDoor}`)
   }
 
+  // Dock & Loading's "Start loading" / "Loading finished": `patch` is { loadStartedAt } or { loadFinishedAt }.
+  const handleLoading = (entry, patch) => {
+    setEntries((list) => list.map((e) => (e.id === entry.id ? { ...e, ...patch } : e)))
+    notify(`Trailer ${entry.trailerNumber ?? ''}: loading ${patch.loadStartedAt ? 'started' : 'finished'}`)
+  }
+
+  // The trailer check before loading (the empty trailer's condition and temperatures).
+  const handleSaveTrailerCheck = (id, trailerCheck) => {
+    setEntries((list) => list.map((e) => (e.id === id ? { ...e, trailerCheck } : e)))
+    const trailer = entries.find((e) => e.id === id)?.trailerNumber ?? ''
+    notify(
+      trailerCheck.result === 'Pass' ? `Trailer ${trailer} OK · ready to load` : `Trailer ${trailer} not OK · ${trailerCheck.issues[0] ?? 're-check needed'}`,
+      trailerCheck.result === 'Pass' ? 'ok' : 'fail',
+    )
+  }
+
   // Saves the Loading Inspection on the entry; the applied seal fills Outgoing Seals # if it's still empty.
-  // Saving an inspection again clears any earlier Shipping release, so the truck must be released again.
+  // Saving an inspection again clears any earlier release, so the inspector must release the truck again.
   const handleSaveInspection = (id, loadingInspection) => {
     setEntries((list) =>
       list.map((e) =>
@@ -200,13 +218,13 @@ export default function App() {
     const trailer = entries.find((e) => e.id === id)?.trailerNumber ?? ''
     notify(
       loadingInspection.result === 'Pass'
-        ? `Inspection passed · trailer ${trailer} sent to Shipping for release`
+        ? `Inspection passed · trailer ${trailer} ready to release to the gate`
         : `Inspection failed for trailer ${trailer} · re-check needed before it can leave`,
       loadingInspection.result === 'Pass' ? 'ok' : 'fail',
     )
   }
 
-  // Shipping releases a truck that passed its inspection to the gate. The confirmed seal and order
+  // The inspector releases a truck that passed its inspection to the gate (on Dock & Loading). The confirmed seal and order
   // number go onto the visit, so the Gate's check-out starts with them.
   const handleRelease = (id, { orderNo, seal, paperwork, releasedBy, note }) => {
     setEntries((list) =>
@@ -235,9 +253,28 @@ export default function App() {
     return [...count].sort((a, b) => b[1] - a[1]).map(([name]) => name)
   }, [entries])
 
+  // What earlier visits on this device tell the Gate form: a returning trailer's carrier and driver,
+  // the name behind a phone number, recent customers.
+  const memory = useMemo(() => visitMemory(entries, editingId), [entries, editingId])
+
+  // Who's on duty on this device (set once per shift): the guard here, the inspector on Dock & Loading.
+  const [guard, setGuardState] = useState(() => loadOnDuty('guard'))
+  const setGuard = (name) => {
+    setGuardState(name)
+    saveOnDuty('guard', name)
+  }
+  const [inspector, setInspectorState] = useState(() => loadOnDuty('inspector'))
+  const setInspector = (name) => {
+    setInspectorState(name)
+    saveOnDuty('inspector', name)
+  }
+
   // Tab badges: what's waiting for each team.
-  const badges = { shipping: entries.filter(awaitingRelease).length, gate: entries.filter(isReleased).length }
-  const badgeWords = { shipping: 'awaiting release', gate: 'released to the gate' }
+  // Dock & Loading: trucks at a dock waiting on the inspector (a check, an inspection or a release).
+  // Shipping: trucks waiting for a dock. Gate: released trucks to check out.
+  const inspectorTodo = entries.filter((e) => !e.timeOut && e.dockDoor && ['trailer', 'trailerFail', 'inspect', 'failed', 'release'].includes(dockPhase(e))).length
+  const badges = { docks: inspectorTodo, shipping: entries.filter((e) => !e.timeOut && !e.dockDoor && !isDrop(e)).length, gate: entries.filter(isReleased).length }
+  const badgeWords = { docks: 'need the inspector', shipping: 'waiting for a dock', gate: 'released to the gate' }
 
   // Sample visits are marked `sample: true` and go in by arrival time among the real entries;
   // loading again replaces the old samples.
@@ -278,7 +315,7 @@ export default function App() {
             </span>
             <h1 className="text-[15px] leading-none font-semibold tracking-[-0.01em] whitespace-nowrap">
               Gate Check In
-              <span className="ml-2 hidden border-l border-white/15 pl-2 text-[12px] font-medium text-rail-muted md:inline">Yard Operations</span>
+              <span className="ml-2 hidden border-l border-white/15 pl-2 text-[12px] font-medium text-rail-muted md:inline lg:hidden 2xl:inline">Yard Operations</span>
             </h1>
           </div>
           {/* Scrolls sideways rather than wrapping if the tabs still don't fit. */}
@@ -292,7 +329,7 @@ export default function App() {
                 aria-controls={`panel-${t.id}`}
                 onClick={() => setTab(t.id)}
                 className={
-                  'relative flex min-h-11 shrink-0 cursor-pointer items-center gap-2 rounded-md px-3 text-[14px] font-medium whitespace-nowrap transition-colors ' +
+                  'relative flex min-h-11 shrink-0 cursor-pointer items-center gap-2 rounded-md px-3 lg:px-2.5 xl:px-3 text-[14px] font-medium whitespace-nowrap transition-colors ' +
                   'after:absolute after:inset-x-2 after:bottom-0 after:h-0.5 after:rounded-full lg:rounded-none ' +
                   (tab === t.id ? 'text-white after:bg-signal lg:bg-white/[0.04]' : 'text-rail-text/80 after:bg-transparent hover:bg-white/[0.06] hover:text-white')
                 }
@@ -316,9 +353,11 @@ export default function App() {
             ))}
           </nav>
           {/* ml-auto keeps the chat and clock on the right. */}
-          <div className="ml-auto flex items-center gap-2.5 sm:gap-4">
+          <div className="ml-auto flex items-center gap-2.5 sm:gap-4 lg:gap-2.5 xl:gap-4">
+            {tab === 'gate' && <OnDuty role="guard" name={guard} onChange={setGuard} tone="chrome" />}
             {chatTab && <ChatButton open={chatOpen} onToggle={() => setChatOpen((o) => !o)} />}
-            <span className="flex items-center gap-2 rounded-md border border-white/10 bg-white/[0.04] px-2.5 py-1">
+            {/* On the Gate tab the guard chip takes the clock's place on small laptops. */}
+            <span className={'items-center gap-2 rounded-md border border-white/10 bg-white/[0.04] px-2.5 py-1 ' + (tab === 'gate' ? 'flex lg:hidden xl:flex' : 'flex')}>
               <i aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-warn shadow-[0_0_0_3px_rgb(245_158_11/0.2)]" />
               <span className="figure text-[13px] font-medium whitespace-nowrap text-rail-text">{clock}</span>
             </span>
@@ -375,7 +414,9 @@ export default function App() {
                 key={`${gateMode}-${editing?.id ?? 'new'}`}
                 mode={gateMode}
                 initial={editing}
-                defaultGuard={entries[0]?.guardOnDuty ?? ''}
+                guard={guard}
+                onSetGuard={setGuard}
+                memory={memory}
                 takenBays={takenBays(entries)}
                 onSave={handleSave}
                 onCancel={editing ? () => setEditingId(null) : undefined}
@@ -393,6 +434,11 @@ export default function App() {
               onEdit={handleEdit}
               onCheckOut={handleCheckOut}
               onSaveInspection={handleSaveInspection}
+              onSaveTrailerCheck={handleSaveTrailerCheck}
+              onLoading={handleLoading}
+              onRelease={handleRelease}
+              inspector={inspector}
+              onSetInspector={setInspector}
               wide
             />
           </div>
@@ -413,7 +459,6 @@ export default function App() {
               onAssignDock={handleAssignDock}
               onEdit={handleEdit}
               onCheckOut={handleCheckOut}
-              onRelease={handleRelease}
               top={
                 <EntryLog entries={entries} onEdit={handleEdit} onCheckOut={handleCheckOut} onDelete={handleDelete} onAssignDock={handleAssignDock} />
               }

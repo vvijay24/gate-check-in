@@ -1,0 +1,65 @@
+/* The turnaround kit's chart styles (turnaround/charts.js and impactDives.js draw with them), scoped to
+   `.tt` and mapped onto this app's tokens, so the kit's d3 charts read in the Control Room colors and
+   type. Only what the charts and the Manual vs Digital section use is kept. */
+.tt {
+  --p-navy: var(--color-signal);
+  --p-navy-2: #3b82f6;
+  --p-sky: #93c5fd;
+  --p-yolk: var(--color-warn);
+  --p-gold-1: #fcd34d;
+  --p-amber: var(--color-warn-line);
+  --p-teal: #0e8a7e;
+  --p-red: var(--color-danger);
+  --p-green: var(--color-ok);
+  --p-cream: var(--color-warn-soft);
+  --p-surface: var(--color-panel);
+  --color-fg: var(--color-ink);
+  --color-fg-muted: var(--color-muted);
+  --color-border-line: var(--color-line);
+  --color-bad: var(--color-danger);
+  --chart-grid: var(--color-line);
+  --chart-axis: var(--color-edge);
+  --chart-ref: var(--color-muted);
+  --chart-muted: color-mix(in srgb, var(--color-muted) 45%, var(--color-panel));
+  --font-sans: var(--font-body);
+  --font-serif: var(--font-body);
+  --fs-caption: 12px;
+  --fw-medium: 600;
+  --radius: 8px;
+  --shadow-pop: 0 10px 30px rgb(15 23 42 / 0.16), 0 2px 6px rgb(15 23 42 / 0.08);
+  --popover-bg: var(--color-panel);
+  --popover-border: var(--color-line);
+  --dive-s1: #e0763a; --dive-s2: #4a86d0; --dive-s3: #d9559a; --dive-s4: #c99300; --dive-s5: #8e5bc9; --dive-s6: #13998a;
+  --dive-blue: #4a86d0; --dive-gold: #c99300; --dive-purple: #8e5bc9; --dive-teal: #13998a;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .tt { --p-teal: #2ec4b2; --dive-teal: #1fa594; --dive-s1: #d9763b; }
+}
+:root[data-theme="dark"] .tt { --p-teal: #2ec4b2; --dive-teal: #1fa594; --dive-s1: #d9763b; }
+
+.tt-chart { position: relative; min-height: 240px; }
+.tt-chart.short { min-height: 200px; }
+.tt .dive-chart svg, .tt .tt-chart svg { overflow: visible; }
+.tt-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; font-weight: 500; color: var(--color-muted); }
+.tt-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.tt-legend i { width: 11px; height: 11px; border-radius: 3px; display: inline-block; }
+.tt-tip {
+  position: absolute; pointer-events: none; background: var(--popover-bg); border: 1px solid var(--popover-border); border-radius: 8px;
+  box-shadow: var(--shadow-pop); padding: 4px 8px; font-size: 12px; white-space: nowrap; z-index: 2; opacity: 0; transition: opacity 0.12s;
+}
+.tt-tip .h { color: var(--color-muted); margin-bottom: 2px; }
+.tt-tip .r { display: flex; align-items: center; gap: 6px; font-variant-numeric: tabular-nums; }
+.tt-tip .r i { width: 8px; height: 8px; border-radius: 2px; display: inline-block; }
+.tt svg text { font-family: var(--font-body); font-size: 12px; fill: var(--color-muted); }
+.tt svg text.v { fill: var(--color-ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+.tt svg text.v.bad { fill: var(--color-danger); }
+.tt-note { color: var(--color-muted); font-size: 12.5px; margin: 0; line-height: 1.45; }
+.tt-tablebox { max-height: 28rem; overflow: auto; border-radius: 8px; }
+.tt table { border-collapse: collapse; width: 100%; font-size: 13px; font-variant-numeric: tabular-nums; }
+.tt th { position: sticky; top: 0; background: var(--color-panel); text-align: left; font-weight: 600; color: var(--color-muted); padding: 8px 10px; border-bottom: 1px solid var(--color-line); }
+.tt td { padding: 8px 10px; border-bottom: 1px solid var(--color-line); vertical-align: top; }
+.tt .imp-swap th:first-child { border-left: 4px solid var(--dive-s1); }
+.tt .imp-swap th:last-child { border-left: 4px solid var(--dive-teal); }
+.tt .imp-swap td { width: 50%; }
+.tt .imp-two { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 16px; align-items: center; }
+@media (max-width: 900px) { .tt .imp-two { grid-template-columns: minmax(0, 1fr); } }

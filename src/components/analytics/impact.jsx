@@ -14,7 +14,7 @@ import { StageSpread } from './viz'
 
 const perLoad = (v) => (v == null ? '—' : `$${v.toFixed(2)}`)
 const perWeek = (v) => `${money(v)}/wk`
-// "Passed → released by Shipping" → "passed → released by Shipping", for use mid-sentence.
+// "Passed → released by the inspector" → "passed → released by the inspector", for use mid-sentence.
 const lcFirst = (s) => s.charAt(0).toLowerCase() + s.slice(1)
 // "▼ 12% vs the starting point" style comparison against the first two weeks from go-live.
 function vsStart(value, base, format, lowerIsBetter = true) {

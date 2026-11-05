@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import Field from './Field'
 import OdometerPhoto from './OdometerPhoto'
 import CarrierInput from './CarrierInput'
+import OnDuty from './OnDuty'
 import {
   EMPTY_FORM,
   GATES,
@@ -16,7 +17,7 @@ import {
 } from '../formConfig'
 import { BAY_NAMES } from '../yard'
 import * as ui from '../ui'
-import { clockTime, shortDate } from '../time'
+import { clockTime, dayKey, shortDate } from '../time'
 import { checkOutBlock, expectedSeal } from '../handoff'
 
 const pad = (n) => String(n).padStart(2, '0')
@@ -91,7 +92,9 @@ const checkOutForm = (entry, guard) =>
         dateOut: entry.dateOut || today(),
         timeOut: nowTime(),
         gateOut: entry.gateOut || 'Gate 2',
-        guardOut: entry.guardOut || guard,
+        guardOut: guard || entry.guardOut,
+        // When the guard opened the check-out, for the gate checkout stage time.
+        checkOutStartedAt: entry.checkOutStartedAt || Date.now(),
         truckerNameOut: entry.truckerNameOut || (entry.visitPurpose?.includes('Drop Trailer') ? '' : entry.truckerNameIn),
         driverPhoneOut: entry.driverPhoneOut || (entry.visitPurpose?.includes('Drop Trailer') ? '' : entry.driverPhone),
       }
@@ -117,8 +120,8 @@ const FIELD_LABELS = {
   gateOut: 'Gate Out',
   visitPurpose: 'Purpose of Visit',
   odometerPhoto: 'Odometer photo',
-  guardOnDuty: 'Guard on Duty',
-  guardOut: 'Guard Checking Out',
+  guardOnDuty: 'Guard on duty',
+  guardOut: 'Guard on duty',
   sealConfirmed: 'Seal matches',
   sealNote: 'Seal note',
 }
@@ -133,8 +136,75 @@ const STEPS = [
 ]
 const only = (errs, keys) => Object.fromEntries(Object.entries(errs).filter(([k]) => keys.includes(k)))
 
+// The next four quarter hours from now, as "HH:MM", for one-tap appointment times.
+const pad2 = (n) => String(n).padStart(2, '0')
+function quarterHours(from = new Date()) {
+  const d = new Date(from)
+  d.setMinutes(Math.floor(d.getMinutes() / 15) * 15 - 15, 0, 0)
+  return Array.from({ length: 4 }, () => {
+    d.setMinutes(d.getMinutes() + 15)
+    return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`
+  })
+}
+const timeWords = (hhmm) => {
+  const [h, m] = hhmm.split(':').map(Number)
+  return `${h % 12 || 12}:${pad2(m)} ${h < 12 ? 'AM' : 'PM'}`
+}
+
+// Small tap targets under a field: recent values, quick times, a returning trailer's details.
+function Chips({ label, items, value, onPick }) {
+  if (!items.length) return null
+  return (
+    <div className="no-print mt-1.5 flex flex-wrap items-center gap-1.5">
+      {label && <span className="text-[12px] text-muted">{label}</span>}
+      {items.map((it) => {
+        const v = typeof it === 'string' ? it : it.value
+        const on = v === value
+        return (
+          <button
+            key={v}
+            type="button"
+            aria-pressed={on}
+            onClick={() => onPick(v)}
+            className={
+              'min-h-8 cursor-pointer rounded-md border px-2.5 text-[13px] font-semibold transition-colors ' +
+              (on ? 'border-signal bg-signal text-signal-ink' : 'border-edge bg-panel text-ink hover:bg-field')
+            }
+          >
+            {typeof it === 'string' ? it : it.label}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+// "Still needed: Carrier, Trailer #" beside the action button, each a link to its field.
+function StillNeeded({ names, labels }) {
+  if (!names.length) return null
+  const jump = (ev, name) => {
+    ev.preventDefault()
+    const el = document.getElementById(`field-${name}`)
+    el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    el?.focus({ preventScroll: true })
+  }
+  return (
+    <p className="min-w-0 flex-1 basis-56 text-[13px] text-muted">
+      Still needed:{' '}
+      {names.map((n, i) => (
+        <span key={n}>
+          {i > 0 && ', '}
+          <a href={`#field-${n}`} onClick={(ev) => jump(ev, n)} className="font-semibold text-danger underline">
+            {labels[n] ?? n}
+          </a>
+        </span>
+      ))}
+    </p>
+  )
+}
+
 // Numbered steps with a progress bar; earlier steps can be revisited by tapping them.
-function Steps({ step, onPick }) {
+function Steps({ step, onPick, done: filled, total }) {
   return (
     <nav aria-label="Check-in steps" className="no-print mb-5">
       <ol className="grid grid-cols-4 gap-1.5">
@@ -164,8 +234,14 @@ function Steps({ step, onPick }) {
           )
         })}
       </ol>
-      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-track" aria-hidden="true">
-        <div className="h-full rounded-full bg-signal transition-[width] duration-300" style={{ width: `${(step / (STEPS.length - 1)) * 100}%` }} />
+      {/* The bar fills as required fields are answered, across every step. */}
+      <div className="mt-2 flex items-center gap-3">
+        <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-track" aria-hidden="true">
+          <div className="h-full rounded-full bg-signal transition-[width] duration-300" style={{ width: `${total ? (filled / total) * 100 : 0}%` }} />
+        </div>
+        <span className="figure shrink-0 text-[12.5px] text-muted">
+          <b className="text-ink">{filled}</b> of {total} done
+        </span>
       </div>
     </nav>
   )
@@ -237,7 +313,9 @@ function ArrivalSummary({ e }) {
 
 // `takenBays` maps bay name → the truck holding it, so those bays can't be picked.
 // `carriers`: names used before, most frequent first, suggested as the guard types the Carrier.
-export default function GuardForm({ mode = 'in', initial, defaultGuard, takenBays = new Map(), onSave, onCancel, active = true, carriers = [] }) {
+// `guard`: the guard on duty (set in the header, `onSetGuard` changes it); every save is logged under it.
+// `memory`: what earlier visits on this device tell the form (visitMemory.js).
+export default function GuardForm({ mode = 'in', initial, guard: defaultGuard = '', onSetGuard, memory, takenBays = new Map(), onSave, onCancel, active = true, carriers = [] }) {
   const start = () => (mode === 'out' ? checkOutForm(initial, defaultGuard) : (initial ?? freshForm(defaultGuard)))
   // The form as it was last started, saved or cleared; Clear only asks first when something differs.
   const baseline = useRef(null)
@@ -275,6 +353,12 @@ export default function GuardForm({ mode = 'in', initial, defaultGuard, takenBay
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initial, active])
 
+  // The guard on duty fills (and follows) the form's guard field.
+  useEffect(() => {
+    setForm((f) => ({ ...f, [mode === 'out' ? 'guardOut' : 'guardOnDuty']: defaultGuard }))
+    if (defaultGuard) setErrors(({ guardOnDuty: _a, guardOut: _b, ...rest }) => rest)
+  }, [defaultGuard, mode])
+
   useEffect(() => {
     if (!checkedIn) return
     const t = setTimeout(() => setCheckedIn(null), 8000)
@@ -310,19 +394,22 @@ export default function GuardForm({ mode = 'in', initial, defaultGuard, takenBay
     hint: allBaysFull ? 'All staging bays are full, so this can be left blank.' : undefined,
   }
 
+  // A new check-in notes when the guard started it (the gate check-in stage runs from here to the save).
+  const started = (f) => (!isOut && !isEdit && !f.checkInStartedAt ? { checkInStartedAt: Date.now() } : {})
   const handleChange = (e) => {
     const { name, value } = e.target
-    setForm((f) => ({ ...f, [name]: value }))
+    setForm((f) => ({ ...f, ...started(f), [name]: value }))
     if (errors[name]) setErrors(({ [name]: _, ...rest }) => rest)
     setCheckedIn(null)
   }
-  const set = (patch) => setForm((f) => ({ ...f, ...patch }))
+  const set = (patch) => setForm((f) => ({ ...f, ...started(f), ...patch }))
 
   const save = () => {
     let data = form
     // A dry van shouldn't keep reefer readings typed before the answer changed to No.
     if (form.reefer !== 'Yes') data = { ...data, ...Object.fromEntries(REEFER_ONLY.map((k) => [k, ''])) }
     // Likewise, Pickup-only fields (Appointment Time) are cleared when Pickup isn't ticked.
+    if (isOut && !editingDeparture) data = { ...data, checkedOutAt: Date.now() }
     if (!isOut && !hasPickup) {
       const pickupOnly = SECTIONS_IN.flatMap((s) => s.fields).filter((f) => f.pickupOnly)
       data = { ...data, ...Object.fromEntries(pickupOnly.map((f) => [f.name, ''])) }
@@ -388,6 +475,45 @@ export default function GuardForm({ mode = 'in', initial, defaultGuard, takenBay
   }
 
   const required = (name) => isRequired(name, form, mode) && !optional.includes(name)
+  // Required fields still empty: the progress count and the "Still needed" list read these.
+  const missingAll = Object.keys(validate(form, mode, optional)).filter((k) => k in FIELD_LABELS)
+  const requiredAll = (isOut ? REQUIRED_OUT : REQUIRED_IN).filter((k) => required(k))
+  const missingHere = stepped ? missingAll.filter((k) => STEPS[step].keys.includes(k)) : missingAll
+  const touched = JSON.stringify(form) !== JSON.stringify(baseline.current)
+
+  // What earlier visits say about this trailer and phone number (nothing is filled in unasked).
+  const last = !isOut && !isEdit && memory ? memory.lastVisit(form.trailerNumber) : undefined
+  const knownName = !isOut && memory && form.driverPhone && !form.truckerNameIn ? memory.nameForPhone(form.driverPhone) : undefined
+  const extra = (name) => {
+    if (isOut) return null
+    if (name === 'appointmentTime' && hasPickup)
+      return <Chips label="Soon:" items={quarterHours().map((v) => ({ value: v, label: timeWords(v) }))} value={form.appointmentTime} onPick={(v) => set({ appointmentTime: v })} />
+    if (name === 'trailerNumber' && last && (last.truckName !== form.truckName || last.truckerNameIn !== form.truckerNameIn))
+      return (
+        <div className="no-print mt-1.5 rounded-md border border-line bg-page px-2.5 py-2 text-[13px]">
+          Here before on <b>{last.dateIn === dayKey(new Date()) ? 'today' : shortDate(last.dateIn)}</b> with <b>{last.truckName || '—'}</b>
+          {last.truckerNameIn && (
+            <>
+              {' '}
+              · driver <b>{last.truckerNameIn}</b>
+            </>
+          )}
+          .{' '}
+          <button
+            type="button"
+            onClick={() => set({ truckName: last.truckName || form.truckName, truckerNameIn: last.truckerNameIn || form.truckerNameIn, driverPhone: form.driverPhone || last.driverPhone || '' })}
+            className="min-h-8 cursor-pointer font-semibold underline"
+          >
+            Use these
+          </button>
+        </div>
+      )
+    if (name === 'driverPhone' && knownName)
+      return <Chips label="This number is" items={[knownName]} value={form.truckerNameIn} onPick={(v) => set({ truckerNameIn: v })} />
+    if (name === 'customerPickupFor' && hasPickup && memory?.customers.length)
+      return <Chips label="Recent:" items={memory.customers} value={form.customerPickupFor} onPick={(v) => set({ customerPickupFor: v })} />
+    return null
+  }
   const header = (props) => (
     <HeaderInput {...props} value={form[props.name]} onChange={handleChange} error={errors[props.name]} required={required(props.name)} />
   )
@@ -436,7 +562,7 @@ export default function GuardForm({ mode = 'in', initial, defaultGuard, takenBay
             <p className="text-[15px]">{blocked}</p>
           </div>
         )}
-        {stepped && <Steps step={step} onPick={(i) => i < step && goStep(i)} />}
+        {stepped && <Steps step={step} onPick={(i) => i < step && goStep(i)} done={requiredAll.length - missingAll.filter((k) => requiredAll.includes(k)).length} total={requiredAll.length} />}
         {stepped && (
           <h3 ref={stepTitle} tabIndex={-1} className="sr-only">
             Step {step + 1} of {STEPS.length}: {STEPS[step].title}
@@ -541,7 +667,8 @@ export default function GuardForm({ mode = 'in', initial, defaultGuard, takenBay
                       />
                     )
                   }
-                  return (
+                  const more = extra(f.name)
+                  const field = (
                     <Field
                       key={f.name}
                       {...f}
@@ -553,6 +680,14 @@ export default function GuardForm({ mode = 'in', initial, defaultGuard, takenBay
                       hint={locked ? 'Tick Pickup above to enter this.' : undefined}
                       {...(f.name === 'waitingLocation' ? bayProps : {})}
                     />
+                  )
+                  return more ? (
+                    <div key={f.name} className={'min-w-0 ' + (f.wide ? 'sm:col-span-2' : '')}>
+                      {field}
+                      {more}
+                    </div>
+                  ) : (
+                    field
                   )
                 })}
               </div>
@@ -606,17 +741,16 @@ export default function GuardForm({ mode = 'in', initial, defaultGuard, takenBay
           </section>
         )}
 
-        {isOut ? (
-          <section>
-            <h3 className={sectionTitle}>Guard on Duty</h3>
-            <div className={grid}>{header({ label: 'Guard Checking Out', name: 'guardOut', type: 'text' })}</div>
-          </section>
-        ) : (
-          (!stepped || step === STEPS.length - 1) && (
-            <div className={grid + ' mt-6 border-t border-line pt-3.5'}>
-              {header({ label: 'Guard on Duty', name: 'guardOnDuty', type: 'text' })}
-            </div>
-          )
+        {/* Logged under the guard on duty (set once per shift in the header). */}
+        {(isOut || !stepped || step === STEPS.length - 1) && (
+          <div className="mt-6 flex flex-wrap items-center gap-3 border-t border-line pt-3.5">
+            <span className={ui.label}>
+              {isOut ? 'Checked out by' : 'Checked in by'}
+              <span className={ui.required}>*</span>
+            </span>
+            <OnDuty role="guard" name={defaultGuard} onChange={onSetGuard} id={isOut ? 'field-guardOut' : 'field-guardOnDuty'} />
+            {(errors.guardOnDuty || errors.guardOut) && <span className={ui.errorText}>Set the guard on duty</span>}
+          </div>
         )}
       </div>
 
@@ -640,7 +774,8 @@ export default function GuardForm({ mode = 'in', initial, defaultGuard, takenBay
           </div>
         </div>
       ) : (
-        <div className={actionBar + ' flex flex-wrap justify-end gap-3 bg-panel'}>
+        <div className={actionBar + ' flex flex-wrap items-center justify-end gap-3 bg-panel'}>
+          {touched && !blocked && <StillNeeded names={missingHere} labels={FIELD_LABELS} />}
           {onCancel && (
             <button type="button" onClick={onCancel} className={ui.btn}>
               Cancel

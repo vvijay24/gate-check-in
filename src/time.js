@@ -3,7 +3,14 @@ const pad = (n) => String(n).padStart(2, '0')
 
 export const dayKey = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 
-const toMs = (date, time) => (date ? new Date(`${date}T${time || '00:00'}`).getTime() : NaN)
+// The "YYYY-MM-DD" key `days` days after (or before, if negative) `key`.
+export const shiftDate = (key, days) => {
+  const d = new Date(`${key}T00:00`)
+  d.setDate(d.getDate() + days)
+  return dayKey(d)
+}
+
+const toMs =(date, time) => (date ? new Date(`${date}T${time || '00:00'}`).getTime() : NaN)
 
 export const arrivalMs = (e) => toMs(e.dateIn, e.timeIn)
 export const departureMs = (e) => (e.timeOut ? toMs(e.dateOut || e.dateIn, e.timeOut) : NaN)

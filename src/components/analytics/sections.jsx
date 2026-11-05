@@ -638,8 +638,8 @@ export function InspectionSection({ r, prev, trend }) {
         />
         <Tile size="compact" label="Failed" value={i.failed} note="Needed corrective action" tone={i.failed ? 'alert' : 'good'} trend={trend(i.failed, p.failed, count, true)} />
         <Tile size="compact" label="Avg dock → inspected" value={dur(i.avgToInspectMs)} note="Includes loading" trend={trend(i.avgToInspectMs, p.avgToInspectMs, duration, true)} />
-        <Tile size="compact" label="Avg waiting for release" value={dur(i.avgToReleaseMs)} note="Inspection passed to Shipping release" trend={trend(i.avgToReleaseMs, p.avgToReleaseMs, duration, true)} />
-        <Tile size="compact" label="Avg released → out" value={dur(i.avgReleaseToOutMs)} note="Shipping release to gate check-out" trend={trend(i.avgReleaseToOutMs, p.avgReleaseToOutMs, duration, true)} />
+        <Tile size="compact" label="Avg waiting for release" value={dur(i.avgToReleaseMs)} note="Inspection passed to release" trend={trend(i.avgToReleaseMs, p.avgToReleaseMs, duration, true)} />
+        <Tile size="compact" label="Avg released → out" value={dur(i.avgReleaseToOutMs)} note="Release to gate check-out" trend={trend(i.avgReleaseToOutMs, p.avgReleaseToOutMs, duration, true)} />
       </Tiles>
 
       <Card title="Failure Reasons" sub="Issues noted on failed inspections" clear={!i.issues.length && 'No failed inspections'}>
@@ -682,7 +682,7 @@ const STAGE_WORDS = {
   waitDockMs: 'waiting for a dock',
   toInspectMs: 'at the dock before inspection (includes loading)',
   toReleaseMs: 'waiting for Shipping to release it after inspection',
-  releaseToOutMs: 'between Shipping release and check-out at the gate',
+  releaseToOutMs: 'between the release and check-out at the gate',
 }
 
 // For each section: `key` is the figure beside its sidebar item (with a tone when it needs attention);

@@ -266,7 +266,7 @@ function VisitTimeline({ e, s, now }) {
       label: `Inspection ${e.loadingInspection?.result === 'Pass' ? 'passed' : e.loadingInspection?.result === 'Fail' ? 'failed' : 'saved'}`,
       sub: e.loadingInspection?.inspector && `by ${e.loadingInspection.inspector}${s.toInspectMs != null ? ` · ${duration(s.toInspectMs)} after docking` : ''}`,
     },
-    { t: e.release?.releasedAt, label: 'Released by Shipping', sub: e.release?.releasedBy && `by ${e.release.releasedBy}${s.toReleaseMs != null ? ` · ${duration(s.toReleaseMs)} after inspection` : ''}` },
+    { t: e.release?.releasedAt, label: 'Released to the gate', sub: e.release?.releasedBy && `by ${e.release.releasedBy}${s.toReleaseMs != null ? ` · ${duration(s.toReleaseMs)} after inspection` : ''}` },
     { t: e.timeOut ? end : null, label: `Checked out at ${e.gateOut || 'the gate'}`, sub: e.guardOut && `by ${e.guardOut}` },
   ]
   const known = points.map((p, i) => ({ ...p, i })).filter((p) => Number.isFinite(p.t))
@@ -356,14 +356,14 @@ function VisitProfile({ id, allEntries, now, onBack, backLabel }) {
         <Tile size="compact" label="Wait for a dock" value={dur(s.waitDockMs)} note="Check-in to dock assigned" />
         <Tile size="compact" label="Dock → inspected" value={dur(s.toInspectMs)} note="Includes loading" />
         <Tile size="compact" label="Inspected → released" value={dur(s.toReleaseMs)} note="Waiting for Shipping" />
-        <Tile size="compact" label="Released → out" value={dur(s.releaseToOutMs)} note="Shipping release to the gate" />
+        <Tile size="compact" label="Released → out" value={dur(s.releaseToOutMs)} note="Release to the gate" />
       </Grid6>
 
       <Card title="Timeline" sub="Each step as recorded, with the free time marked · striped red is time in detention">
         <VisitTimeline e={e} s={s} now={now} />
       </Card>
 
-      <Card title="Details" sub="As entered at the Gate, at the dock and by Shipping">
+      <Card title="Details" sub="As entered at the Gate, by Shipping and at the dock">
         <dl className="grid gap-x-6 px-5 pt-2 pb-5 sm:grid-cols-2 xl:grid-cols-4">
           <Fact label="Carrier">
             <ProfileLink kind="carrier" id={e.truckName}>

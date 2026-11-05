@@ -381,7 +381,7 @@ export function BarList({ rows, color = 'var(--color-ink)', empty }) {
 export const STAGES = [
   { key: 'waitDockMs', label: 'Waiting for a dock', color: 'var(--color-stage-1)' },
   { key: 'toInspectMs', label: 'At dock until inspected', color: 'var(--color-stage-2)' },
-  { key: 'toReleaseMs', label: 'Waiting for Shipping release', color: 'var(--color-stage-3)' },
+  { key: 'toReleaseMs', label: "Waiting for the inspector's release", color: 'var(--color-stage-3)' },
   { key: 'releaseToOutMs', label: 'Released until check-out', color: 'var(--color-stage-4)' },
 ]
 
@@ -393,7 +393,7 @@ export function StageBar({ stages }) {
   if (!stages.count || !total) {
     return (
       <p className="px-5 pb-5 text-muted">
-        No departed visits went through every stage (dock, inspection and Shipping release) in this range. Visits from before the
+        No departed visits went through every stage (dock, inspection and release) in this range. Visits from before the
         release step was added aren't counted.
       </p>
     )

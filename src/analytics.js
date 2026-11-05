@@ -49,7 +49,7 @@ export function previousRange(from, to) {
 }
 
 // One visit's time on site, split into the stages the app records:
-// arrived → dock assigned → inspected → released by Shipping → checked out. A stage is null when
+// arrived → dock assigned → inspected → released by the inspector → checked out. A stage is null when
 // either end is missing. "Dock → inspected" includes loading.
 export function visitStages(e, now) {
   const arrived = arrivalMs(e)
@@ -439,7 +439,7 @@ export function impactMetrics(entries, from, to, now, settings, gateEvents = [])
     }
     if (!e.dockDoor && !isDrop(e)) add('Waiting for a dock', arrivalMs(e), 'waitDockMs')
     else if (e.dockDoor && !e.loadingInspection && e.dockAssignedAt) add('Docked, not inspected', e.dockAssignedAt, 'toInspectMs')
-    else if (awaitingRelease(e)) add('Passed, not released by Shipping', e.loadingInspection.inspectedAt, 'toReleaseMs')
+    else if (awaitingRelease(e)) add('Passed, not released by the inspector', e.loadingInspection.inspectedAt, 'toReleaseMs')
     else if (isReleased(e)) add('Released, not checked out', e.release.releasedAt, 'releaseToOutMs')
   }
   stuck.sort((a, b) => b.overMs - a.overMs)

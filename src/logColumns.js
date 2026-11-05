@@ -24,7 +24,6 @@ export const LOG_COLUMNS = [
   { header: 'Driver Phone # (In)', get: (e) => e.driverPhone, width: 16 },
   { header: 'Trucker Name Going Out', get: (e) => e.truckerNameOut, width: 20 },
   { header: 'Driver Phone # (Out)', get: (e) => e.driverPhoneOut, width: 16 },
-  { header: 'Waiting Location', get: (e) => e.waitingLocation, width: 16 },
   { header: 'Customer', get: (e) => e.customerPickupFor, width: 22 },
   { header: 'Reefer?', get: (e) => e.reefer, width: 8 },
   { header: 'Temp Set (°F)', get: (e) => num(e.tempSet), number: true, width: 11 },
@@ -40,7 +39,12 @@ export const LOG_COLUMNS = [
   { header: 'Outgoing Seals #', get: (e) => e.outgoingSeals, width: 16 },
   { header: 'Green Seal #', get: (e) => e.greenSeal, width: 14 },
   { header: 'Odometer Photo', get: (e) => (e.odometerPhoto ? 'Yes' : 'No'), width: 10 },
-  // Loading Inspection (Dock & Loading tab)
+  // Loading Inspection (Loading & Inspection tab): the trailer check before loading, then the inspection.
+  {
+    header: 'Trailer Check',
+    get: (e) => (e.trailerCheck ? `${e.trailerCheck.result} · ${new Date(e.trailerCheck.savedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ''),
+    width: 16,
+  },
   { header: 'Loading Inspection', get: (e) => e.loadingInspection?.result ?? '', width: 12 },
   { header: 'Inspection Date', get: (e) => e.loadingInspection?.inspectionDate ?? '', width: 12 },
   { header: 'Inspection Time', get: (e) => e.loadingInspection?.inspectionTime ?? '', width: 10 },
@@ -55,7 +59,7 @@ export const LOG_COLUMNS = [
   { header: 'Corrective Action', get: (e) => e.loadingInspection?.correctiveAction ?? '', width: 40 },
   { header: 'Technician Name', get: (e) => e.loadingInspection?.technician ?? '', width: 16 },
   { header: 'Inspected By', get: (e) => e.loadingInspection?.inspector ?? '', width: 16 },
-  // Shipping release (Shipping tab) and the Gate's seal check at check-out
+  // Release to gate (by the inspector, Loading & Inspection) and the Gate's seal check at check-out
   { header: 'Released At', get: (e) => (e.release?.releasedAt ? new Date(e.release.releasedAt).toLocaleString() : ''), width: 20 },
   { header: 'Released By', get: (e) => e.release?.releasedBy ?? '', width: 16 },
   { header: 'Gate Note', get: (e) => e.release?.note ?? '', width: 30 },

@@ -18,6 +18,32 @@ const PRODUCT_TEMPS = [
   { name: 'tempRear', label: 'Product Temp Rear °F' },
 ]
 
+// The trailer check before loading: the empty trailer's condition and temperatures.
+const TRAILER_REQUIRED = [...TRAILER_CHECKS.map((c) => c.name), 'setPoint', 'precoolTemp', 'reeferRunning', 'inspector']
+const TRAILER_FIELDS = [...TRAILER_REQUIRED]
+
+// Drafts per truck and checklist, kept in this browser until saved, so walking away loses nothing.
+const DRAFTS = 'inspection-drafts'
+const readDrafts = () => {
+  try {
+    return JSON.parse(localStorage.getItem(DRAFTS)) ?? {}
+  } catch {
+    return {}
+  }
+}
+const writeDraft = (key, form) => {
+  try {
+    const all = readDrafts()
+    if (form) all[key] = form
+    else delete all[key]
+    localStorage.setItem(DRAFTS, JSON.stringify(all))
+  } catch {
+    // A full storage only loses the draft, never a saved inspection.
+  }
+}
+export const hasDraft = (id, part) => !!readDrafts()[`${id}:${part}`]
+const hhmm = (ms) => (Number.isFinite(ms) ? timeOf(new Date(ms)) : '')
+
 // Required fields, in on-screen order so the first error gets focus.
 const REQUIRED = [
   'inspectionDate',
@@ -84,6 +110,15 @@ const blank = (entry) => {
   }
 }
 
+// Everything that makes the trailer check fail.
+export function trailerIssues(f) {
+  const issues = []
+  for (const c of TRAILER_CHECKS) if (f[c.name] === 'No') issues.push(`${c.label}: No`)
+  if (f.reeferRunning === 'No') issues.push('Reefer not running in continuous mode')
+  if (f.precoolTemp !== '' && f.precoolTemp != null && Number(f.precoolTemp) > LIMIT.precool) issues.push(`Trailer pre-cool ${f.precoolTemp}°F is above ${LIMIT.precool}°F`)
+  return issues
+}
+
 // Everything that makes the load fail, as readable lines.
 export function inspectionIssues(f) {
   const issues = []
@@ -99,9 +134,10 @@ export function inspectionIssues(f) {
   return issues
 }
 
-function validate(f, issues) {
+function validate(f, issues, part = 'load') {
   const errors = {}
-  for (const key of REQUIRED) if (!String(f[key] ?? '').trim()) errors[key] = 'Required'
+  for (const key of part === 'trailer' ? TRAILER_REQUIRED : REQUIRED) if (!String(f[key] ?? '').trim()) errors[key] = 'Required'
+  if (part === 'trailer') return errors
   // A few minutes' leeway for clocks that differ.
   if (f.inspectionDate && f.inspectionTime && inspectionMs(f) > Date.now() + 5 * 60000) errors.inspectionTime = "Can't be in the future"
   if (f.loadStart && f.loadFinish && f.loadFinish < f.loadStart) errors.loadFinish = 'Finish must be after start'
@@ -223,15 +259,38 @@ function StatusPanel({ entry, issues, answered, total, now }) {
   )
 }
 
-function InspectionForm({ entry, onSave, onCancel, onChangeTruck }) {
-  const [form, setForm] = useState(() => ({ ...blank(entry), ...(entry.loadingInspection ?? {}) }))
+// `part`: 'trailer' (the empty trailer, before loading) or 'load' (the full inspection after loading;
+// the trailer check's answers come along). `inspector`: the inspector on duty, filled in as Inspected By.
+function InspectionForm({ entry, part = 'load', inspector = '', onSave, onSaveTrailerCheck, onCancel, onChangeTruck }) {
+  const trailer = part === 'trailer'
+  const draftKey = `${entry.id}:${part}`
+  const [form, setForm] = useState(() => {
+    const tc = entry.trailerCheck ?? {}
+    const fromTrailer = Object.fromEntries(TRAILER_FIELDS.filter((k) => tc[k] != null && tc[k] !== '').map((k) => [k, tc[k]]))
+    return {
+      ...blank(entry),
+      inspector,
+      ...fromTrailer,
+      loadStart: hhmm(entry.loadStartedAt),
+      loadFinish: hhmm(entry.loadFinishedAt),
+      ...(trailer ? {} : (entry.loadingInspection ?? {})),
+      ...(trailer && entry.trailerCheck ? fromTrailer : {}),
+      ...(readDrafts()[draftKey] ?? {}),
+    }
+  })
+  const [touched, setTouched] = useState(false)
+  // A passed trailer check is shown folded on the load inspection; Edit opens it again.
+  const [showTrailer, setShowTrailer] = useState(trailer || entry.trailerCheck?.result !== 'Pass')
+  useEffect(() => {
+    if (touched) writeDraft(draftKey, form)
+  }, [form, touched, draftKey])
   const [errors, setErrors] = useState({})
   const [now, setNow] = useState(Date.now)
   const summaryRef = useRef(null)
-  const issues = inspectionIssues(form)
+  const issues = trailer ? trailerIssues(form) : inspectionIssues(form)
   const result = issues.length ? 'Fail' : 'Pass'
   // Corrective Action becomes required (and appears) once the load is failing.
-  const required = issues.length ? [...REQUIRED, 'correctiveAction'] : REQUIRED
+  const required = trailer ? TRAILER_REQUIRED : issues.length ? [...REQUIRED, 'correctiveAction'] : REQUIRED
   const answered = required.filter((k) => filled(form[k])).length
 
   useEffect(() => {
@@ -241,6 +300,7 @@ function InspectionForm({ entry, onSave, onCancel, onChangeTruck }) {
 
   const handleChange = (e) => {
     const { name, value } = e.target
+    setTouched(true)
     setForm((f) => ({ ...f, [name]: value }))
     if (errors[name]) setErrors(({ [name]: _, ...rest }) => rest)
   }
@@ -248,6 +308,7 @@ function InspectionForm({ entry, onSave, onCancel, onChangeTruck }) {
   // Answers Yes to the group's unanswered checks; a No already given is left alone.
   const markAllYes = (checks) => {
     const open = checks.filter((c) => !form[c.name]).map((c) => c.name)
+    setTouched(true)
     setForm((f) => ({ ...f, ...Object.fromEntries(open.map((n) => [n, 'Yes'])) }))
     setErrors((errs) => Object.fromEntries(Object.entries(errs).filter(([k]) => !open.includes(k))))
   }
@@ -330,7 +391,7 @@ function InspectionForm({ entry, onSave, onCancel, onChangeTruck }) {
 
   const submit = (ev) => {
     ev.preventDefault()
-    const errs = validate(form, issues)
+    const errs = validate(form, issues, part)
     setErrors(errs)
     if (Object.keys(errs).length) {
       // Show the summary of everything missing; its links jump to each field.
@@ -340,9 +401,14 @@ function InspectionForm({ entry, onSave, onCancel, onChangeTruck }) {
       })
       return
     }
+    writeDraft(draftKey, null)
+    if (trailer) {
+      onSaveTrailerCheck(entry.id, { ...Object.fromEntries(TRAILER_FIELDS.map((k) => [k, form[k]])), result, issues, savedAt: Date.now() })
+      return
+    }
     // inspectedAt is the Inspection Date and Time entered (used for dock → inspected timing);
     // savedAt records when the form was actually saved.
-    onSave(entry.id, { ...form, result, issues, inspectedAt: inspectionMs(form), savedAt: Date.now() })
+    onSave(entry.id, { ...form, result, issues, inspectedAt: inspectionMs(form), savedAt: Date.now(), trailerCheckedAt: entry.trailerCheck?.savedAt })
   }
 
   return (
@@ -350,7 +416,7 @@ function InspectionForm({ entry, onSave, onCancel, onChangeTruck }) {
       {/* Which truck this is; Change truck goes back up to the dock tiles. */}
       <div className="flex flex-wrap items-start justify-between gap-3 rounded-lg bg-page p-4">
         <div className="min-w-0">
-          <div className="text-sm font-semibold text-muted">Inspecting</div>
+          <div className="text-sm font-semibold text-muted">{trailer ? 'Trailer check before loading' : 'Inspecting the load'}</div>
           <div className="font-display text-[18px] leading-tight font-semibold">
             Dock {entry.dockDoor} · Trailer {entry.trailerNumber} · {entry.truckName}
           </div>
@@ -374,27 +440,53 @@ function InspectionForm({ entry, onSave, onCancel, onChangeTruck }) {
         <div className="min-w-0 lg:order-1">
           <ErrorSummary errors={errors} action="saving the inspection" summaryRef={summaryRef} labels={LABELS} />
 
-          {/* When the inspection took place; starts at today / now. */}
-          <h3 className={sectionTitle + ' mb-2.5'}>Inspection</h3>
-          <div className={grid}>
-            {field({ name: 'inspectionDate', label: 'Inspection Date', type: 'date' })}
-            {field({ name: 'inspectionTime', label: 'Inspection Time', type: 'time' })}
-          </div>
+          {!trailer && (
+            <>
+              {/* When the inspection took place; starts at today / now. */}
+              <h3 className={sectionTitle + ' mb-2.5'}>Inspection</h3>
+              <div className={grid}>
+                {field({ name: 'inspectionDate', label: 'Inspection Date', type: 'date' })}
+                {field({ name: 'inspectionTime', label: 'Inspection Time', type: 'time' })}
+              </div>
+            </>
+          )}
 
-          <Section title="Trailer Condition" action={allYesButton(TRAILER_CHECKS)} />
-          <div className={grid}>{TRAILER_CHECKS.map(check)}</div>
+          {showTrailer ? (
+            <>
+              <Section title="Trailer Condition" action={allYesButton(TRAILER_CHECKS)} />
+              <div className={grid}>{TRAILER_CHECKS.map(check)}</div>
+            </>
+          ) : (
+            <div className="mt-6 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-ok/30 bg-ok-soft px-4 py-3 text-[14px]">
+              <span>
+                <b className="text-ok">✓ Trailer check passed</b>
+                {entry.trailerCheck?.savedAt && ` at ${hhmm(entry.trailerCheck.savedAt)}`}
+                {entry.trailerCheck?.inspector && ` by ${entry.trailerCheck.inspector}`} · pre-cool {entry.trailerCheck?.precoolTemp}°F
+              </span>
+              <button type="button" onClick={() => setShowTrailer(true)} className="min-h-9 cursor-pointer font-semibold underline">
+                Show trailer answers
+              </button>
+            </div>
+          )}
 
           <Section title="Temperature" />
           <p className="mb-2.5 text-sm text-muted">
-            Frozen product: {LIMIT.product}°F or below; trailer pre-cool {LIMIT.precool}°F or below.
+            {trailer ? `Empty trailer pre-cool ${LIMIT.precool}°F or below.` : `Frozen product: ${LIMIT.product}°F or below; trailer pre-cool ${LIMIT.precool}°F or below.`}
           </p>
           <div className={grid}>
-            {field({ name: 'setPoint', label: 'Reefer Set Point °F', type: 'number', step: 0.1 })}
-            {field({ name: 'precoolTemp', label: 'Trailer Pre-Cool Temp °F', type: 'number', step: 0.1, warning: tooWarm('precoolTemp', LIMIT.precool) })}
-            {field({ name: 'reeferRunning', label: 'Reefer Running (Continuous)', type: 'choice', options: YES_NO, dangerOptions: ['No'] })}
-            {PRODUCT_TEMPS.map((t) => field({ ...t, type: 'number', step: 0.1, warning: tooWarm(t.name, LIMIT.product) }))}
+            {showTrailer && field({ name: 'setPoint', label: 'Reefer Set Point °F', type: 'number', step: 0.1 })}
+            {showTrailer && field({ name: 'precoolTemp', label: 'Trailer Pre-Cool Temp °F', type: 'number', step: 0.1, warning: tooWarm('precoolTemp', LIMIT.precool) })}
+            {showTrailer && field({ name: 'reeferRunning', label: 'Reefer Running (Continuous)', type: 'choice', options: YES_NO, dangerOptions: ['No'] })}
+            {!trailer && PRODUCT_TEMPS.map((t) => field({ ...t, type: 'number', step: 0.1, warning: tooWarm(t.name, LIMIT.product) }))}
           </div>
 
+          {trailer ? (
+            <>
+              <Section title="Sign-Off" />
+              <div className={grid}>{field({ name: 'inspector', label: 'Checked By' })}</div>
+            </>
+          ) : (
+          <>
           <Section title="Load" action={allYesButton(LOAD_CHECKS)} />
           <div className={grid}>
             {field({ name: 'palletsLoaded', label: 'Pallets Loaded', type: 'number', min: 0 })}
@@ -413,16 +505,19 @@ function InspectionForm({ entry, onSave, onCancel, onChangeTruck }) {
             {issues.length > 0 && field({ name: 'correctiveAction', label: 'Corrective Action', type: 'textarea', wide: true })}
             {field({ name: 'notes', label: 'Notes', type: 'textarea', wide: true })}
           </div>
+          </>
+          )}
         </div>
       </div>
 
       {/* Pinned to the bottom of the screen while the form scrolls, like the Gate form. */}
       <div className="no-print sticky bottom-0 z-10 -mx-5 -mb-5 mt-5 flex flex-wrap justify-end gap-3 rounded-b-[10px] border-t border-line bg-panel p-4 shadow-[0_-6px_16px_rgb(0_0_0/0.08)] sm:p-5">
+        {touched && <span className="mr-auto self-center text-[13px] text-muted">Draft saved on this device</span>}
         <button type="button" onClick={onCancel} className={ui.btn}>
-          Cancel
+          {touched ? 'Close · keep draft' : 'Cancel'}
         </button>
         <button type="submit" className={ui.btnPrimary}>
-          {entry.loadingInspection ? 'Update Inspection' : 'Save Inspection'}
+          {trailer ? (issues.length ? 'Save · trailer not OK' : 'Trailer OK · save') : entry.loadingInspection ? 'Update Inspection' : 'Save Inspection'}
         </button>
       </div>
     </form>
@@ -430,21 +525,31 @@ function InspectionForm({ entry, onSave, onCancel, onChangeTruck }) {
 }
 
 // Inspection panel shown under At the Docks: select a dock tile and press Inspect to open the form.
-export default function LoadingInspection({ atDock, selectedId, onSelect, onSave }) {
-  const entry = atDock.find((e) => e.id === selectedId)
+// `selected`: { id, part } of the checklist open ('trailer' or 'load'), or null.
+export default function LoadingInspection({ atDock, selected, onSelect, onSave, onSaveTrailerCheck, inspector }) {
+  const entry = atDock.find((e) => e.id === selected?.id)
   const changeTruck = () => document.getElementById('at-the-docks')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
 
   return (
     <section id="loading-inspection" className="scroll-mt-[calc(var(--header-h,114px)+16px)] rounded-xl bg-panel shadow-card p-5">
-      <h2 className="font-display text-[20px] leading-tight font-semibold">Loading Inspection</h2>
+      <h2 className="font-display text-[20px] leading-tight font-semibold">{selected?.part === 'trailer' ? 'Trailer Check' : 'Loading Inspection'}</h2>
       {entry ? (
         <div className="mt-4">
-          <InspectionForm key={entry.id} entry={entry} onSave={onSave} onCancel={() => onSelect(null)} onChangeTruck={changeTruck} />
+          <InspectionForm
+            key={`${entry.id}:${selected.part}`}
+            entry={entry}
+            part={selected.part}
+            inspector={inspector}
+            onSave={onSave}
+            onSaveTrailerCheck={onSaveTrailerCheck}
+            onCancel={() => onSelect(null)}
+            onChangeTruck={changeTruck}
+          />
         </div>
       ) : (
         <p className="mt-2 text-muted">
           {atDock.length
-            ? 'Select a truck under At the Docks, then press Inspect to start its loading inspection.'
+            ? 'Pick a truck’s next step under At the Docks: check the empty trailer, time the loading, then inspect the load.'
             : 'No trucks at a dock. Assign a dock on the Shipping tab, then inspect the truck here.'}
         </p>
       )}

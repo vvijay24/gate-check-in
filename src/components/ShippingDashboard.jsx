@@ -8,7 +8,6 @@ import { DETENTION_TAG, detentionState } from '../detention'
 import { awaitingRelease, isReleased } from '../handoff'
 import AssignDock, { occupiedDocks } from './AssignDock'
 import Dashboard from './Dashboard'
-import ReleaseDialog from './ReleaseDialog'
 
 // Shipping tab: the yard dock board on top, then the outbound (Pickup) shipments table.
 // After the inspection passes, Shipping releases the truck to the gate; until it leaves it is only
@@ -95,12 +94,9 @@ function printOutbound() {
 }
 
 // `top` renders above the outbound table (the Gate Log); `children` render below it.
-export default function ShippingDashboard({ entries, onAssignDock, onEdit, onCheckOut, onRelease, top, children }) {
+export default function ShippingDashboard({ entries, onAssignDock, onEdit, onCheckOut, top, children }) {
   const [now, setNow] = useState(Date.now)
   // The truck whose Release to gate pop-up is open.
-  const [releasingId, setReleasingId] = useState(null)
-  const releasing = entries.find((e) => e.id === releasingId && awaitingRelease(e)) ?? null
-  const startRelease = (e) => setReleasingId(e.id)
   // Header dropdown choices by column id; '' = All.
   const [filters, setFilters] = useState({})
   // The table shows the first MAX_ROWS rows until "Show all" is clicked.
@@ -188,8 +184,7 @@ export default function ShippingDashboard({ entries, onAssignDock, onEdit, onChe
       value=""
       onChange={(ev) => {
         const choice = ev.target.value
-        if (choice === 'release') startRelease(e)
-        else if (choice === 'checkout') onCheckOut(e)
+        if (choice === 'checkout') onCheckOut(e)
         else onEdit(e)
       }}
       className="min-h-11 w-28 cursor-pointer rounded-md border border-line bg-panel px-2 text-[14px] font-semibold text-ink lg:min-h-0 lg:w-24 lg:py-1.5"
@@ -197,7 +192,6 @@ export default function ShippingDashboard({ entries, onAssignDock, onEdit, onChe
       <option value="" disabled>
         Options
       </option>
-      {awaitingRelease(e) && <option value="release">Release to gate</option>}
       <option value="checkout">{e.timeOut ? 'Edit Check Out' : 'Check Out'}</option>
       <option value="edit">Edit Check In</option>
     </select>
@@ -212,16 +206,7 @@ export default function ShippingDashboard({ entries, onAssignDock, onEdit, onChe
       onAssignDock={onAssignDock}
       onEdit={onEdit}
       onCheckOut={onCheckOut}
-      onStartRelease={startRelease}
     >
-      <ReleaseDialog
-        entry={releasing}
-        onClose={() => setReleasingId(null)}
-        onRelease={(id, data) => {
-          onRelease(id, data)
-          setReleasingId(null)
-        }}
-      />
       {top}
 
       <section id="outbound" className="rounded-xl bg-panel shadow-card">

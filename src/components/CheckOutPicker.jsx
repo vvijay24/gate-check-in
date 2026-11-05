@@ -26,7 +26,7 @@ const DETENTION_TAG = { over: 'bg-danger-soft text-danger', near: 'bg-warn-soft 
 
 // Short form of why a truck can't be checked out yet (the form explains in full).
 const blockedShort = (e) =>
-  e.loadingInspection?.result === 'Fail' ? 'Inspection failed · re-check' : !e.loadingInspection ? 'Not inspected yet' : 'Waiting for Shipping release'
+  e.loadingInspection?.result === 'Fail' ? 'Inspection failed · re-check' : !e.loadingInspection ? 'Not inspected yet' : "Waiting for the inspector's release"
 
 // First step of Check Out: choose which on-site truck is leaving. One search box filters the list;
 // Enter picks the truck when only one matches.
@@ -153,7 +153,7 @@ export default function CheckOutPicker({ entries, onPick }) {
             {released.length > 0 && (
               <section aria-labelledby="released-title" className="mt-4">
                 <h3 id="released-title" className="mb-2 font-display text-[16px] leading-tight font-semibold">
-                  Released by Shipping ({released.length})
+                  Released to the gate ({released.length})
                 </h3>
                 <ul className="grid gap-2.5">{released.map(card)}</ul>
               </section>
