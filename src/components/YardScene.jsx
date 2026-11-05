@@ -581,6 +581,10 @@ export function Scene({ occupied, motion, night = 0 }) {
         <filter id="iso-halo" x="-50%" y="-50%" width="200%" height="200%">
           <feGaussianBlur stdDeviation="5" />
         </filter>
+        {/* Lifted label plate (YardMap): a soft drop shadow so it reads above the others. */}
+        <filter id="plate-lift" x="-30%" y="-40%" width="160%" height="200%">
+          <feDropShadow dx="0" dy="3" stdDeviation="3" floodColor="#0f172a" floodOpacity="0.35" />
+        </filter>
         <GlowFilters motion={motion} />
       </defs>
       {/* Grass under everything, then the street, sidewalk and the paved lot. */}

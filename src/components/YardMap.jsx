@@ -81,14 +81,15 @@ function AlertBadge() {
 }
 
 // A screen-aligned label chip: `lines` of text on a panel-colored plate, centered on (0, 0)'s top edge.
-function Plate({ lines, tone }) {
+// `lift`: the plate of the truck tapped or pointed at, outlined in the accent color with a shadow.
+function Plate({ lines, tone, lift }) {
   const width = Math.max(...lines.map((l) => l.text.length * (l.size ?? 12.5) * 0.58)) + 14
   const height = lines.length * 15 + 6
   const fill = tone === 'inspect' ? 'var(--color-warn-soft)' : 'var(--color-panel)'
-  const stroke = tone === 'inspect' ? 'var(--color-warn-line)' : 'var(--color-line)'
+  const stroke = lift ? 'var(--color-signal-line)' : tone === 'inspect' ? 'var(--color-warn-line)' : 'var(--color-line)'
   return (
-    <g>
-      <rect x={-width / 2} y={0} width={width} height={height} rx={6} fill={fill} stroke={stroke} strokeWidth={1.2} opacity={0.96} />
+    <g filter={lift ? 'url(#plate-lift)' : undefined}>
+      <rect x={-width / 2} y={0} width={width} height={height} rx={6} fill={fill} stroke={stroke} strokeWidth={lift ? 2.2 : 1.2} opacity={lift ? 1 : 0.96} />
       {lines.map((l, i) => (
         <text
           key={i}
@@ -135,7 +136,7 @@ function trouble(e, clock) {
 // `focus` (inspection view): 'on' highlights the rig with an INSPECT / RE-CHECK tag and its time at the
 // dock; 'off' fades it into the background; undefined draws it normally. `pose` places it (parked or
 // driving); a driving rig is drawn as a whole rig without its ground patch, glow or click target.
-function Unit({ e, pose, driving, at, clock, selected, onSelect, focus, focusText, motion }) {
+function Unit({ e, pose, driving, at, clock, selected, onSelect, onHover, focus, focusText, motion }) {
   const status = yardStatus(e, at)
   const alert = attention(e, clock)
   const on = focus === 'on'
@@ -179,7 +180,16 @@ function Unit({ e, pose, driving, at, clock, selected, onSelect, focus, focusTex
   const pad = footprint(drop)
   const warn = trouble(e, clock)
   return (
-    <g {...select} className={'yard-unit' + (onSelect ? ' cursor-pointer' : '')} opacity={focus === 'off' ? 0.3 : 1} transform={placeAt(pose)}>
+    <g
+      {...select}
+      onPointerEnter={onHover && (() => onHover(e.id))}
+      onPointerLeave={onHover && (() => onHover(null))}
+      onFocus={onHover && (() => onHover(e.id))}
+      onBlur={onHover && (() => onHover(null))}
+      className={'yard-unit' + (onSelect ? ' cursor-pointer' : '')}
+      opacity={focus === 'off' ? 0.3 : 1}
+      transform={placeAt(pose)}
+    >
       <title>{label}</title>
       {warn && (
         // Detention glow: amber as free time runs out, red once it's past (or a drop left too long).
@@ -212,7 +222,9 @@ function Unit({ e, pose, driving, at, clock, selected, onSelect, focus, focusTex
 
 // What floats above and in front of a parked rig: the status pin (or the INSPECT tag), the alert badge
 // and the trailer # plate on the ground in front of the cab. Drawn after every rig so nothing covers them.
-function UnitLabels({ e, pose, at, clock, focus, focusText }) {
+// `lift`: this truck is tapped or pointed at, so its labels are drawn last (on top) and enlarged;
+// `dim`: another truck is, so these step back a little.
+function UnitLabels({ e, pose, at, clock, focus, focusText, lift, dim }) {
   const status = yardStatus(e, at)
   const alert = attention(e, clock)
   const on = focus === 'on'
@@ -222,12 +234,12 @@ function UnitLabels({ e, pose, at, clock, focus, focusText }) {
   const [pinX, pinY] = P(RIG_W / 2, 17, 24)
   const [plateX, plateY] = P(RIG_W / 2, (drop ? 36 : RIG_L) + 3, 0)
   return (
-    <g aria-hidden="true" pointerEvents="none" opacity={focus === 'off' ? 0.3 : 1} transform={placeAt(pose)}>
+    <g aria-hidden="true" pointerEvents="none" opacity={focus === 'off' ? 0.3 : dim ? 0.55 : 1} transform={placeAt(pose)}>
       <line x1={pinX} y1={pinY + 11} x2={pinX} y2={pinY + 22} stroke="var(--color-ink)" strokeWidth={1.5} opacity={0.5} />
-      <g transform={`translate(${pinX} ${pinY})`}>
+      <g transform={`translate(${pinX} ${pinY})${lift ? ' scale(1.15)' : ''}`}>
         {on ? (
           <g transform="translate(0 -12)">
-            <Plate tone="inspect" lines={[{ text: (focusText ?? (recheck ? 'Re-check' : 'Inspect')).toUpperCase(), bold: true, size: 12 }]} />
+            <Plate tone="inspect" lift={lift} lines={[{ text: (focusText ?? (recheck ? 'Re-check' : 'Inspect')).toUpperCase(), bold: true, size: 12 }]} />
           </g>
         ) : (
           <StatusPin status={status} />
@@ -238,11 +250,14 @@ function UnitLabels({ e, pose, at, clock, focus, focusText }) {
           </g>
         )}
       </g>
-      <g transform={`translate(${plateX} ${plateY})`}>
+      <g transform={`translate(${plateX} ${plateY})${lift ? ' scale(1.25)' : ''}`}>
         <Plate
+          lift={lift}
           lines={[
-            { text: short(e.trailerNumber, 10) || '—', bold: true },
-            ...(on && atDockFor ? [{ text: atDockFor, size: 11, bold: true }] : []),
+            // The whole trailer # when lifted; shortened otherwise.
+            { text: (lift ? e.trailerNumber : short(e.trailerNumber, 10)) || '—', bold: true },
+            ...(lift && e.truckName ? [{ text: short(e.truckName, 22), size: 11 }] : []),
+            ...((on || lift) && atDockFor ? [{ text: atDockFor, size: 11, bold: true }] : []),
           ]}
         />
       </g>
@@ -507,6 +522,8 @@ export default function YardMap({
   footer,
 }) {
   const [tappedId, setSelectedId] = useState(null)
+  // The truck under the pointer (or keyboard focus): its labels come to the front, like a picked one.
+  const [hoverId, setHoverId] = useState(null)
   // `onPick` (the work hubs): selection lives outside the map, which only draws it; no floating card.
   const selectedId = onPick ? (picked ?? null) : (tappedId ?? highlightId ?? null)
   const select = onPick ?? setSelectedId
@@ -571,6 +588,7 @@ export default function YardMap({
           focusText={focusTextOf(u.e)}
           motion={motion}
           selected={u.e.id === selectedId}
+          onHover={compact ? undefined : setHoverId}
           onSelect={inspectTap ? (focus(u.e) ? () => onInspect(u.e) : undefined) : compact ? undefined : select}
         />
       ))}
@@ -615,9 +633,24 @@ export default function YardMap({
         ),
       )}
       {yard.bays.map((e, i) => (e ? null : <FreeMark key={i} wx={colWX(i)} wy={BAY_WY + 26} text="✓ Open" />))}
-      {parked.map((u) => (
-        <UnitLabels key={u.e.id} e={u.e} pose={u.pose} at={at} clock={clock} focus={focusOf(u.e)} focusText={focusTextOf(u.e)} />
-      ))}
+      {/* Labels of the picked and pointed-at trucks go last, so nothing covers them. */}
+      {(() => {
+        const lifted = (id) => id === selectedId || id === hoverId
+        const any = parked.some((u) => lifted(u.e.id))
+        return [...parked.filter((u) => !lifted(u.e.id)), ...parked.filter((u) => u.e.id === selectedId && u.e.id !== hoverId), ...parked.filter((u) => u.e.id === hoverId)].map((u) => (
+          <UnitLabels
+            key={u.e.id}
+            e={u.e}
+            pose={u.pose}
+            at={at}
+            clock={clock}
+            focus={focusOf(u.e)}
+            focusText={focusTextOf(u.e)}
+            lift={lifted(u.e.id)}
+            dim={any && !lifted(u.e.id)}
+          />
+        ))
+      })()}
       <GateChips gateCounts={gateCounts} />
       <SkyChip phase={sky.phase} clock={clock} />
     </svg>
