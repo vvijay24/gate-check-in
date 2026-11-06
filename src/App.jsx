@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import CheckInForm from './components/CheckInForm'
 import CheckOutPage from './components/CheckOutPage'
-import GuardOnDuty from './components/GuardOnDuty'
+import { GateHeader } from './components/gate/parts'
 import EntryLog from './components/EntryLog'
 import ShippingDashboard from './components/ShippingDashboard'
 import { DockBoard, phaseOf } from './components/Dashboard'
@@ -13,7 +13,7 @@ import { Icon } from './icons'
 
 const STORAGE_KEY = 'guard-load-log'
 const EVENTS_KEY = 'gate-events'
-// The guard on duty, set once per shift in the Gate header and kept on this device.
+// The guard on duty, set once per shift in the Gate's title row and kept on this device.
 const GUARD_KEY = 'guard-on-duty'
 
 const TABS = [
@@ -244,7 +244,7 @@ export default function App() {
 
   // Check In / Check Out switch, shown in the Gate page's top line.
   const gateSwitch = (
-    <div role="tablist" aria-label="Gate form" className="inline-flex gap-1 rounded-xl border-[1.5px] border-line bg-field p-1">
+    <div role="tablist" aria-label="Gate form" className="inline-flex gap-1 rounded-xl bg-field p-1">
       {GATE_MODES.map((m) => (
         <button
           key={m.id}
@@ -252,8 +252,8 @@ export default function App() {
           aria-selected={gateMode === m.id}
           onClick={() => openGate(m.id, null)}
           className={
-            'inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-lg px-4 font-display text-[16px] font-bold ' +
-            (gateMode === m.id ? 'bg-signal text-signal-ink' : 'text-ink hover:bg-panel')
+            'inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-[10px] px-4 font-display text-[16px] font-bold transition-[background-color,color,box-shadow] duration-150 ease-out ' +
+            (gateMode === m.id ? 'bg-signal text-signal-ink shadow-card' : 'text-ink hover:bg-panel')
           }
         >
           <Icon name={m.icon} size={22} />
@@ -267,13 +267,7 @@ export default function App() {
     <>
       <header ref={headerRef} className="sticky top-0 z-10 bg-chrome text-white shadow-raised">
         <div className="mx-auto flex max-w-[1400px] flex-wrap items-center gap-4 px-5 py-3">
-          {tab === 'gate' && (
-            <>
-              <h1 className="font-display text-[24px] leading-none font-bold">Gate</h1>
-              <GuardOnDuty guard={guard} onChange={changeGuard} />
-            </>
-          )}
-          {/* ml-auto keeps the clock on the right when there's no title. */}
+          {/* ml-auto keeps the clock on the right. */}
           <span className="ml-auto font-display text-xl font-semibold text-signal-bright">{clock}</span>
         </div>
         <nav role="tablist" className="no-print mx-auto flex max-w-[1400px] gap-1 overflow-x-auto px-5">
@@ -332,8 +326,9 @@ export default function App() {
             role="tabpanel"
             id="panel-gate"
             aria-labelledby="tab-gate"
-            className="mx-auto max-w-[860px]"
+            className="mx-auto grid max-w-[860px] gap-6"
           >
+            <GateHeader entries={entries} guard={guard} onGuardChange={changeGuard} onReady={() => openGate('out', null)} />
             {/* The Check In / Check Out page: one column, at tablet width. */}
             <div className="min-w-0">
               {gateMode === 'out' ? (

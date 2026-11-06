@@ -2,8 +2,9 @@ import { useRef, useState } from 'react'
 import * as ui from '../ui'
 import { Icon } from '../icons'
 
-// "On duty: Maria Lopez · Change" in the header on the Gate tab. Set once per shift; every check-in
-// and check-out is logged under this name. The button has the id the gate forms' error list jumps to.
+// "Guard on duty · Maria Lopez · Change" in the Gate's title row, like the inspector on Loading &
+// Inspection. Set once per shift; every check-in and check-out is logged under this name. The button has
+// the id the gate forms' error list jumps to.
 export default function GuardOnDuty({ guard, onChange }) {
   const dialog = useRef(null)
   const [name, setName] = useState(guard)
@@ -22,22 +23,14 @@ export default function GuardOnDuty({ guard, onChange }) {
 
   return (
     <>
-      <span className="on-chrome flex items-center gap-2 text-[15px] text-rail-text">
-        <Icon name="people" size={18} />
-        {guard ? (
-          <>
-            On duty: <b className="text-white">{guard}</b>
-          </>
-        ) : (
-          <span className="font-semibold text-rail-alert">No guard on duty set</span>
-        )}
-        <button
-          id="field-guardOnDuty"
-          type="button"
-          onClick={open}
-          className="min-h-10 cursor-pointer rounded-[10px] border border-white/15 bg-white/10 px-3 font-semibold text-white transition-colors duration-150 hover:bg-white/20"
-        >
-          {guard ? 'Change' : 'Set guard on duty'}
+      <span className="inline-flex min-h-12 items-center gap-3 rounded-2xl border border-hair bg-panel py-1 pr-1.5 pl-3.5 shadow-card">
+        <Icon name="people" size={18} className="text-muted" />
+        <span className="leading-tight">
+          <span className="block text-[11px] font-semibold tracking-wide text-muted uppercase">Guard on duty</span>
+          {guard ? <b>{guard}</b> : <b className="text-danger">Not set</b>}
+        </span>
+        <button id="field-guardOnDuty" type="button" onClick={open} className={ui.btnGhost + ' scroll-mt-[calc(var(--header-h,114px)+24px)]'}>
+          {guard ? 'Change' : 'Set name'}
         </button>
       </span>
       <dialog

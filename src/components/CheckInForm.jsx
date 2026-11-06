@@ -7,7 +7,7 @@ import { FIELD_LABELS, cleanForSave, dayLabel, freshCheckIn, timeLabel, validate
 import { visitMemory } from '../visitMemory'
 import ErrorSummary from './ErrorSummary'
 import OdometerPhoto from './OdometerPhoto'
-import { Badge, BottomBar, Chips, FieldBox, GateStep, GateTopLine, More, Note, Recap, Seg, Stepper, goButton } from './gate/parts'
+import { Badge, BottomBar, Chips, FieldBox, GateStep, GateTopLine, LinkButton, More, Note, PRESS, Recap, Seg, Stepper, goButton } from './gate/parts'
 
 // Gate Check In on one page, kept simple for the guard: (1) purpose and appointment at the window,
 // (2) vehicle details from the driver, (3) the trailer — seal, reefer, and optional extras — then a short
@@ -216,21 +216,16 @@ export default function CheckInForm({ initial, entries, guard, switcher, onSave,
             <span>
               Arrived <b className="text-ink">{timeLabel(form.timeIn) || '—'}</b> · {dayLabel(form.dateIn) || '—'}
             </span>
-            <button
-              type="button"
-              onClick={() => setEditArrival((v) => !v)}
-              aria-expanded={editArrival}
-              className="min-h-9 cursor-pointer px-1 font-semibold text-signal underline"
-            >
+            <LinkButton icon={editArrival ? 'check' : 'edit'} onClick={() => setEditArrival((v) => !v)} aria-expanded={editArrival}>
               {editArrival ? 'Done' : 'Edit'}
-            </button>
+            </LinkButton>
           </>
         }
         progress={progress}
       />
 
       {editArrival && (
-        <div className="grid gap-4 rounded-2xl border border-hair bg-panel px-5 py-4 shadow-card sm:grid-cols-[1fr_1fr_1.4fr]">
+        <div className={ui.card + ' grid animate-fade gap-4 px-5 py-4 sm:grid-cols-[1fr_1fr_1.4fr]'}>
           <FieldBox name="dateIn" label="Date in" required error={err('dateIn')}>
             <input type="date" {...text('dateIn')} className={inputCls('dateIn')} />
           </FieldBox>
@@ -250,7 +245,7 @@ export default function CheckInForm({ initial, entries, guard, switcher, onSave,
       )}
 
       {checkedIn && (
-        <div role="status" className="rounded-2xl border border-ok/25 bg-ok-soft px-5 py-4 shadow-card">
+        <div role="status" className="animate-pop rounded-2xl border border-ok/25 bg-ok-soft px-5 py-4 shadow-raised">
           <p className="flex items-center gap-2 font-display text-[20px] leading-tight font-bold text-ok">
             <Icon name="done" size={26} />
             Checked in
@@ -261,7 +256,7 @@ export default function CheckInForm({ initial, entries, guard, switcher, onSave,
       <ErrorSummary errors={errors} action={isEdit ? 'saving' : 'check-in'} summaryRef={summaryRef} labels={FIELD_LABELS} />
 
       {/* 1 · Purpose */}
-      <GateStep n={1} id="in-purpose" title="Purpose" ok={sectionOk[0]} started={sectionStarted[0]}>
+      <GateStep n={1} of={3} id="in-purpose" icon="purpose" title="Purpose" hint="What it's here for and when it was booked" ok={sectionOk[0]} started={sectionStarted[0]}>
         <FieldBox name="visitPurpose" label="What's it here for?" required group error={err('visitPurpose')}>
           <div role="group" aria-labelledby="field-visitPurpose-label" className="grid grid-cols-3 gap-2.5">
             {VISIT_PURPOSES.map((p, i) => {
@@ -274,8 +269,9 @@ export default function CheckInForm({ initial, entries, guard, switcher, onSave,
                   aria-pressed={on}
                   onClick={() => togglePurpose(p)}
                   className={
-                    'flex min-h-[80px] cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border-2 px-2 font-display text-[17px] leading-tight font-bold sm:flex-row sm:gap-2.5 ' +
-                    (on ? PURPOSE[p].on : (err('visitPurpose') ? 'border-danger' : 'border-line') + ' bg-field text-ink hover:border-signal-bright')
+                    PRESS +
+                    'flex min-h-[80px] flex-col items-center justify-center gap-1 rounded-xl px-2 font-display text-[17px] leading-tight font-bold sm:flex-row sm:gap-2.5 ' +
+                    (on ? PURPOSE[p].on + ' shadow-raised' : (err('visitPurpose') ? 'border-danger' : 'border-line') + ' bg-field text-ink hover:border-signal-bright hover:bg-panel')
                   }
                 >
                   <Icon name={PURPOSE[p].icon} size={26} />
@@ -292,7 +288,7 @@ export default function CheckInForm({ initial, entries, guard, switcher, onSave,
       </GateStep>
 
       {/* 2 · Vehicle details */}
-      <GateStep n={2} id="in-vehicle" title="Vehicle details" ok={sectionOk[1]} started={sectionStarted[1]}>
+      <GateStep n={2} of={3} id="in-vehicle" icon="truck" title="Vehicle details" hint="Trailer, carrier and driver" ok={sectionOk[1]} started={sectionStarted[1]}>
         <FieldBox name="trailerNumber" label="Trailer #" required error={err('trailerNumber')}>
           <input {...text('trailerNumber')} autoComplete="off" enterKeyHint="next" onKeyDown={enterNext('truckName')} className={inputCls('trailerNumber', bigInput)} />
         </FieldBox>
@@ -304,7 +300,7 @@ export default function CheckInForm({ initial, entries, guard, switcher, onSave,
           lastVisit &&
           !sameAsLast &&
           match.dismissed !== key && (
-            <div className="flex flex-wrap items-center gap-3 rounded-xl border-[1.5px] border-signal-bright bg-signal-tint px-4 py-3">
+            <div className="flex animate-pop flex-wrap items-center gap-3 rounded-xl border-[1.5px] border-signal-bright bg-signal-tint px-4 py-3">
               <Icon name="history" size={24} className="text-signal" />
               <div className="min-w-0 flex-1">
                 <b className="block font-display text-[16px]">Seen before · {dayLabel(lastVisit.dateIn)}</b>
@@ -360,7 +356,7 @@ export default function CheckInForm({ initial, entries, guard, switcher, onSave,
       </GateStep>
 
       {/* 3 · Trailer */}
-      <GateStep n={3} id="in-trailer" title="Trailer" ok={sectionOk[2]} started={sectionStarted[2]}>
+      <GateStep n={3} of={3} id="in-trailer" icon={reefer ? 'reefer' : 'seal'} title="Trailer" hint={reefer ? 'Seal, reefer temperature and fuel' : 'Seal and what kind of trailer'} ok={sectionOk[2]} started={sectionStarted[2]}>
         <FieldBox name="incomingSeals" label="Seal #" required error={err('incomingSeals')}>
           <input {...text('incomingSeals')} inputMode="numeric" autoComplete="off" enterKeyHint="done" className={inputCls('incomingSeals', bigInput)} />
         </FieldBox>
@@ -426,23 +422,23 @@ export default function CheckInForm({ initial, entries, guard, switcher, onSave,
           ],
         ]}
       />
-      <p className="no-print flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-[15px] text-muted">
-        <span className="flex items-center gap-1.5">
+      <div className="no-print flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-[15px] text-muted">
+        <span className="mr-2 flex items-center gap-1.5">
           <Icon name="people" size={16} />
           Logged by <b className={loggedBy ? 'text-ink' : 'text-danger'}>{loggedBy || 'no guard set (top of the page)'}</b>
         </span>
         {onCancel && (
-          <button type="button" onClick={onCancel} className="min-h-10 cursor-pointer font-semibold text-signal underline">
+          <LinkButton icon="close" onClick={onCancel}>
             Cancel
-          </button>
+          </LinkButton>
         )}
-        <button type="button" onClick={handleClear} className="min-h-10 cursor-pointer font-semibold text-signal underline">
+        <LinkButton icon="undo" onClick={handleClear}>
           {isEdit ? 'Revert' : 'Clear'}
-        </button>
-        <button type="button" onClick={() => window.print()} className="min-h-10 cursor-pointer font-semibold text-signal underline">
+        </LinkButton>
+        <LinkButton icon="print" onClick={() => window.print()}>
           Print
-        </button>
-      </p>
+        </LinkButton>
+      </div>
 
       <BottomBar missing={stillNeeded}>
         <button type="submit" className={goButton(!missing.length)}>
