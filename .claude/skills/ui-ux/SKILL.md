@@ -150,6 +150,12 @@ Load the **`dataviz`** skill before writing any chart. In this app:
   `--dive-*` colors (index.css): six stages orange → blue → pink → gold → purple → teal, categories blue / gold /
   purple / teal (Delivery / Pickup / Drop trailer = blue / gold / purple). Red only for over target, late and
   detention dollars. The main Overview page keeps the kit colors.
+- Impact deep dives (`src/turnaround/impactDives.js`, opened from the "Impact of going digital" tiles) compare
+  **manual week = orange `--dive-s1`** with **digital week = teal `--dive-teal`** everywhere (validated pair; grey
+  failed for color-blind readers). A saving inside the digital week is a lighter teal; red only where it got
+  worse. Each has a one-line finding, four headline figures, then the charts. Estimates (staff time, yearly
+  detention, extra trucks) are labelled "estimate"; staff minutes per call / handoff are editable and kept on
+  the device (`impact-staff-minutes`).
 - One y-axis per chart; two measures → two charts. Hover/focus tooltip on every mark, a legend for ≥ 2
   series, and **Show as table**.
 

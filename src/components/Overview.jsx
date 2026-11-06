@@ -4,6 +4,7 @@ import { computeBaselineMetrics, computeImpact, computeStages, computeSummary, c
 import { DETENTION, DOCK_TARGET, G2G_TARGET, ON_TIME_WINDOW, STAGE_TARGETS } from '../turnaround/targets'
 import { parseManualWeek, visitsInRange } from '../turnaround/visits'
 import { deepDive } from '../turnaround/deepDives'
+import { IMPACT_DIVES, STAFF_MINUTES, impactDive } from '../turnaround/impactDives'
 import { dayKey, shiftDate } from '../time'
 
 // The truck turnaround Overview (design/turnaround-kit): a hero with the week's takeaway, six KPI cards
@@ -12,6 +13,7 @@ import { dayKey, shiftDate } from '../time'
 // Where there's no data yet, the kit's sample data stands in, clearly labeled.
 
 const MANUAL_KEY = 'manual-week'
+const STAFF_KEY = 'impact-staff-minutes'
 const PRESETS = [7, 14, 30]
 const WEEKDAY = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 const dayLabel = (key) => {
@@ -208,6 +210,17 @@ function KpiCard({ k, all, days, onOpen }) {
   )
 }
 
+// An "Impact of going digital" tile; opens its deep dive, like the KPI cards.
+function ImpactTile({ id, label, hot, onOpen, children }) {
+  return (
+    <button type="button" className={'tt-itile' + (hot ? ' hot' : '')} onClick={() => onOpen(id)}>
+      <span className="tt-itile-label">{label}</span>
+      {children}
+      <span className="tt-more">See details →</span>
+    </button>
+  )
+}
+
 // A clearly labeled "Sample data" note for a section running on the kit's sample.
 function SampleTag({ children }) {
   return (
@@ -327,10 +340,127 @@ function Detail({ id, setId, data, rangeText }) {
   )
 }
 
+// One detail view per "Impact of going digital" tile: manual week vs digital week, with a finding, four
+// headline figures and the charts from turnaround/impactDives.js. Same tabs and hero as the KPI details.
+function ImpactDetail({ id, setId, data, staff, setStaff }) {
+  const k = IMPACT_DIVES.find((x) => x.id === id)
+  const d = impactDive(id, { ...data.impactCtx, staff })
+  const ctx = data.impactCtx
+  const sampleNote = [data.manualSample && 'the manual week is the kit’s sample until you import your paper-log week', data.sample && 'the digital week is sample data until real visits are fully timed'].filter(Boolean)
+  const legendOf = (p) => p.legend && p.legend.map(([name, c]) => <Key key={name} color={c}>{name}</Key>)
+  const minBox = (key, label) => (
+    <label className="imp-assume">
+      {label}
+      <input
+        type="number"
+        min="0"
+        max="30"
+        step="0.5"
+        value={staff[key]}
+        onChange={(e) => setStaff({ ...staff, [key]: Math.max(0, Number(e.target.value) || 0) })}
+      />
+      min
+    </label>
+  )
+  return (
+    <div className="tt">
+      <div className="tt-top" style={{ '--accent': `var(--p-${k.accent})` }}>
+        <button type="button" className="tt-back" onClick={() => setId(null)}>
+          ← Overview
+        </button>
+        {IMPACT_DIVES.map((x) => (
+          <button key={x.id} type="button" className={`tt-tab accent-${x.accent}`} aria-pressed={x.id === id} onClick={() => setId(x.id)}>
+            {x.label}
+          </button>
+        ))}
+      </div>
+      <header className={`tt-dhero accent-${k.accent}`}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <span className="tt-eyebrow">
+            Impact of going digital · manual week ({ctx.man.length} trucks) vs digital week ({ctx.dig.length} trucks)
+          </span>
+          <h1>{k.label}</h1>
+          <p className="tt-note">{d.about}</p>
+          {sampleNote.length > 0 && <p className="tt-note" style={{ color: 'var(--p-gold-1)' }}>● Sample data: {sampleNote.join('; ')}.</p>}
+        </div>
+        <span className="tt-big">
+          <b>{d.big}</b>
+          <span className="tt-unit">{d.unit}</span>
+        </span>
+      </header>
+      {d.take && <p className="imp-take">{d.take}</p>}
+      <div className="tt-grid dive-grid" style={{ '--accent': `var(--p-${k.accent})` }}>
+        <div className="imp-stats">
+          {d.stats.map(([label, value, note, good]) => (
+            <div key={label} className={'imp-stat' + (good ? ' good' : '')}>
+              <span className="tt-note">{label}</span>
+              <b>{value}</b>
+              {note && <span className="tt-note">{note}</span>}
+            </div>
+          ))}
+        </div>
+        {d.panels.map((p) =>
+          p.kind === 'swap' ? (
+            <Panel key={id + p.key} title={p.title} note={p.note} wide>
+              <div className="tt-tablebox">
+                <table className="imp-swap">
+                  <thead>
+                    <tr>
+                      <th>Manual week</th>
+                      <th>Digital week</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {p.rows.map(([before, after]) => (
+                      <tr key={before}>
+                        <td>{before}</td>
+                        <td>{after}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </Panel>
+          ) : p.kind === 'staff' ? (
+            <Panel key={id + p.key} title={p.title} note={p.note} wide>
+              <div className="imp-assumes">
+                {minBox('call', 'Each phone call')}
+                {minBox('paper', 'Each paper handoff')}
+              </div>
+              <div className="tt-legend">{legendOf(p)}</div>
+              <div className="imp-two">
+                <Chart label={p.title} deps={[id, ctx, staff]} draw={p.draw} />
+                <Chart label={`${p.title}: split`} deps={[id, ctx, staff]} draw={p.drawSplit} />
+              </div>
+            </Panel>
+          ) : (
+            <Panel key={id + p.key} title={p.title} note={p.note} wide={p.wide} legend={legendOf(p)}>
+              <Chart label={p.title} deps={[id, ctx]} draw={p.draw} />
+            </Panel>
+          ),
+        )}
+      </div>
+    </div>
+  )
+}
+
 export default function Overview({ entries, sampleCount, onLoadSample, onRemoveSample }) {
   const today = dayKey(new Date())
   const [days, setDays] = useState(7)
   const [detail, setDetail] = useState(null)
+  const [impactDetail, setImpactDetail] = useState(null)
+  // Minutes per phone call and paper handoff for the staff-time estimate, kept on this device.
+  const [staff, setStaffState] = useState(() => {
+    try {
+      return { ...STAFF_MINUTES, ...JSON.parse(localStorage.getItem(STAFF_KEY)) }
+    } catch {
+      return STAFF_MINUTES
+    }
+  })
+  const setStaff = (next) => {
+    setStaffState(next)
+    localStorage.setItem(STAFF_KEY, JSON.stringify(next))
+  }
   const [manual, setManual] = useState(() => {
     try {
       return JSON.parse(localStorage.getItem(MANUAL_KEY)) ?? null
@@ -367,13 +497,19 @@ export default function Overview({ entries, sampleCount, onLoadSample, onRemoveS
     const weekStart = shiftDate(lastDay, -6)
     const digitalWeek = computeVisitMetrics(timedRows.filter((r) => r.day >= weekStart && r.day <= lastDay))
     const manualRows = manual ?? sample.manual
+    // The impact deep dives also break trucks down by carrier, dock and arrival hour.
+    const extra = (r) => ({ carrier: r?.carrier, door: r?.door ?? null, hour: Number(String(r?.arrived ?? '').slice(0, 2)) })
+    const impactMan = computeBaselineMetrics(manualRows).map((v, i) => ({ ...v, ...extra(manualRows[i]) }))
+    const impactDig = digitalWeek.map((v) => ({ ...v, ...extra(rowOf.get(v.visit_id)) }))
+    const impact = digitalWeek.length ? computeImpact(impactMan, digitalWeek) : []
     return {
       sample: useSampleVisits,
       manualSample: !manual,
       timed: { visits: withTrailer(timedVisits), summary: computeSummary(timedVisits) },
       count: { visits: withTrailer(countVisits), summary: computeSummary(countVisits) },
       stages: computeStages(timedVisits),
-      impact: digitalWeek.length ? computeImpact(computeBaselineMetrics(manualRows), digitalWeek) : [],
+      impact,
+      impactCtx: { man: impactMan, dig: impactDig, imp: Object.fromEntries(impact.filter((r) => r.kind === 'kpi').map((r) => [r.key, r])) },
       manualCount: manualRows.length,
       drops: useSampleVisits ? null : real.drops,
       fullyTimed: real.timedRows.length,
@@ -440,6 +576,7 @@ export default function Overview({ entries, sampleCount, onLoadSample, onRemoveS
 
   if (!data) return <div className="tt">{controls}<p className="tt-note">Loading…</p></div>
   if (detail) return <Detail id={detail} setId={setDetail} data={data} rangeText={data.sample ? 'Sample week' : rangeText} />
+  if (impactDetail && data.impact.length) return <ImpactDetail id={impactDetail} setId={setImpactDetail} data={data} staff={staff} setStaff={setStaff} />
 
   const { timed, count, stages, impact } = data
   const all = timed.summary[0]
@@ -505,8 +642,7 @@ export default function Overview({ entries, sampleCount, onLoadSample, onRemoveS
         ) : (
           <>
             <div className="tt-itiles">
-              <div className="tt-itile">
-                <span className="tt-itile-label">Faster per truck</span>
+              <ImpactTile id="g2g" onOpen={setImpactDetail} label="Faster per truck">
                 <span className="tt-ibig">
                   <b>{F().min(imp.g2g.saved)}</b>
                   <span className="tt-unit">min saved</span>
@@ -514,16 +650,14 @@ export default function Overview({ entries, sampleCount, onLoadSample, onRemoveS
                 <span className="tt-note">
                   {F().min(imp.g2g.before)} → {F().min(imp.g2g.after)} min gate to gate ({F().spct(imp.g2g.change_pct)})
                 </span>
-              </div>
-              <div className="tt-itile hot">
-                <span className="tt-itile-label">Detention avoided this week</span>
+              </ImpactTile>
+              <ImpactTile id="detention" onOpen={setImpactDetail} label="Detention avoided this week" hot>
                 <span className="tt-ibig">
                   <b>{F().usd(imp.detention.saved)}</b>
                 </span>
                 <span className="tt-note">About {F().usd(imp.detention_year.saved)} a year at this pace</span>
-              </div>
-              <div className="tt-itile">
-                <span className="tt-itile-label">Shorter wait for a dock</span>
+              </ImpactTile>
+              <ImpactTile id="dock_wait" onOpen={setImpactDetail} label="Shorter wait for a dock">
                 <span className="tt-ibig">
                   <b>{F().min(imp.dock_wait.saved)}</b>
                   <span className="tt-unit">min saved</span>
@@ -531,16 +665,14 @@ export default function Overview({ entries, sampleCount, onLoadSample, onRemoveS
                 <span className="tt-note">
                   {F().min(imp.dock_wait.before)} → {F().min(imp.dock_wait.after)} min per truck
                 </span>
-              </div>
-              <div className="tt-itile">
-                <span className="tt-itile-label">Trucks within target</span>
+              </ImpactTile>
+              <ImpactTile id="within" onOpen={setImpactDetail} label="Trucks within target">
                 <span className="tt-ibig">
                   <b>{F().pct(imp.within.after)}</b>
                 </span>
                 <span className="tt-note">Up from {F().pct(imp.within.before)}</span>
-              </div>
-              <div className="tt-itile">
-                <span className="tt-itile-label">Phone calls no longer needed</span>
+              </ImpactTile>
+              <ImpactTile id="phone" onOpen={setImpactDetail} label="Phone calls no longer needed">
                 <span className="tt-ibig">
                   <b>{F().int(imp.phone_calls.saved)}</b>
                   <span className="tt-unit">calls</span>
@@ -548,9 +680,8 @@ export default function Overview({ entries, sampleCount, onLoadSample, onRemoveS
                 <span className="tt-note">
                   plus {F().int(imp.paper_handoffs.saved)} paper handoffs and {F().min(imp.yard_search.saved)} h searching the yard
                 </span>
-              </div>
-              <div className="tt-itile">
-                <span className="tt-itile-label">Truck hours freed up</span>
+              </ImpactTile>
+              <ImpactTile id="hours" onOpen={setImpactDetail} label="Truck hours freed up">
                 <span className="tt-ibig">
                   <b>{F().min(imp.truck_hours.saved)}</b>
                   <span className="tt-unit">hours</span>
@@ -558,7 +689,7 @@ export default function Overview({ entries, sampleCount, onLoadSample, onRemoveS
                 <span className="tt-note">
                   {F().min(imp.truck_hours.before)} → {F().min(imp.truck_hours.after)} truck hours on site
                 </span>
-              </div>
+              </ImpactTile>
             </div>
             <div className="tt-grid">
               <Panel
