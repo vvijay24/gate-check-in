@@ -7,7 +7,7 @@ import { checkOutBlock, expectedSeal, isReleased } from '../handoff'
 import { DETENTION_ICON, DETENTION_TAG, detentionState } from '../detention'
 import { FIELD_LABELS, checkOutStart, dayLabel, timeLabel, validate } from '../gateForm'
 import ErrorSummary from './ErrorSummary'
-import { BottomBar, FieldBox, GateStep, GateTopLine, More, Note, Recap, Seg, goButton } from './gate/parts'
+import { BottomBar, FieldBox, GateStep, GateTopLine, LinkButton, More, Note, Recap, Seg, goButton } from './gate/parts'
 
 // Gate Check Out on one page, kept simple for the guard: (1) the truck leaving — picked from the list,
 // with what's already known — (2) the driver going out, (3) the seal and reefer fuel, then a short recap
@@ -70,7 +70,7 @@ function Pills({ e, now }) {
   )
 }
 
-// One truck in the list: one row, tap to open it.
+// One truck in the list: one row, tap to open it. It lifts a little on hover.
 function TruckRow({ e, now, onPick }) {
   const purposes = e.visitPurpose ?? []
   return (
@@ -78,7 +78,7 @@ function TruckRow({ e, now, onPick }) {
       <button
         type="button"
         onClick={() => onPick(e)}
-        className="grid w-full cursor-pointer grid-cols-[6px_1fr_auto] items-center overflow-hidden rounded-xl border-[1.5px] border-line bg-panel text-left hover:border-signal-bright"
+        className="group grid w-full cursor-pointer grid-cols-[6px_1fr_auto] items-center overflow-hidden rounded-xl border border-hair bg-panel text-left shadow-card transition-[transform,box-shadow,border-color] duration-200 ease-out hover:-translate-y-0.5 hover:border-signal-bright hover:shadow-raised active:translate-y-0"
       >
         <span className="flex h-full flex-col">
           {(purposes.length ? purposes : ['']).map((p) => (
@@ -94,8 +94,8 @@ function TruckRow({ e, now, onPick }) {
           </span>
           <Pills e={e} now={now} />
         </span>
-        <span aria-hidden="true" className="px-4 font-display text-[22px] text-muted">
-          ›
+        <span aria-hidden="true" className="px-4 text-muted transition-[color,transform] duration-200 ease-out group-hover:translate-x-0.5 group-hover:text-signal">
+          <Icon name="chevron" size={22} />
         </span>
       </button>
     </li>
@@ -137,7 +137,10 @@ function TruckList({ entries, now, onPick }) {
         />
       </form>
       {sorted.length === 0 ? (
-        <p className="text-[16px] text-muted">{q ? 'No trucks on site match that search.' : 'No trucks on site. Checked-in trucks appear here.'}</p>
+        <p className="flex items-start gap-2 text-[16px] text-muted">
+          <Icon name="info" size={18} className="mt-0.5" />
+          {q ? 'No trucks on site match that search. Try part of the trailer # or the carrier.' : 'No trucks on site. Checked-in trucks appear here.'}
+        </p>
       ) : (
         <ul className="grid gap-2">
           {sorted.map((e) => (
@@ -173,7 +176,7 @@ export default function CheckOutPage({ entries, initial, guard, switcher, onPick
             </>
           }
         />
-        <GateStep n={1} id="out-find" title="Truck leaving">
+        <GateStep n={1} of={3} id="out-find" icon="checkOut" title="Truck leaving" hint="Find it by trailer #, carrier or driver. Ready ones are first.">
           <TruckList entries={entries} now={now} onPick={onPick} />
         </GateStep>
       </div>
@@ -295,16 +298,16 @@ function CheckOutForm({ entry, guard, switcher, now, onSave, onCancel }) {
             <span>
               {editing ? 'Left' : 'Leaving'} <b className="text-ink">{timeLabel(form.timeOut) || '—'}</b> · {dayLabel(form.dateOut) || '—'}
             </span>
-            <button type="button" onClick={() => setEditTime((v) => !v)} aria-expanded={editTime} className="min-h-9 cursor-pointer px-1 font-semibold text-signal underline">
+            <LinkButton icon={editTime ? 'check' : 'edit'} onClick={() => setEditTime((v) => !v)} aria-expanded={editTime}>
               {editTime ? 'Done' : 'Edit'}
-            </button>
+            </LinkButton>
           </>
         }
         progress={progress}
       />
 
       {editTime && (
-        <div className="grid gap-4 rounded-2xl border border-hair bg-panel px-5 py-4 shadow-card sm:grid-cols-[1fr_1fr_1.4fr]">
+        <div className={ui.card + ' grid animate-fade gap-4 px-5 py-4 sm:grid-cols-[1fr_1fr_1.4fr]'}>
           <FieldBox name="dateOut" label="Date out" required error={err('dateOut')}>
             <input type="date" {...text('dateOut')} className={inputCls('dateOut')} />
           </FieldBox>
@@ -326,7 +329,7 @@ function CheckOutForm({ entry, guard, switcher, now, onSave, onCancel }) {
       <ErrorSummary errors={errors} action={editing ? 'saving' : 'check-out'} summaryRef={summaryRef} labels={FIELD_LABELS} />
 
       {/* 1 · Truck leaving: what's already known, with a way back to the list */}
-      <GateStep n={1} id="out-find" title="Truck leaving" ok={!blocked} started>
+      <GateStep n={1} of={3} id="out-find" icon="checkOut" title="Truck leaving" hint="What's already known about this visit" ok={!blocked} started>
         <div className="grid gap-1">
           <b className="font-display text-[24px] leading-tight break-words">
             {entry.trailerNumber} · {entry.truckName}
@@ -347,14 +350,16 @@ function CheckOutForm({ entry, guard, switcher, now, onSave, onCancel }) {
           </Note>
         )}
         {blocked && <Note icon="blocked">Can't leave yet: {blocked} Ask the driver to wait and tell Shipping.</Note>}
-        <button type="button" onClick={onCancel} className="min-h-10 w-fit cursor-pointer font-semibold text-signal underline">
-          {editing ? 'Back' : 'Pick a different truck'}
-        </button>
+        <span className="-ml-3">
+          <LinkButton icon={editing ? 'close' : 'search'} onClick={onCancel}>
+            {editing ? 'Back' : 'Pick a different truck'}
+          </LinkButton>
+        </span>
       </GateStep>
 
       <fieldset disabled={Boolean(blocked)} className="m-0 grid min-w-0 gap-4 border-0 p-0 disabled:opacity-50">
         {/* 2 · Driver */}
-        <GateStep n={2} id="out-driver" title="Driver" ok={!blocked && left[0].length === 0} started>
+        <GateStep n={2} of={3} id="out-driver" icon="people" title="Driver" hint="Who is taking the truck out" ok={!blocked && left[0].length === 0} started>
           {hasDriverIn && (
             <FieldBox name="driverChoice" label="Who is driving out?" group>
               <Seg
@@ -383,7 +388,16 @@ function CheckOutForm({ entry, guard, switcher, now, onSave, onCancel }) {
         </GateStep>
 
         {/* 3 · Seal (and reefer) */}
-        <GateStep n={3} id="out-seal" title={reefer ? 'Seal and reefer' : 'Seal'} ok={!blocked && left[1].length === 0} started={sealStarted}>
+        <GateStep
+          n={3}
+          of={3}
+          id="out-seal"
+          icon={reefer ? 'reefer' : 'seal'}
+          title={reefer ? 'Seal and reefer' : 'Seal'}
+          hint={reefer ? 'Check the seal and the reefer fuel going out' : 'Check the seal going out'}
+          ok={!blocked && left[1].length === 0}
+          started={sealStarted}
+        >
           {sealToCheck && (
             <FieldBox
               name="sealConfirmed"
@@ -485,20 +499,20 @@ function CheckOutForm({ entry, guard, switcher, now, onSave, onCancel }) {
           ],
         ]}
       />
-      <p className="no-print flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-[15px] text-muted">
-        <span className="flex items-center gap-1.5">
+      <div className="no-print flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-[15px] text-muted">
+        <span className="mr-2 flex items-center gap-1.5">
           <Icon name="people" size={16} />
           Checked out by <b className={by ? 'text-ink' : 'text-danger'}>{by || 'no guard set (top of the page)'}</b>
         </span>
         {editing && (
-          <button type="button" onClick={handleRevert} className="min-h-10 cursor-pointer font-semibold text-signal underline">
+          <LinkButton icon="undo" onClick={handleRevert}>
             Revert
-          </button>
+          </LinkButton>
         )}
-        <button type="button" onClick={() => window.print()} className="min-h-10 cursor-pointer font-semibold text-signal underline">
+        <LinkButton icon="print" onClick={() => window.print()}>
           Print
-        </button>
-      </p>
+        </LinkButton>
+      </div>
 
       {confirming ? (
         <BottomBar

@@ -3,6 +3,7 @@ import {
   Camera,
   Check,
   ChartColumn,
+  ChevronRight,
   CircleCheck,
   CircleX,
   ClipboardCheck,
@@ -20,8 +21,11 @@ import {
   MapPin,
   Maximize2,
   MessageSquare,
+  ListChecks,
   Package,
+  Pencil,
   Printer,
+  RotateCcw,
   Route,
   ScrollText,
   Search,
@@ -78,6 +82,10 @@ export const ICONS = {
   enlarge: Maximize2,
   settings: Settings,
   close: X,
+  purpose: ListChecks,
+  edit: Pencil,
+  undo: RotateCcw,
+  chevron: ChevronRight,
 }
 
 export function Icon({ name, size = 20, className = '' }) {
