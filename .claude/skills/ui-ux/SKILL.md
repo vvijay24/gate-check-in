@@ -1,6 +1,6 @@
 ---
 name: ui-ux
-description: UI/UX rules for the guard gate-log app (React + Tailwind v4) — who uses it, the design tokens and shared class strings, the established table / filter / dialog / tile / sidebar patterns, wording (Dock, Gate 1 · In), charts, accessibility, responsive layout and how to work on UI here. Use whenever adding, changing, restyling or reviewing any screen, component, table, form, chart, dialog or layout in this project.
+description: UI/UX rules for the guard gate-log app (React + Tailwind v4) — who uses it, the design tokens and shared class strings, the established table / filter / dialog / tile / sidebar patterns, wording (Dock, Gate · In), charts, accessibility, responsive layout and how to work on UI here. Use whenever adding, changing, restyling or reviewing any screen, component, table, form, chart, dialog or layout in this project.
 ---
 
 # UI/UX for the gate-log app
@@ -65,7 +65,7 @@ short motion — never at the cost of big targets, contrast or plain words.
   the header, selected chips with `text-chrome`, focus ring on navy), `warn` / `warn-ink` (yellow "needs
   attention" pills: Waiting, Not inspected, near detention), `warn-edge` (amber for warn
   bars, meters and waiting trucks on the map — 3:1 on white), `ok`, `danger`, the purpose colors
-  `delivery` (teal), `pickup`, `drop`, gates `gate-in` (green) / `gate-out` (rose), yard map `asphalt`,
+  `delivery` (teal), `pickup`, `drop`, yard map `asphalt`,
   `lane` (the yard lane), `building`, `track`, charts `chart-live`, `chart-drop`, the visit-stage scale
   `stage-1`…`stage-4`, shadows `shadow-card` / `shadow-raised` / `shadow-overlay`, and motion
   `animate-fade` / `animate-pop` / `animate-fresh`. Use them as Tailwind utilities or `var(--color-…)`.
@@ -110,9 +110,9 @@ short motion — never at the cost of big targets, contrast or plain words.
 | Stage timer | Every timed step comes from `src/stages.js` (Check in 3–7, Dock assigned 15–30, Pre-loading 5–10, Loading 30–60, Inspection 10–15, Release 7–10, Check out 3–5 min; `currentStage(e)` says which one an on-site truck is in). Show it with `TimerPill` (time, green → amber inside the window → red past the limit) and `TimerLine` (thin bar with the window striped, plus "8m left of 30 min" / "11m over the 30-min limit"), and one `TimerLegend` per page. Refresh every 15 s. Gate form times are recorded, never shown to the guard | `components/StageTimer.jsx`, Shipping, Loading & Inspection |
 | Work board (desk) | For a desk role, lay the page out the way the work moves: a one-line read of the situation, `Kpi` tiles that only take colour when they need action, the resources at a glance (dock doors: free / busy with step progress), then lanes in order (Needs a dock → At the docks → Passed inspection, view only), each truck once, oldest/most urgent first, with its timer and its one action. Assign by tapping a free dock (on the card or the door) — no typing. Live charts and the tables/map (in tabs) go below the board | `ShippingBoard.jsx`, `ShippingDashboard.jsx` |
 | Work in stages (dock) | Sections in the order the work moves, each truck in exactly one: Loading (trailer check → Loading started → Loading finished) above Inspection (inspect → re-check → passed → **Release to gate**). Only the inspector releases, from the passed card (`ReleaseDialog`, signed by the inspector on duty); Shipping sees the status but has no release button anywhere. Each card: dock eyebrow + status pill, trailer, carrier · customer, a two-step progress, the stage timer, and **one** full-width next-step button pinned to the bottom. The checklist opens inside its own section (not a page jump), in short numbered steps with "All good" for Yes/No groups and the gate `BottomBar`; drafts stay on the device until saved. Live yard on top, map folded at the bottom | `Dashboard.jsx` (DockBoard), `LoadingInspection.jsx`, `LiveYardCard.jsx` |
-| Person on duty | Set once per shift on the device, signs every save: a white pill ("GUARD ON DUTY · name · Change") in the page's title row — `GuardOnDuty` (Gate), `InspectorOnDuty` (Loading & Inspection) | |
+| Person on duty | Set on the device, signs every save: a white pill ("GUARD ON DUTY · name · Change") in the page's title row — `GuardOnDuty` (Gate), `InspectorOnDuty` (Loading & Inspection). The guard is **mandatory and daily**: stored as `{ name, day }`, cleared on a new day; while unset the Gate shows `GuardStart` ("Who's on duty at the gate?", recent guards as one-tap buttons from `recentGuards(entries)`, or type, **Start shift**) in place of the form, which stays mounted but `hidden` so typed answers survive | `GuardOnDuty.jsx`, `App.jsx` |
 | Remembered values | Offer, never auto-fill: "Seen before · Use these details" / "Not this one"; recent carriers and customers as chips (`visitMemory.js`) | Check In → Vehicle details |
-| Guard on duty | Set once per shift in the Gate's title row (`GuardOnDuty`), stored on the device; forms log it on save | `App.jsx` |
+| Guard on duty | Required before the Gate form shows, set once a day (see Person on duty); forms log it on save and refuse to save without it | `App.jsx` |
 
 Live data: boards refresh on a timer (30–60 s) via `setInterval` in `useEffect`; show "● Live" or the
 moment shown when it isn't live.
@@ -121,7 +121,8 @@ moment shown when it isn't live.
 
 - **Dock**, never "Door" (code fields like `dockDoor` stay; on-screen text says Dock). The trailer
   checklist item "Doors and seals close properly" is about trailer doors and stays.
-- **Gate 1 · In** (green) and **Gate 2 · Out** (rose). **Order No**, **Carrier**, **Customer**,
+- One gate for in and out (`GATE` in `formConfig.js`): **Gate · In** and **Gate · Out**, slate pills with the
+  check-in / check-out icon (no gate colours; the forms record the gate without asking). **Order No**, **Carrier**, **Customer**,
   **Trailer #**, **Check In / Check Out**, **Live / Drop**, **Est. detention**.
 - Sentence-style labels, short. Buttons are verbs ("Assign dock", "Inspect · Dock 3").
 - Times like `1h 49m` (`duration()` in `src/time.js`); clock times via `clockTime()`; dates short ("Oct 28").

@@ -5,7 +5,7 @@ export const EMPTY_FORM = {
   visitPurpose: [],
   timeIn: '',
   timeOut: '',
-  gateIn: 'Gate 1',
+  gateIn: 'Gate',
   gateOut: '',
   reefer: '',
   tempSet: '',
@@ -98,5 +98,6 @@ export const FIELD_NAMES = {
 
 export const VISIT_PURPOSES = ['Delivery', 'Pickup', 'Drop Trailer']
 
-// Trucks normally enter through Gate 1 and leave through Gate 2; the form pre-selects those.
-export const GATES = ['Gate 1', 'Gate 2']
+// Trucks come in and go out through the one gate; the forms record it without asking.
+export const GATE = 'Gate'
+export const GATES = [GATE]

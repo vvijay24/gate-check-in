@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import * as ui from '../ui'
 import { Icon } from '../icons'
-import { GATES, isRequired } from '../formConfig'
+import { GATE, isRequired } from '../formConfig'
 import { arrivalMs, clockTime, departureMs, duration } from '../time'
 import { checkOutBlock, expectedSeal, isReleased } from '../handoff'
 import { DETENTION_ICON, DETENTION_TAG, detentionState } from '../detention'
@@ -169,7 +169,10 @@ export default function CheckOutPage({ entries, initial, guard, switcher, onPick
           switcher={switcher}
           where={
             <>
-              <span className={ui.tag + ' bg-gate-out text-signal-ink'}>Gate 2 · Out</span>
+              <span className={ui.tag + ' bg-signal text-signal-ink'}>
+                <Icon name="checkOut" size={14} />
+                {GATE} · Out
+              </span>
               <span>
                 <b className="text-ink">{onSite.length}</b> on site · <b className="text-ok">{ready}</b> ready to leave
               </span>
@@ -236,7 +239,7 @@ function CheckOutForm({ entry, guard, switcher, now, onSave, onCancel }) {
   const left = [vehicle, sealReefer].map((names) => names.filter((n) => !filled(form[n])))
   const total = vehicle.length + sealReefer.length
   const missing = left.flat()
-  // Vehicle details start filled in (time out, Gate 2, same driver); the seal section counts as started
+  // Vehicle details start filled in (time out, the gate, same driver); the seal section counts as started
   // once the guard answers something there (the outgoing seal can come pre-filled from the release).
   const sealStarted = ['sealConfirmed', 'sealNote', 'fuelOut', 'greenSeal', 'lockLoads', 'padLocks'].some((n) => filled(form[n]))
 
@@ -294,7 +297,10 @@ function CheckOutForm({ entry, guard, switcher, now, onSave, onCancel }) {
         switcher={switcher}
         where={
           <>
-            <span className={ui.tag + ' bg-gate-out text-signal-ink'}>{form.gateOut || 'Gate 2'} · Out</span>
+            <span className={ui.tag + ' bg-signal text-signal-ink'}>
+              <Icon name="checkOut" size={14} />
+              {form.gateOut || GATE} · Out
+            </span>
             <span>
               {editing ? 'Left' : 'Leaving'} <b className="text-ink">{timeLabel(form.timeOut) || '—'}</b> · {dayLabel(form.dateOut) || '—'}
             </span>
@@ -307,21 +313,12 @@ function CheckOutForm({ entry, guard, switcher, now, onSave, onCancel }) {
       />
 
       {editTime && (
-        <div className={ui.card + ' grid animate-fade gap-4 px-5 py-4 sm:grid-cols-[1fr_1fr_1.4fr]'}>
+        <div className={ui.card + ' grid animate-fade gap-4 px-5 py-4 sm:grid-cols-2'}>
           <FieldBox name="dateOut" label="Date out" required error={err('dateOut')}>
             <input type="date" {...text('dateOut')} className={inputCls('dateOut')} />
           </FieldBox>
           <FieldBox name="timeOut" label="Time out" required error={err('timeOut')}>
             <input type="time" {...text('timeOut')} className={inputCls('timeOut')} />
-          </FieldBox>
-          <FieldBox name="gateOut" label="Gate out" required group error={err('gateOut')}>
-            <Seg
-              name="gateOut"
-              value={form.gateOut}
-              onChange={(gateOut) => set({ gateOut })}
-              error={err('gateOut')}
-              options={GATES.map((g) => ({ value: g, disabled: g === 'Gate 1' }))}
-            />
           </FieldBox>
         </div>
       )}
@@ -481,7 +478,7 @@ function CheckOutForm({ entry, guard, switcher, now, onSave, onCancel }) {
             <b key="t">{entry.trailerNumber}</b>,
             entry.truckName,
             form.truckerNameOut && `driver ${form.truckerNameOut}${driver === 'same' ? ' (same)' : ''}`,
-            `leaving ${timeLabel(form.timeOut)} · ${form.gateOut}`,
+            `leaving at ${timeLabel(form.timeOut)}`,
           ],
           [
             sealToCheck &&
@@ -522,7 +519,7 @@ function CheckOutForm({ entry, guard, switcher, now, onSave, onCancel }) {
               <b id="confirm-checkout-title" className="block font-display text-[19px] leading-tight">
                 Confirm Check Out?
               </b>
-              Trailer {entry.trailerNumber} · {entry.truckName} leaving through {form.gateOut} at {timeLabel(form.timeOut)}.
+              Trailer {entry.trailerNumber} · {entry.truckName} leaving at {timeLabel(form.timeOut)}.
             </span>
           }
         >

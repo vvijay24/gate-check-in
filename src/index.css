@@ -48,12 +48,6 @@
   --color-danger: #C8102E;
   --color-danger-soft: #FBE7EA;
 
-  /* Gates: Gate 1 (in) green, Gate 2 (out) rose, kept apart from the warning red */
-  --color-gate-in: #1A7A43;
-  --color-gate-in-soft: #E3F3EA;
-  --color-gate-out: #A8385F;
-  --color-gate-out-soft: #FBE6EE;
-
   /* Shipping desk live charts */
   --color-chart-live: #3A6EA5;
   /* Live yard on Loading & Inspection: waiting for a dock, loading, inspection, ready to leave.
@@ -149,7 +143,6 @@
     --color-delivery: #7AA7E3; --color-delivery-soft: #1C2A3D; --color-pickup: #FFC233; --color-pickup-soft: #33290F;
     --color-drop: #2EC4B2; --color-drop-soft: #0F2E2B; --color-ok: #3DD07F; --color-ok-soft: #12301F;
     --color-danger: #FF5468; --color-danger-soft: #3A1820;
-    --color-gate-in: #3DD07F; --color-gate-in-soft: #12301F; --color-gate-out: #F08AAE; --color-gate-out-soft: #3A1A27;
     --color-chart-live: #7AA7E3; --color-rail-text: #9FB6CF;
     --color-yard-wait: #5B95DE; --color-yard-load: #BF8700; --color-yard-insp: #9B6BD6; --color-yard-ready: #1FA594;
     --dive-s1: #D9763B; --dive-s2: #5B95DE; --dive-s3: #CF5A9B; --dive-s4: #BF8700; --dive-s5: #9B6BD6; --dive-s6: #1FA594;
@@ -168,7 +161,6 @@
     --color-delivery: #7AA7E3; --color-delivery-soft: #1C2A3D; --color-pickup: #FFC233; --color-pickup-soft: #33290F;
     --color-drop: #2EC4B2; --color-drop-soft: #0F2E2B; --color-ok: #3DD07F; --color-ok-soft: #12301F;
     --color-danger: #FF5468; --color-danger-soft: #3A1820;
-    --color-gate-in: #3DD07F; --color-gate-in-soft: #12301F; --color-gate-out: #F08AAE; --color-gate-out-soft: #3A1A27;
     --color-chart-live: #7AA7E3; --color-rail-text: #9FB6CF;
     --color-yard-wait: #5B95DE; --color-yard-load: #BF8700; --color-yard-insp: #9B6BD6; --color-yard-ready: #1FA594;
     --dive-s1: #D9763B; --dive-s2: #5B95DE; --dive-s3: #CF5A9B; --dive-s4: #BF8700; --dive-s5: #9B6BD6; --dive-s6: #1FA594;
