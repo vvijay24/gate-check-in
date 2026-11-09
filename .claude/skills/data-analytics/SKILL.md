@@ -16,7 +16,7 @@ The app keeps entries in the browser (`localStorage` key `guard-load-log`), not 
    file path if they haven't given one. Export columns are defined in `src/logColumns.js`.
 2. **A raw JSON dump** — if they need exact dock-assignment timestamps, have them run
    `copy(localStorage.getItem('guard-load-log'))` in the browser console and save it to a `.json` file.
-3. **Sample data** — `src/sampleData.js` (14 days of generated visits). Only for demos or testing; always
+3. **Sample data** — `src/sampleData.js` (30 days of generated visits: quieter weekends, dock waits and dock time shrinking over the month, and rare problems — late/early pickups, broken seals, reefers off temp, failed trailer checks and load inspections that are re-checked). Only for demos or testing; always
    tell the user the results are from sample data.
 
 ## 2. Run the analysis
@@ -57,7 +57,7 @@ unless the user asks.
 | Detention / over free time | On site longer than **120 min** (free time). Billed at **$75/h** after that; warning shown from 90 min. | `yard.js` `DETENTION_*` |
 | Staging capacity | Trucks/trailers in the 6 staging bays ÷ 6. Alert at 85 %. | `yard.js` `STAGING_BAYS`, `YARD_ALERT_PCT` |
 | Customer | Only filled in for pickups, so customer figures cover pickups only. | `customerPickupFor` |
-| Gates | Gate 1 = in, Gate 2 = out. | `formConfig.js` `GATES` |
+| Gates | One gate (`Gate`) for in and out; older Gate 1 / Gate 2 entries are read as it. | `formConfig.js` `GATE` |
 | Handoffs | Four timed steps per visit: arrived → dock assigned, docked → inspected, passed → released by Shipping, released → checked out. Default targets 30 / 60 / 10 / 10 min (editable in **Targets & go-live**). | `impactSettings.js` `HANDOFFS`, `analytics.js` `visitStages` |
 | On target % | Share of timed handoffs done within their target; overall % pools all four. | `analytics.js` `impactMetrics` |
 | Money on the table | Est. detention avoided if a handoff had taken no longer than its target (the excess comes off the stay, then the fee is recomputed). Per-handoff figures assume only that handoff improves, so they don't sum to the all-targets figure. Reported per week (range figure × 7 ÷ days). | `impactMetrics` |
@@ -94,8 +94,8 @@ If these constants change in the code, the code wins — re-read the file rather
   mistakes). There are no pre-digital figures yet, so frame savings as **money on the table** and
   **trend vs the starting point**, not "saved vs before", unless the user has entered a baseline.
 - **Charts / dashboard page:** load the `dataviz` skill first. Use the app's colors where it helps:
-  Gate 1 green `#2b7d52`, Gate 2 rose `#b8406a`, Delivery `#1f6fb2`, Pickup `#2b7d52`, Drop `#7a4fa0`.
+  Delivery `#1f6fb2`, Pickup `#2b7d52`, Drop `#7a4fa0`.
 - **Spreadsheet:** use the `xlsx` skill; keep the export's column names so it lines up with the app.
-- Use the app's words: **Dock** (never "door"), **Gate 1 / Gate 2**, **Order No**, **Carrier**, **Customer**.
+- Use the app's words: **Dock** (never "door"), **Gate · In / Gate · Out**, **Order No**, **Carrier**, **Customer**.
 - Don't change app code as part of an analysis. If an analysis suggests a code or UI change, propose it
   and wait for approval (this project's standing rule).

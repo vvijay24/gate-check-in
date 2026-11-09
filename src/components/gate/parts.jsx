@@ -3,7 +3,7 @@ import { Icon } from '../../icons'
 import { arrivalMs, clockTime } from '../../time'
 import { today } from '../../gateForm'
 import { checkOutBlock, isReleased } from '../../handoff'
-import GuardOnDuty from '../GuardOnDuty'
+import GuardOnDuty, { recentGuards } from '../GuardOnDuty'
 
 // Building blocks of the Gate's Check In and Check Out pages, kept simple for a guard working with a
 // tablet in one hand: the page title with the gate at a glance, a thin top line (switch, where and when,
@@ -61,10 +61,10 @@ export function GateHeader({ entries, guard, onGuardChange, onReady }) {
             ) : (
               'No one waiting to leave'
             )}
-            {' · '}Check in at Gate 1, check out at Gate 2
+            {' · '}Trucks come in and go out through the gate
           </p>
         </div>
-        <GuardOnDuty guard={guard} onChange={onGuardChange} />
+        <GuardOnDuty guard={guard} recent={recentGuards(entries)} onChange={onGuardChange} />
       </div>
       <div className="no-print grid grid-cols-2 gap-3 sm:grid-cols-4">
         <GateTile icon="truck" label="On site" value={onSite.length} note={`${atDocks} at docks · ${onSite.length - atDocks} in the yard`} />

@@ -2,18 +2,21 @@ import { useEffect, useRef, useState } from 'react'
 import CheckInForm from './components/CheckInForm'
 import CheckOutPage from './components/CheckOutPage'
 import { GateHeader } from './components/gate/parts'
+import { GuardStart, recentGuards } from './components/GuardOnDuty'
+import { dayKey } from './time'
 import EntryLog from './components/EntryLog'
 import ShippingDashboard from './components/ShippingDashboard'
 import { DockBoard, phaseOf } from './components/Dashboard'
 import Messages from './components/Messages'
 import Overview from './components/Overview'
 import { makeSampleEntries } from './sampleData'
+import { GATE } from './formConfig'
 import { awaitingRelease, checkOutBlock, isReleased } from './handoff'
 import { Icon } from './icons'
 
 const STORAGE_KEY = 'guard-load-log'
 const EVENTS_KEY = 'gate-events'
-// The guard on duty, set once per shift in the Gate's title row and kept on this device.
+// The guard on duty, set at the start of each day on the Gate and kept on this device: { name, day }.
 const GUARD_KEY = 'guard-on-duty'
 
 const TABS = [
@@ -34,12 +37,13 @@ function loadEntries() {
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY)) ?? []
     // Older entries stored a single `loadType`; convert to the `visitPurpose` list.
-    // Entries from before gates were recorded came in Gate 1 and, if departed, left through Gate 2.
+    // There is one gate: entries from before (no gate, or Gate 1 in / Gate 2 out) came in and, if
+    // departed, went out through it.
     return saved.map(({ loadType, ...e }) => ({
       ...e,
       visitPurpose: e.visitPurpose ?? (loadType ? [loadType] : []),
-      gateIn: e.gateIn || 'Gate 1',
-      gateOut: e.gateOut || (e.timeOut ? 'Gate 2' : ''),
+      gateIn: GATE,
+      gateOut: e.timeOut ? GATE : '',
     }))
   } catch {
     return []
@@ -55,20 +59,24 @@ export default function App() {
   const [tab, setTab] = useState('gate')
   // Gate sub-tab; `editing` is the entry open in that form (none = new check-in / truck list).
   const [gateMode, setGateMode] = useState('in')
-  // Falls back to whoever logged the latest entry, so an existing device keeps its guard.
-  const [guard, setGuard] = useState(() => {
+  // The guard on duty and the day they were set; only today's counts, so the first guard of each day
+  // has to enter it (also at midnight with the app open — the clock re-renders every 15 s).
+  const [guardSet, setGuardSet] = useState(() => {
     try {
-      return localStorage.getItem(GUARD_KEY) ?? entries[0]?.guardOnDuty ?? ''
+      const saved = JSON.parse(localStorage.getItem(GUARD_KEY))
+      return { name: saved?.name ?? '', day: saved?.day ?? '' }
     } catch {
-      return entries[0]?.guardOnDuty ?? ''
+      return { name: '', day: '' }
     }
   })
+  const guard = guardSet.day === dayKey(new Date()) ? guardSet.name : ''
   const changeGuard = (name) => {
-    setGuard(name)
+    const next = { name, day: dayKey(new Date()) }
+    setGuardSet(next)
     try {
-      localStorage.setItem(GUARD_KEY, name)
+      localStorage.setItem(GUARD_KEY, JSON.stringify(next))
     } catch {
-      // Only a convenience; the name still applies for this session.
+      // The name still applies for this session.
     }
   }
 
@@ -229,7 +237,7 @@ export default function App() {
   const handleLoadSample = () => {
     const samples = makeSampleEntries()
     setEntries((list) => [...samples, ...list.filter((e) => !e.sample)].sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0)))
-    setNotice(`Loaded ${samples.length} sample visits from the last two weeks`)
+    setNotice(`Loaded ${samples.length} sample visits from the last month`)
   }
   const handleRemoveSample = () => {
     setEntries((list) => list.filter((e) => !e.sample))
@@ -329,8 +337,10 @@ export default function App() {
             className="mx-auto grid max-w-[860px] gap-6"
           >
             <GateHeader entries={entries} guard={guard} onGuardChange={changeGuard} onReady={() => openGate('out', null)} />
-            {/* The Check In / Check Out page: one column, at tablet width. */}
-            <div className="min-w-0">
+            {!guard && <GuardStart recent={recentGuards(entries)} onChange={changeGuard} />}
+            {/* The Check In / Check Out page: one column, at tablet width. Hidden (not removed) while no
+                guard is on duty, so anything already typed survives the midnight reset. */}
+            <div className="min-w-0" hidden={!guard}>
               {gateMode === 'out' ? (
                 <CheckOutPage
                   key={editing?.id ?? 'list'}

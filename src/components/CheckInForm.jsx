@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import * as ui from '../ui'
 import { Icon } from '../icons'
-import { GATES, VISIT_PURPOSES, isRequired } from '../formConfig'
+import { GATE, VISIT_PURPOSES, isRequired } from '../formConfig'
 import { EARLY_GRACE_MIN, LATE_GRACE_MIN, minutesLate } from '../time'
 import { FIELD_LABELS, cleanForSave, dayLabel, freshCheckIn, timeLabel, validate } from '../gateForm'
 import { visitMemory } from '../visitMemory'
@@ -211,7 +211,10 @@ export default function CheckInForm({ initial, entries, guard, switcher, onSave,
         switcher={switcher}
         where={
           <>
-            <span className={ui.tag + ' bg-gate-in text-signal-ink'}>{form.gateIn || 'Gate 1'} · In</span>
+            <span className={ui.tag + ' bg-signal text-signal-ink'}>
+              <Icon name="checkIn" size={14} />
+              {form.gateIn || GATE} · In
+            </span>
             {isEdit ? <b className="text-ink">Editing trailer {initial.trailerNumber}</b> : null}
             <span>
               Arrived <b className="text-ink">{timeLabel(form.timeIn) || '—'}</b> · {dayLabel(form.dateIn) || '—'}
@@ -225,21 +228,12 @@ export default function CheckInForm({ initial, entries, guard, switcher, onSave,
       />
 
       {editArrival && (
-        <div className={ui.card + ' grid animate-fade gap-4 px-5 py-4 sm:grid-cols-[1fr_1fr_1.4fr]'}>
+        <div className={ui.card + ' grid animate-fade gap-4 px-5 py-4 sm:grid-cols-2'}>
           <FieldBox name="dateIn" label="Date in" required error={err('dateIn')}>
             <input type="date" {...text('dateIn')} className={inputCls('dateIn')} />
           </FieldBox>
           <FieldBox name="timeIn" label="Time in" required error={err('timeIn')}>
             <input type="time" {...text('timeIn')} className={inputCls('timeIn')} />
-          </FieldBox>
-          <FieldBox name="gateIn" label="Gate in" required group error={err('gateIn')}>
-            <Seg
-              name="gateIn"
-              value={form.gateIn}
-              onChange={(gateIn) => set({ gateIn })}
-              error={err('gateIn')}
-              options={GATES.map((g) => ({ value: g, disabled: g === 'Gate 2' }))}
-            />
           </FieldBox>
         </div>
       )}

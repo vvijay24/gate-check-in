@@ -3,7 +3,7 @@ import * as ui from '../ui'
 import { arrivalMs, clockTime, duration } from '../time'
 import { yardStatus, isDrop } from '../metrics'
 import { DETENTION_FREE_MIN, DOCKS, STALE_WARN_H } from '../yard'
-import { GATES } from '../formConfig'
+import { GATE } from '../formConfig'
 import { Icon } from '../icons'
 import { detentionState } from '../detention'
 
@@ -17,11 +17,6 @@ export const STATUS = {
   departed: { fill: 'var(--color-line)', dot: 'bg-line', label: 'Departed' },
 }
 
-// Gate colors shared by the map and the Gate Activity Log: Gate 1 (in) green, Gate 2 (out) rose.
-export const GATE_STYLE = {
-  'Gate 1': { fill: 'var(--color-gate-in)', dot: 'bg-gate-in', tag: 'bg-gate-in-soft text-gate-in', label: 'Gate 1 · In' },
-  'Gate 2': { fill: 'var(--color-gate-out)', dot: 'bg-gate-out', tag: 'bg-gate-out-soft text-gate-out', label: 'Gate 2 · Out' },
-}
 
 // Why a truck or trailer needs attention, or '' if it doesn't. Detention follows the same rule as
 // everywhere else (detention.js).
@@ -43,7 +38,9 @@ const CAB = 24
 const GAP = 2
 const DOCK_Y = 116
 const LANE_Y = 336
-const GATE_X = [300, 700]
+// The one gate, in the middle of the street side; the guard shack sits just right of it.
+const GATE_X = 500
+const GATE_W = 160
 
 const short = (s, n) => (s && s.length > n ? s.slice(0, n - 1) + '…' : s || '')
 
@@ -181,24 +178,18 @@ function Grounds({ gateCounts }) {
         YARD · WAITING FOR A DOCK, THEN DROPPED TRAILERS
       </text>
       <line x1={0} y1={530} x2={1000} y2={530} stroke="var(--color-ink)" strokeWidth={3} />
-      {GATES.map((gate, i) => {
-        const x = GATE_X[i]
-        const c = gateCounts[gate] ?? { in: 0, out: 0 }
-        return (
-          <g key={gate}>
-            <rect x={x - 50} y={525} width={100} height={10} fill="var(--color-asphalt)" />
-            <rect x={x - 50} y={527} width={100} height={6} rx={2} fill={GATE_STYLE[gate]?.fill ?? 'var(--color-signal)'} />
-            <text x={x} y={518} textAnchor="middle" fontSize={14} {...text} fill={GATE_STYLE[gate]?.fill ?? text.fill}>
-              {gate.toUpperCase()} · {i === 0 ? 'IN' : 'OUT'}
-            </text>
-            <text x={x} y={560} textAnchor="middle" fontSize={13} fill="var(--color-muted)">
-              {c.in} in · {c.out} out
-            </text>
-          </g>
-        )
-      })}
-      <rect x={450} y={548} width={100} height={64} rx={4} fill="var(--color-building)" />
-      <text x={500} y={585} textAnchor="middle" fontSize={13} {...text}>
+      <g>
+        <rect x={GATE_X - GATE_W / 2} y={525} width={GATE_W} height={10} fill="var(--color-asphalt)" />
+        <rect x={GATE_X - GATE_W / 2} y={527} width={GATE_W} height={6} rx={2} fill="var(--color-signal)" />
+        <text x={GATE_X} y={518} textAnchor="middle" fontSize={14} {...text} fill="var(--color-signal)">
+          {GATE.toUpperCase()} · IN / OUT
+        </text>
+        <text x={GATE_X} y={560} textAnchor="middle" fontSize={13} fill="var(--color-muted)">
+          {gateCounts[GATE]?.in ?? 0} in · {gateCounts[GATE]?.out ?? 0} out
+        </text>
+      </g>
+      <rect x={GATE_X + GATE_W / 2 + 20} y={548} width={100} height={64} rx={4} fill="var(--color-building)" />
+      <text x={GATE_X + GATE_W / 2 + 70} y={585} textAnchor="middle" fontSize={13} {...text}>
         GUARD SHACK
       </text>
       <rect y={630} width={1000} height={30} fill="var(--color-building)" />

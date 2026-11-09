@@ -5,7 +5,7 @@ Go through this before saying a UI change is done. Report anything you couldn't 
 ## Fit
 - [ ] Reuses an existing pattern / component / `ui.js` class where one fits; nothing restyled from scratch.
 - [ ] Colors are tokens in `index.css` `@theme` (light only; there is no dark theme to update).
-- [ ] Wording matches the app: Dock (not Door), Gate 1 · In / Gate 2 · Out, Order No, Carrier, Customer.
+- [ ] Wording matches the app: Dock (not Door), Gate · In / Gate · Out (one gate), Order No, Carrier, Customer.
 - [ ] One primary (slate) action per area; secondary actions use `btn`/`btnSmall`, minor ones `btnGhost`;
       destructive actions confirm.
 - [ ] `signal` is used only for actions, selection and focus — never to mean a status (use `warn` / `warn-edge`).

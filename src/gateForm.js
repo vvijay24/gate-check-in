@@ -1,6 +1,6 @@
 // Logic shared by the Gate's Check In and Check Out pages: starting values, validation and field
 // names for the error list. The fields and required rules themselves live in formConfig.js.
-import { EMPTY_FORM, FIELD_NAMES, REEFER_ONLY, REQUIRED_IN, REQUIRED_OUT, isRequired } from './formConfig'
+import { EMPTY_FORM, FIELD_NAMES, GATE, REEFER_ONLY, REQUIRED_IN, REQUIRED_OUT, isRequired } from './formConfig'
 
 const pad = (n) => String(n).padStart(2, '0')
 export const today = () => {
@@ -30,10 +30,10 @@ export const dayLabel = (key) => {
   return d.toLocaleDateString([], { month: 'short', day: 'numeric' })
 }
 
-// A new check-in: arrived now, through Gate 1.
+// A new check-in: arrived now, through the gate.
 export const freshCheckIn = () => ({ ...EMPTY_FORM, dateIn: today(), timeIn: nowTime() })
 
-// Starting values when checking a truck out: now, Gate 2, the same driver unless the trailer is being
+// Starting values when checking a truck out: now, the gate, the same driver unless the trailer is being
 // dropped (a different truck usually collects it), and the seal the truck was released with.
 export const checkOutStart = (entry) =>
   entry.timeOut
@@ -42,7 +42,7 @@ export const checkOutStart = (entry) =>
         ...entry,
         dateOut: entry.dateOut || today(),
         timeOut: nowTime(),
-        gateOut: entry.gateOut || 'Gate 2',
+        gateOut: GATE,
         truckerNameOut: entry.truckerNameOut || (entry.visitPurpose?.includes('Drop Trailer') ? '' : entry.truckerNameIn),
         driverPhoneOut: entry.driverPhoneOut || (entry.visitPurpose?.includes('Drop Trailer') ? '' : entry.driverPhone),
         outgoingSeals: entry.outgoingSeals || entry.release?.seal || '',
