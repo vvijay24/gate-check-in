@@ -1,3 +1,4 @@
+import { ChartColumn, Clock, DoorOpen, Package, Truck, Warehouse } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import OnDuty, { loadOnDuty, saveOnDuty } from './components/OnDuty'
 import { visitMemory } from './visitMemory'
@@ -17,18 +18,12 @@ const EVENTS_KEY = 'gate-events'
 
 // `short` is shown on phones so all four tabs fit on one row.
 const TABS = [
-  { id: 'gate', label: 'Gate', icon: 'M3 20V9m0 0h18M3 9l2-4h14l2 4M7 9v11M17 9v11M10 13h4' },
-  { id: 'shipping', label: 'Shipping', icon: 'M3 7l9-4 9 4-9 4-9-4zm0 0v10l9 4m0-10v10m9-14v10l-9 4' },
-  { id: 'docks', label: 'Dock & Loading', short: 'Docks', icon: 'M3 21V8l9-5 9 5v13M7 21v-7h10v7M7 17h10' },
-  { id: 'analytics', label: 'Insights', icon: 'M4 20V10m6 10V4m6 16v-7m4 7H2' },
+  { id: 'gate', label: 'Gate', Icon: DoorOpen },
+  { id: 'shipping', label: 'Shipping', Icon: Package },
+  { id: 'docks', label: 'Dock & Loading', short: 'Docks', Icon: Warehouse },
+  { id: 'analytics', label: 'Insights', Icon: ChartColumn },
 ]
 
-// A 16px line icon for a header tab.
-const TabIcon = ({ d }) => (
-  <svg viewBox="0 0 24 24" aria-hidden="true" className="hidden h-4 w-4 shrink-0 sm:block lg:hidden xl:block" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    <path d={d} />
-  </svg>
-)
 
 const timeNow = () => new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
 
@@ -294,21 +289,19 @@ export default function App() {
       <header
         ref={headerRef}
         className={
-          'on-chrome sticky top-0 z-20 border-b border-white/[0.07] bg-chrome text-white transition-shadow duration-200 ' +
-          (scrolled ? 'shadow-[0_8px_24px_-12px_rgb(0_0_0/0.65)]' : '')
+          'sticky top-0 z-20 border-b border-line bg-panel/85 text-ink backdrop-blur-xl backdrop-saturate-150 transition-shadow duration-200 ' +
+          (scrolled ? 'shadow-[0_8px_24px_-16px_rgb(16_24_40/0.25)]' : '')
         }
       >
         {/* Full width: the title sits over the Insights rail at the left edge, the clock at the right. */}
         <div className="flex flex-wrap items-stretch gap-x-6 px-4 sm:px-5 lg:h-14 lg:flex-nowrap lg:px-6">
           <div className="flex items-center gap-2.5 py-2.5 lg:w-[calc(15rem-1.5rem)] lg:shrink-0 lg:py-0">
-            <span aria-hidden="true" className="grid h-7 w-7 place-items-center rounded-md bg-signal text-white shadow-[inset_0_-2px_0_rgb(0_0_0/0.18)]">
-              <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
-                <path d="M4 18V8M4 9h16M8 9l3 4M13 9l3 4" />
-              </svg>
+            <span aria-hidden="true" className="grid h-8 w-8 place-items-center rounded-[10px] bg-signal text-white shadow-[0_1px_2px_rgb(16_24_40/0.2),inset_0_-1px_0_rgb(0_0_0/0.15)]">
+              <Truck size={17} strokeWidth={2} />
             </span>
             <h1 className="text-[15px] leading-none font-semibold tracking-[-0.01em] whitespace-nowrap">
               Gate Check In
-              <span className="ml-2 hidden border-l border-white/15 pl-2 text-[12px] font-medium text-rail-muted md:inline lg:hidden 2xl:inline">Yard Operations</span>
+              <span className="ml-2 hidden border-l border-line pl-2 text-[12.5px] font-medium text-muted md:inline lg:hidden 2xl:inline">Yard Operations</span>
             </h1>
           </div>
           {/* Scrolls sideways rather than wrapping if the tabs still don't fit. */}
@@ -323,11 +316,11 @@ export default function App() {
                 onClick={() => setTab(t.id)}
                 className={
                   'relative flex min-h-11 shrink-0 cursor-pointer items-center gap-2 rounded-md px-3 lg:px-2.5 xl:px-3 text-[14px] font-medium whitespace-nowrap transition-colors ' +
-                  'after:absolute after:inset-x-2 after:bottom-0 after:h-0.5 after:rounded-full lg:rounded-none ' +
-                  (tab === t.id ? 'text-white after:bg-signal lg:bg-white/[0.04]' : 'text-rail-text/80 after:bg-transparent hover:bg-white/[0.06] hover:text-white')
+                  'after:absolute after:inset-x-2.5 after:-bottom-px after:h-[2px] after:rounded-full lg:rounded-none ' +
+                  (tab === t.id ? 'text-ink after:bg-signal' : 'text-muted after:bg-transparent hover:text-ink')
                 }
               >
-                <TabIcon d={t.icon} />
+                <t.Icon aria-hidden="true" size={16} strokeWidth={1.9} className="hidden shrink-0 sm:block lg:hidden xl:block" />
                 {t.short ? (
                   <>
                     <span className="sm:hidden">{t.short}</span>
@@ -350,9 +343,9 @@ export default function App() {
             {tab === 'gate' && <OnDuty role="guard" name={guard} onChange={setGuard} tone="chrome" />}
             {chatTab && <ChatButton open={chatOpen} onToggle={() => setChatOpen((o) => !o)} />}
             {/* On the Gate tab the guard chip takes the clock's place on small laptops. */}
-            <span className={'items-center gap-2 rounded-md border border-white/10 bg-white/[0.04] px-2.5 py-1 ' + (tab === 'gate' ? 'flex lg:hidden xl:flex' : 'flex')}>
-              <i aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-warn shadow-[0_0_0_3px_rgb(245_158_11/0.2)]" />
-              <span className="figure text-[13px] font-medium whitespace-nowrap text-rail-text">{clock}</span>
+            <span className={'items-center gap-1.5 rounded-full bg-field px-3 py-1.5 ' + (tab === 'gate' ? 'flex lg:hidden xl:flex' : 'flex')}>
+              <Clock aria-hidden="true" size={14} strokeWidth={2} className="text-muted" />
+              <span className="figure text-[13.5px] font-medium whitespace-nowrap text-ink">{clock}</span>
             </span>
           </div>
         </div>

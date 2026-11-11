@@ -33,7 +33,7 @@ export function ChatButton({ open, onToggle }) {
       aria-expanded={open}
       aria-controls="shipping-chat"
       onClick={onToggle}
-      className="flex min-h-10 cursor-pointer items-center gap-2 rounded-md border border-white/15 bg-white/[0.04] px-3 text-[13px] font-medium whitespace-nowrap text-white hover:bg-white/10"
+      className="flex min-h-10 cursor-pointer items-center gap-2 rounded-full border border-line bg-panel px-3.5 text-[13px] font-medium whitespace-nowrap text-ink hover:bg-field"
     >
       <span aria-hidden="true" className="hidden h-1.5 w-1.5 rounded-full bg-ok sm:inline-block" />
       <span>

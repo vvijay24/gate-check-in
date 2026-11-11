@@ -135,9 +135,9 @@ export function Kpi({ label, value, note, tone }) {
 export function Queue({ title, items, empty, selectedId, onSelect }) {
   return (
     <section aria-label={title} className="flex min-w-0 items-stretch gap-2">
-      <div className="flex shrink-0 flex-col justify-center rounded-lg bg-chrome px-3 text-white">
-        <span className="eyebrow text-rail-muted">{title}</span>
-        <b className="figure text-[18px] leading-none">{items.length}</b>
+      <div className="flex shrink-0 flex-col justify-center rounded-lg bg-panel px-3.5 shadow-card">
+        <span className="eyebrow text-muted">{title}</span>
+        <b className="figure text-[20px] leading-tight font-semibold text-ink">{items.length}</b>
       </div>
       {items.length === 0 ? (
         <p className="flex items-center rounded-lg border border-dashed border-line px-4 text-[14px] text-muted">{empty}</p>

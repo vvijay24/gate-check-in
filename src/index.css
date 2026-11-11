@@ -1,49 +1,44 @@
 @import "tailwindcss";
 
 /* Fonts ship with the app (public/fonts, SIL Open Font License) so they load offline and on locked-down networks. */
-@font-face { font-family: "IBM Plex Sans"; font-style: normal; font-weight: 400; font-display: swap; src: url("/fonts/ibm-plex-sans-latin-400-normal.woff2") format("woff2"); }
-@font-face { font-family: "IBM Plex Sans"; font-style: normal; font-weight: 500; font-display: swap; src: url("/fonts/ibm-plex-sans-latin-500-normal.woff2") format("woff2"); }
-@font-face { font-family: "IBM Plex Sans"; font-style: normal; font-weight: 600; font-display: swap; src: url("/fonts/ibm-plex-sans-latin-600-normal.woff2") format("woff2"); }
-@font-face { font-family: "IBM Plex Sans"; font-style: normal; font-weight: 700; font-display: swap; src: url("/fonts/ibm-plex-sans-latin-700-normal.woff2") format("woff2"); }
-@font-face { font-family: "IBM Plex Mono"; font-style: normal; font-weight: 500; font-display: swap; src: url("/fonts/ibm-plex-mono-latin-500-normal.woff2") format("woff2"); }
-@font-face { font-family: "IBM Plex Mono"; font-style: normal; font-weight: 600; font-display: swap; src: url("/fonts/ibm-plex-mono-latin-600-normal.woff2") format("woff2"); }
+@font-face { font-family: "Instrument Sans"; font-style: normal; font-weight: 400 700; font-stretch: 75% 100%; font-display: swap; src: url("/fonts/instrument-sans-latin-standard-normal.woff2") format("woff2-variations"), url("/fonts/instrument-sans-latin-standard-normal.woff2") format("woff2"); }
 @font-face { font-family: "Barlow Condensed"; font-style: normal; font-weight: 700; font-display: swap; src: url("/fonts/barlow-condensed-latin-700-normal.woff2") format("woff2"); }
 
 /* "Control Room" design language: slate neutrals, hairline panels, one blue accent for selection
    and primary actions, amber kept for live states and warnings. Utilities read these variables, so
    the dark-mode overrides below restyle everything automatically. */
 @theme {
-  --font-body: "IBM Plex Sans", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-body: "Instrument Sans", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   /* Headings use the same family, semibold; the display name is kept so existing classes still work. */
-  --font-display: "IBM Plex Sans", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Consolas, monospace;
+  --font-display: "Instrument Sans", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: "Instrument Sans", "Segoe UI", Roboto, sans-serif;
   /* Carrier lettering painted on the yard map's trailers stays condensed, like real trailer graphics. */
   --font-scene: "Barlow Condensed", "Arial Narrow", sans-serif;
 
-  /* Tight corners: panels 8px, controls 6px. */
-  --radius-xl: 0.5rem;
-  --radius-lg: 0.375rem;
-  --radius-md: 0.3125rem;
+  /* Corners by role: panels 14px, controls 10px, small chips 8px. */
+  --radius-xl: 0.875rem;
+  --radius-lg: 0.625rem;
+  --radius-md: 0.5rem;
 
   /* Panels are drawn with a hairline, not a floating shadow; raised layers (menus, dialogs) lift. */
-  --shadow-card: 0 0 0 1px var(--color-line), 0 1px 2px rgb(15 23 42 / 0.04);
-  --shadow-raised: 0 0 0 1px var(--color-line), 0 12px 32px -8px rgb(15 23 42 / 0.22);
+  --shadow-card: 0 0 0 1px var(--color-line), 0 1px 2px rgb(16 24 40 / 0.03), 0 2px 6px -2px rgb(16 24 40 / 0.04);
+  --shadow-raised: 0 0 0 1px var(--color-line), 0 18px 40px -14px rgb(16 24 40 / 0.24);
 
-  --color-page: #f1f4f7;
+  --color-page: #f4f5f7;
   --color-panel: #ffffff;
-  --color-ink: #0f172a;
-  --color-muted: #536175;
-  --color-line: #e2e8f0;
+  --color-ink: #101828;
+  --color-muted: #5d6678;
+  --color-line: #e6e8ec;
   /* Control edges (inputs, outline buttons): 3:1 on white, so a field's boundary is visible. */
   --color-edge: #8a97a8;
-  --color-field: #f8fafc;
+  --color-field: #f6f7f9;
   --color-chrome: #0f172a;
   /* Accent blue: selection, primary buttons, links in context (5.2:1 white on it). The `signal`
      name is kept from the first design so every selected state picks it up. */
-  --color-signal: #2563eb;
+  --color-signal: #2156e8;
   --color-signal-ink: #ffffff;
-  --color-signal-soft: #eaf1ff;
-  --color-signal-line: #1d4ed8;
+  --color-signal-soft: #edf2fe;
+  --color-signal-line: #1a45c2;
   /* Amber: live / now markers, warnings and "needs attention" (never selection). */
   --color-warn: #f59e0b;
   --color-warn-ink: #1f1300;
@@ -88,7 +83,7 @@
   --color-asphalt: #dde1e4;
   --color-bay: #f5f6f7;
   --color-building: #c9ced2;
-  --color-track: #e2e8f0;
+  --color-track: #eceef2;
 
   /* Isometric yard scene: ground, building, vehicles and carrier paints. Paints avoid the status hues
      (blue, green, purple, yellow) so a truck's color never reads as its status. */
@@ -272,9 +267,10 @@ body {
 /* Headings: semibold and slightly tight, never the heavy condensed face of the first design. */
 .font-display { letter-spacing: -0.012em; }
 /* Figures: KPI values, clocks and table numbers line up in the mono face. */
-.figure { font-family: var(--font-mono); font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+.figure { font-variant-numeric: tabular-nums; font-stretch: 92%; letter-spacing: -0.015em; }
 /* Small caps-style labels above figures and table headers. */
-.eyebrow { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; }
+/* Labels above figures and table headers: sentence case, quiet. */
+.eyebrow { font-size: 12px; font-weight: 550; letter-spacing: 0; }
 
 :focus-visible {
   outline: 3px solid var(--color-signal-line);
@@ -284,9 +280,7 @@ body {
 .on-chrome :focus-visible {
   outline-color: #7aa7ff;
 }
-@media (min-width: 64rem) {
-  .rail :focus-visible { outline-color: #7aa7ff; }
-}
+
 
 /* Yard map icons: SVG groups don't draw an outline, so the hit area shows focus instead. */
 /* A tapped rig glows instead (YardMap), so no browser box around it after a click. */

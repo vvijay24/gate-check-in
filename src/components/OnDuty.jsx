@@ -54,22 +54,22 @@ export default function OnDuty({ role, name, onChange, tone = 'page', id }) {
       <span
         className={
           'flex min-w-0 items-center gap-2 rounded-md border px-2.5 py-1 text-[13px] ' +
-          (chrome ? 'border-white/10 bg-white/[0.04] text-rail-text' : 'border-line bg-panel text-muted shadow-card')
+          (chrome ? 'rounded-full border-line bg-panel text-muted' : 'border-line bg-panel text-muted shadow-card')
         }
       >
         <span className={'eyebrow hidden whitespace-nowrap ' + (chrome ? '2xl:inline' : 'sm:inline')}>{w.title}</span>
         {chrome && name && <span className="eyebrow whitespace-nowrap 2xl:hidden">{w.short}</span>}
         {name ? (
-          <b className={'truncate font-semibold ' + (chrome ? 'max-w-40 text-white' : 'text-ink')}>{name}</b>
+          <b className={'truncate font-semibold ' + (chrome ? 'max-w-40 text-ink' : 'text-ink')}>{name}</b>
         ) : (
-          <b className={'font-semibold whitespace-nowrap ' + (chrome ? 'text-rail-alert' : 'text-danger')}>{w.none}</b>
+          <b className={'font-semibold whitespace-nowrap ' + 'text-danger'}>{w.none}</b>
         )}
         <button
           id={id}
           type="button"
           onClick={open}
           className={
-            'min-h-8 shrink-0 cursor-pointer rounded px-2 font-semibold underline ' + (chrome ? 'text-white hover:bg-white/10' : 'text-ink hover:bg-field')
+            'min-h-8 shrink-0 cursor-pointer rounded px-2 font-semibold underline ' + 'text-signal-line hover:bg-signal-soft'
           }
         >
           {name ? 'Change' : 'Set'}

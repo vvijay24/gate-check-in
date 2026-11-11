@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { Suspense, lazy, useEffect, useState } from 'react'
 import * as ui from '../ui'
 import { arrivalMs, clockTime, duration } from '../time'
 import { yardStatus, isDrop } from '../metrics'
@@ -7,6 +7,8 @@ import { BAY_WY, Foreground, GATE_WX, LOT_D, NightLighting, P, PARKED_ART, RIG_L
 import { poseAt, spotCenter, useYardDrives } from './yardMotion'
 import { detentionState } from '../detention'
 import { GATES } from '../formConfig'
+// The 3D engine loads with the first full map, not with the app.
+const Yard3D = lazy(() => import('./yard3d/Yard3D'))
 
 // Status colors shared by the map and its legend: the ground under each rig and its pin. The pin's icon
 // and the rig itself (tractor + trailer, or a trailer on landing gear) carry the status too.
@@ -567,6 +569,37 @@ export default function YardMap({
   const occupied = new Set(DOCKS.filter((d) => yard.atDock.has(d)))
   const sky = daylight(clock)
 
+  // The full map is drawn in 3D (yard3d/); the compact one stays the flat drawing below, which is also
+  // the fallback where WebGL isn't available.
+  const units3d = compact
+    ? null
+    : items.map((u) => {
+        const e = u.e
+        const status = yardStatus(e, at)
+        const alert = attention(e, clock)
+        const on = focusOf(e) === 'on'
+        const recheck = e.loadingInspection?.result === 'Fail'
+        const focusText = on ? (focusTextOf(e) ?? (recheck ? 'Re-check' : 'Inspect')) : undefined
+        const atDockFor = e.dockAssignedAt ? `${duration(clock - e.dockAssignedAt)} at dock` : ''
+        return {
+          key: (u.leaving ? 'leaving-' : '') + e.id,
+          e,
+          pose: u.pose,
+          driving: u.driving,
+          drop: isDrop(e),
+          status,
+          alert,
+          warn: u.driving ? null : trouble(e, clock),
+          on,
+          off: focusOf(e) === 'off',
+          focusText,
+          atDockFor,
+          ariaLabel:
+            (on ? `${focusText}${e.dockDoor ? ` Dock ${e.dockDoor}` : ''}: ` : '') +
+            `Trailer ${e.trailerNumber}, ${e.truckName}, ${STATUS[status].label}${atDockFor ? `, ${atDockFor}` : ''}${alert ? `, ${alert}` : ''}`,
+        }
+      })
+
   const map = (
     <svg
       viewBox={`${VIEW.x} ${VIEW.y} ${VIEW.w} ${VIEW.h}`}
@@ -655,13 +688,33 @@ export default function YardMap({
       <SkyChip phase={sky.phase} clock={clock} />
     </svg>
   )
+  const map3d = units3d && (
+    <Suspense fallback={map}>
+    <Yard3D
+      units={units3d}
+      occupied={occupied}
+      sky={sky}
+      clock={clock}
+      selectedId={selectedId}
+      hoverId={hoverId}
+      onSelect={inspectTap ? undefined : select}
+      onHover={setHoverId}
+      dockTargets={dockTargets}
+      onDockTap={onDockTap}
+      gateCounts={gateCounts}
+      gates={GATES}
+      motion={motion}
+      fallback={map}
+    />
+    </Suspense>
+  )
 
   // Work hubs: just the map, filling its box, with the hub's own overlay and footer notes.
   if (bare) {
     const more = [...yard.overflow, ...yard.otherDocks]
     return (
       <div className="relative h-full w-full overflow-hidden rounded-xl">
-        {map}
+        {map3d ?? map}
         {overlay && <div className="absolute top-2 right-2 z-[5]">{overlay}</div>}
         <div className="pointer-events-none absolute inset-x-2 bottom-2 z-[5] flex flex-wrap items-end gap-2 [&>*]:pointer-events-auto">
           {footer}
@@ -726,8 +779,9 @@ export default function YardMap({
   let card = null
   if (selected) {
     const spotUnit = parked.find((u) => u.e.id === selected.e.id)
-    let style = { left: '2%', top: '3%' }
-    if (spotUnit) {
+    let style = map3d ? { left: '12px', top: '52px' } : { left: '2%', top: '3%' }
+    // On the 3D map the camera moves, so the card stays in the corner (its truck's label is lifted).
+    if (spotUnit && !map3d) {
       // Above the truck when there's room; near the top of the map, beside its cab instead (to the
       // left when the cab is far enough right, else to the right) so the card covers less of the yard.
       const pct = ([x, y]) => [((x - VIEW.x) / VIEW.w) * 100, ((y - VIEW.y) / VIEW.h) * 100]
@@ -778,8 +832,8 @@ export default function YardMap({
     <div className="mt-3.5 grid grid-cols-[minmax(0,1fr)] items-start gap-4 lg:grid-cols-[minmax(0,1fr)_240px]">
       <div>
         <div className="overflow-x-auto rounded-lg">
-          <div className="relative min-w-[700px]">
-            {map}
+          <div className="relative min-w-[700px]" style={{ aspectRatio: `${VIEW.w} / ${VIEW.h}` }}>
+            {map3d ?? map}
             {overlay && <div className="absolute top-3 right-3 z-[5]">{overlay}</div>}
             {card}
           </div>

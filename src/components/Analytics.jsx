@@ -250,14 +250,14 @@ export const RAIL_PAD = 'lg:pl-60'
 // shrinks to a dot beside its name.
 // Narrow screens: a row of light buttons above the content.
 function Sidebar({ section, onSelect, keys, sampleControl, settingsControl, inProfile }) {
-  const toneCls = { alert: 'text-danger lg:text-rail-alert', warn: 'text-warn-line lg:text-warn' }
+  const toneCls = { alert: 'text-danger', warn: 'text-warn-line' }
   return (
-    <aside className="rail no-print min-w-0 lg:fixed lg:top-[var(--header-h,114px)] lg:bottom-0 lg:left-0 lg:z-[5] lg:w-60 lg:overflow-hidden lg:border-r lg:border-white/[0.06] lg:bg-rail">
+    <aside className="rail no-print min-w-0 lg:fixed lg:top-[var(--header-h,114px)] lg:bottom-0 lg:left-0 lg:z-[5] lg:w-60 lg:overflow-hidden lg:border-r lg:border-line lg:bg-panel">
       <nav aria-label="Insights sections" className="lg:flex lg:h-full lg:flex-col lg:px-3 lg:py-[clamp(4px,1.2vh,12px)]">
         <ul className="flex gap-1.5 overflow-x-auto pb-1 lg:block lg:overflow-visible lg:pb-0">
           {GROUPS.map((g) => (
             <li key={g} className="contents lg:block">
-              <span className="eyebrow hidden px-3 pt-[clamp(3px,1.1vh,16px)] pb-[clamp(2px,0.5vh,6px)] text-[10.5px] text-rail-muted/80 lg:block">{g}</span>
+              <span className="eyebrow hidden px-3 pt-[clamp(3px,1.1vh,16px)] pb-[clamp(2px,0.5vh,6px)] text-[11.5px] leading-tight text-muted lg:block">{g}</span>
               <ul className="contents lg:block lg:space-y-0.5">
                 {SECTIONS.filter((s) => s.group === g).map((s) => {
                   const on = section === s.id
@@ -270,16 +270,16 @@ function Sidebar({ section, onSelect, keys, sampleControl, settingsControl, inPr
                         onClick={() => onSelect(s.id)}
                         className={
                           'relative min-h-10 w-full cursor-pointer rounded-md border px-3 py-1.5 text-left whitespace-nowrap transition-colors ' +
-                          'lg:flex lg:min-h-[clamp(26px,3.9vh,44px)] lg:flex-col lg:justify-center lg:border-0 lg:py-[clamp(2px,0.5vh,6px)] ' +
+                          'lg:flex lg:min-h-[clamp(25px,3.8vh,44px)] lg:flex-col lg:justify-center lg:border-0 lg:py-[clamp(2px,0.5vh,6px)] ' +
                           'lg:before:absolute lg:before:top-2 lg:before:bottom-2 lg:before:left-0 lg:before:w-[3px] lg:before:rounded-full ' +
                           (on
-                            ? 'border-signal bg-signal-soft text-signal-line lg:bg-white/[0.07] lg:text-white lg:before:bg-signal' + (inProfile ? ' lg:before:bg-signal/60' : '')
-                            : 'border-edge bg-panel text-ink hover:bg-field lg:bg-transparent lg:text-rail-text lg:hover:bg-white/[0.05] lg:hover:text-white')
+                            ? 'border-signal bg-signal-soft text-signal-line lg:bg-signal-soft lg:text-signal-line lg:before:bg-signal' + (inProfile ? ' lg:before:bg-signal/60' : '')
+                            : 'border-edge bg-panel text-ink hover:bg-field lg:bg-transparent lg:text-ink lg:hover:bg-field')
                         }
                       >
                         <span className="flex items-center gap-2 text-[13.5px] leading-tight font-medium">
                           {s.label}
-                          {k?.tone && <i aria-hidden="true" className={'hidden h-1.5 w-1.5 shrink-0 rounded-full [@media(max-height:760px)]:lg:inline-block ' + (k.tone === 'alert' ? 'bg-rail-alert' : 'bg-warn')} />}
+                          {k?.tone && <i aria-hidden="true" className={'hidden h-1.5 w-1.5 shrink-0 rounded-full [@media(max-height:760px)]:lg:inline-block ' + (k.tone === 'alert' ? 'bg-danger' : 'bg-warn')} />}
                         </span>
                         {/* The section's figure only when it needs attention; otherwise just the name. */}
                         {k?.tone && (
@@ -295,7 +295,7 @@ function Sidebar({ section, onSelect, keys, sampleControl, settingsControl, inPr
             </li>
           ))}
         </ul>
-        <div className="mt-auto hidden flex-col items-start border-t border-white/[0.08] px-3 pt-1 lg:flex [&>button]:min-h-8">
+        <div className="mt-auto hidden flex-col items-start border-t border-line px-3 pt-1 lg:flex [&>button]:min-h-8">
           {settingsControl}
           {sampleControl}
         </div>
@@ -612,8 +612,8 @@ export default function Analytics({ entries, gateEvents = [], sampleCount, onLoa
           onSelect={selectSection}
           keys={summaries}
           inProfile={!!profile}
-          sampleControl={sampleControl('text-rail-muted hover:text-white')}
-          settingsControl={settingsControl('text-rail-muted hover:text-white')}
+          sampleControl={sampleControl('text-muted hover:text-ink')}
+          settingsControl={settingsControl('text-muted hover:text-ink')}
         />
         <SettingsDialog open={settingsOpen} settings={settings} defaultGoLive={defaultGoLive} onSave={saveSettings} onClose={() => setSettingsOpen(false)} />
 
