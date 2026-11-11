@@ -30,7 +30,7 @@ const FUEL_LABEL = { '1/4': '¼', '1/2': '½', '3/4': '¾' }
 // Required answers by step, for the progress bar and "Still needed" (only those that apply count).
 const SECTION_FIELDS = [
   ['dateIn', 'timeIn', 'gateIn', 'visitPurpose', 'appointmentTime'],
-  ['trailerNumber', 'truckName', 'truckerNameIn', 'pickupNumber', 'customerPickupFor'],
+  ['trailerNumber', 'truckName', 'driverPhone', 'truckerNameIn', 'pickupNumber', 'customerPickupFor'],
   ['incomingSeals', 'sealIntact', 'reefer', 'tempSet', 'tempActual', 'fuelIn'],
 ]
 const STEP_IDS = ['in-purpose', 'in-vehicle', 'in-trailer']
@@ -43,6 +43,7 @@ const SHORT = {
   appointmentTime: 'Appointment time',
   trailerNumber: 'Trailer #',
   truckName: 'Carrier',
+  driverPhone: 'Driver phone',
   truckerNameIn: 'Driver name',
   pickupNumber: 'Order No',
   customerPickupFor: 'Customer',
@@ -311,7 +312,21 @@ export default function CheckInForm({ initial, entries, guard, switcher, onSave,
         )}
         <FieldBox name="truckName" label="Carrier" required error={err('truckName')}>
           <Chips label="Recent carriers" items={memory.carriers} value={form.truckName} onPick={(truckName) => set({ truckName })} />
-          <input {...text('truckName')} placeholder="Or type it" enterKeyHint="next" onKeyDown={enterNext('truckerNameIn')} className={inputCls('truckName')} />
+          <input {...text('truckName')} placeholder="Or type it" enterKeyHint="next" onKeyDown={enterNext('driverPhone')} className={inputCls('truckName')} />
+        </FieldBox>
+        <FieldBox name="driverPhone" label="Driver phone" required error={err('driverPhone')} hint="10 digits. A number seen before fills in the driver's name.">
+          <input
+            id="field-driverPhone"
+            name="driverPhone"
+            type="tel"
+            inputMode="tel"
+            autoComplete="off"
+            value={form.driverPhone ?? ''}
+            onChange={(e) => setPhone(e.target.value)}
+            enterKeyHint="next"
+            onKeyDown={enterNext('truckerNameIn')}
+            className={inputCls('driverPhone')}
+          />
         </FieldBox>
         <FieldBox
           name="truckerNameIn"
@@ -342,11 +357,6 @@ export default function CheckInForm({ initial, entries, guard, switcher, onSave,
             </FieldBox>
           </div>
         )}
-        <More label="driver phone" open={filled(form.driverPhone)}>
-          <FieldBox name="driverPhone" label="Driver phone" hint="A number seen before fills in the driver's name.">
-            <input id="field-driverPhone" type="tel" inputMode="tel" value={form.driverPhone ?? ''} onChange={(e) => setPhone(e.target.value)} className={inputCls('driverPhone')} />
-          </FieldBox>
-        </More>
       </GateStep>
 
       {/* 3 · Trailer */}

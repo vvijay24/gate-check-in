@@ -48,6 +48,12 @@ export const checkOutStart = (entry) =>
         outgoingSeals: entry.outgoingSeals || entry.release?.seal || '',
       }
 
+// Driver phones: 10 digits, typed with any spaces, dashes or brackets, saved as 555-123-4567.
+const digits = (s) => String(s ?? '').replace(/\D/g, '')
+export const isPhone = (s) => digits(s).length === 10
+export const formatPhone = (s) => (isPhone(s) ? digits(s).replace(/(\d{3})(\d{3})(\d{4})/, '$1-$2-$3') : s)
+export const withPhones = (form) => ({ ...form, driverPhone: formatPhone(form.driverPhone), driverPhoneOut: formatPhone(form.driverPhoneOut) })
+
 // Required fields left empty (and other problems), by field name.
 export function validate(form, mode) {
   const errors = {}
@@ -56,6 +62,7 @@ export function validate(form, mode) {
     const value = form[key]
     const empty = Array.isArray(value) ? value.length === 0 : !String(value ?? '').trim()
     if (empty) errors[key] = 'Required'
+    else if ((key === 'driverPhone' || key === 'driverPhoneOut') && !isPhone(value)) errors[key] = 'Enter a 10-digit phone number'
   }
   if (errors.visitPurpose) errors.visitPurpose = 'Select at least one purpose'
   if (errors.guardOnDuty) errors.guardOnDuty = 'Set the guard on duty at the top of the page'
@@ -66,8 +73,8 @@ export function validate(form, mode) {
   return errors
 }
 
-// A dry van shouldn't keep reefer readings typed before the answer changed to No.
-export const cleanForSave = (form) => (form.reefer === 'Yes' ? form : { ...form, ...Object.fromEntries(REEFER_ONLY.map((k) => [k, ''])) })
+// A dry van shouldn't keep reefer readings typed before the answer changed to No; phones save in one format.
+export const cleanForSave = (form) => withPhones(form.reefer === 'Yes' ? form : { ...form, ...Object.fromEntries(REEFER_ONLY.map((k) => [k, ''])) })
 
 // Names for the error list, by field name.
 export const FIELD_LABELS = {

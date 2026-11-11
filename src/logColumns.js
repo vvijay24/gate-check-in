@@ -45,6 +45,7 @@ export const LOG_COLUMNS = [
     get: (e) => (e.trailerCheck ? `${e.trailerCheck.result} · ${new Date(e.trailerCheck.savedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ''),
     width: 16,
   },
+  { header: 'Trailer Checked By', get: (e) => e.trailerCheck?.technician ?? '', width: 16 },
   { header: 'Loading Inspection', get: (e) => e.loadingInspection?.result ?? '', width: 12 },
   { header: 'Inspection Date', get: (e) => e.loadingInspection?.inspectionDate ?? '', width: 12 },
   { header: 'Inspection Time', get: (e) => e.loadingInspection?.inspectionTime ?? '', width: 10 },

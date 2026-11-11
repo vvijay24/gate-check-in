@@ -41,8 +41,9 @@ export const REQUIRED_IN = [
   'gateIn',
   'visitPurpose',
   'appointmentTime',
-  'truckName',
   'trailerNumber',
+  'truckName',
+  'driverPhone',
   'truckerNameIn',
   'pickupNumber',
   'customerPickupFor',
@@ -56,7 +57,7 @@ export const REQUIRED_IN = [
 ]
 
 // Required to check a truck out, in on-screen order.
-export const REQUIRED_OUT = ['dateOut', 'timeOut', 'gateOut', 'truckerNameOut', 'outgoingSeals', 'fuelOut', 'guardOut']
+export const REQUIRED_OUT = ['dateOut', 'timeOut', 'gateOut', 'truckerNameOut', 'driverPhoneOut', 'outgoingSeals', 'fuelOut', 'guardOut']
 
 // Only required when the visit includes a pickup (a loaded trailer leaves sealed).
 const PICKUP_ONLY = ['pickupNumber', 'customerPickupFor', 'outgoingSeals']

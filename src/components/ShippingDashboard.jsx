@@ -108,7 +108,7 @@ const MORE_TABS = [
 ]
 
 // `top` is the Entry Log (its tab); `children` render below everything.
-export default function ShippingDashboard({ entries, onAssignDock, onEdit, onCheckOut, top, children }) {
+export default function ShippingDashboard({ entries, onAssignDock, onEdit, onUpdateEntry, onCheckOut, top, children }) {
   const [now, setNow] = useState(Date.now)
   // Which table (or the map) shows under the board.
   const [more, setMore] = useState('out')
@@ -162,7 +162,7 @@ export default function ShippingDashboard({ entries, onAssignDock, onEdit, onChe
 
   return (
     <div className="grid gap-6">
-      <ShippingBoard entries={entries} onAssignDock={onAssignDock} onEdit={onEdit} />
+      <ShippingBoard entries={entries} onAssignDock={onAssignDock} onUpdateEntry={onUpdateEntry} />
 
       {/* Tables and map, one at a time */}
       <div role="tablist" aria-label="Tables and map" className="no-print flex flex-wrap gap-1 rounded-2xl border border-hair bg-panel p-1.5 shadow-card">

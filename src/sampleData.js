@@ -39,6 +39,7 @@ function seeded(seed) {
 const pad = (n) => String(n).padStart(2, '0')
 const hhmm = (d) => `${pad(d.getHours())}:${pad(d.getMinutes())}`
 const MIN = 60000
+const TECHNICIANS = ['J. Ortiz', 'M. Chen', 'A. Patel', 'D. Brooks', 'L. Nguyen']
 
 export function makeSampleEntries(now = Date.now()) {
   const random = seeded(20261027)
@@ -150,6 +151,8 @@ export function makeSampleEntries(now = Date.now()) {
         const inspectedAt = Math.round(firstInspectAt + recheckDelay)
         // Loading & Inspection's "Loading started / finished": a short pre-load, then loading, then the
         // inspection (each now and then running long).
+        // The dock technician who checks and loads the trailer (picked without random() so the rest of the sample stays the same).
+        const technician = TECHNICIANS[(n * 7) % TECHNICIANS.length]
         const firstTrailerAt = Math.round(dockAt + (2 + ((n * 5) % 9)) * MIN)
         const loadStartedAt = Math.round(firstTrailerAt + 2 * MIN + trailerDelay)
         const loadFinishedAt = Math.round(firstInspectAt - (9 + ((n * 3) % 9)) * MIN)
@@ -165,6 +168,7 @@ export function makeSampleEntries(now = Date.now()) {
               precoolTemp: String(-2 - (n % 6)),
               setPoint: e.tempSet || '-10',
               reeferRunning: 'Yes',
+              technician,
               inspector: guardAt(failedNow ? firstTrailerAt : trailerAt),
               result: failedNow ? 'Fail' : 'Pass',
               issues: failedNow ? [`${failed.label}: No`] : [],
@@ -191,6 +195,7 @@ export function makeSampleEntries(now = Date.now()) {
             inspectedAt: at,
             savedAt: at,
             palletsLoaded: String(18 + Math.floor(random() * 8)),
+            technician,
             inspector: guardAt(at),
             sealApplied: String(700000 + Math.floor(random() * 99999)),
           }

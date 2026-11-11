@@ -138,7 +138,7 @@ export default function App() {
       setEntries((list) =>
         list.map((e) =>
           e.id === form.id
-            ? { ...form, updatedAt: Date.now(), ...(!checkedOut && { edits: (e.edits ?? 0) + 1, editedAt: Date.now() }) }
+            ? { ...form, updatedAt: Date.now(), ...(!checkedOut && { edits: (e.edits ?? 0) + 1, editedAt: Date.now(), editedBy: 'Gate' }) }
             : e,
         ),
       )
@@ -161,6 +161,14 @@ export default function App() {
     // A guard opening a truck that can't leave yet is a mistake the system stopped.
     if (checkOutBlock(entry)) setGateEvents((list) => [...list, { type: 'blocked', id: entry.id, at: Date.now() }])
     openGate('out', entry)
+  }
+
+  // Shipping's correction from the View entry pop-up: only the changed check-in details, counted as an edit.
+  const handleShippingEdit = (id, changes) => {
+    const now = Date.now()
+    setEntries((list) => list.map((e) => (e.id === id ? { ...e, ...changes, updatedAt: now, edits: (e.edits ?? 0) + 1, editedAt: now, editedBy: 'Shipping' } : e)))
+    const entry = entries.find((e) => e.id === id)
+    setNotice(`Updated entry for trailer ${changes.trailerNumber ?? entry?.trailerNumber ?? ''}`)
   }
 
   const handleAssignDock = (id, dockDoor) => {
@@ -392,6 +400,7 @@ export default function App() {
               entries={entries}
               onAssignDock={handleAssignDock}
               onEdit={handleEdit}
+              onUpdateEntry={handleShippingEdit}
               onCheckOut={handleCheckOut}
               top={
                 <EntryLog entries={entries} onEdit={handleEdit} onCheckOut={handleCheckOut} onDelete={handleDelete} onAssignDock={handleAssignDock} />

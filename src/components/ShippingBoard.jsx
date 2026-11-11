@@ -10,6 +10,7 @@ import { DOCK_STEPS, STAGES, checkedInAt, currentStage, inspectionSavedAt, toneO
 import { dockKey, occupiedDocks } from './AssignDock'
 import { TimerLegend, TimerLine, TimerPill } from './StageTimer'
 import LiveYardCard from './LiveYardCard'
+import EntryDialog from './EntryDialog'
 
 // The Shipping desk: what needs doing now, laid out the way trucks move. A one-line read of the
 // situation, the numbers that need action, the docks (free or busy, and how far along each truck is),
@@ -284,10 +285,12 @@ function StageChart({ entries, now }) {
   )
 }
 
-export default function ShippingBoard({ entries, onAssignDock, onEdit }) {
+export default function ShippingBoard({ entries, onAssignDock, onUpdateEntry }) {
   const [now, setNow] = useState(Date.now)
   // The waiting truck whose dock is being picked.
   const [assigningId, setAssigningId] = useState(null)
+  // The truck whose entry is open in the View entry pop-up.
+  const [viewingId, setViewingId] = useState(null)
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 15000)
     return () => clearInterval(t)
@@ -323,6 +326,15 @@ export default function ShippingBoard({ entries, onAssignDock, onEdit }) {
 
   return (
     <div className="grid gap-6">
+      <EntryDialog
+        entry={entries.find((x) => x.id === viewingId) ?? null}
+        entries={entries}
+        onClose={() => setViewingId(null)}
+        onSave={(id, changes) => {
+          onUpdateEntry(id, changes)
+          setViewingId(null)
+        }}
+      />
       {/* What matters right now, in one line */}
       <div className="flex flex-wrap items-end gap-4">
         <div>
@@ -477,7 +489,10 @@ export default function ShippingBoard({ entries, onAssignDock, onEdit }) {
               <div className="flex flex-wrap gap-x-3 gap-y-1 text-[13px] text-muted">
                 <Purpose e={e} />
                 {e.truckerNameIn && <span>{e.truckerNameIn}</span>}
-                <span>in {clockTime(checkedInAt(e))}</span>
+                <span>
+                  in {clockTime(checkedInAt(e))}
+                  {e.guardOnDuty && <> by {e.guardOnDuty}</>}
+                </span>
                 {e.appointmentTime && <span>appt {e.appointmentTime}</span>}
               </div>
               <TimerLine stage="dock" since={checkedInAt(e)} now={now} scale={45} />
@@ -512,7 +527,7 @@ export default function ShippingBoard({ entries, onAssignDock, onEdit }) {
                     <Icon name="dock" />
                     Assign dock
                   </button>
-                  <button type="button" onClick={() => onEdit(e)} className={ui.btnGhost}>
+                  <button type="button" onClick={() => setViewingId(e.id)} className={ui.btnGhost}>
                     View entry
                   </button>
                 </div>
@@ -548,7 +563,7 @@ export default function ShippingBoard({ entries, onAssignDock, onEdit }) {
                   </span>
                 )}
                 {st && <TimerLine stage={st.key} since={st.since} now={now} />}
-                <button type="button" onClick={() => onEdit(e)} className={ui.btnGhost + ' w-fit'}>
+                <button type="button" onClick={() => setViewingId(e.id)} className={ui.btnGhost + ' w-fit'}>
                   View entry
                 </button>
               </TruckCard>

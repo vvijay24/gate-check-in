@@ -135,8 +135,17 @@ function TruckCard({ e, now, open, fresh, onOpen, onLoading, onRelease }) {
   const go = big.replace('border-signal bg-signal', 'border-ok bg-ok').replace('hover:border-signal-hover hover:bg-signal-hover', 'hover:brightness-110')
   const status = {
     trailer: <Pill tone="warn" icon="search">Check trailer</Pill>,
-    trailerFail: <Pill tone="bad" icon="failed">Trailer not OK</Pill>,
-    ready: <Pill tone="ok" icon="done">Trailer OK · {clockTime(e.trailerCheck?.savedAt)}</Pill>,
+    trailerFail: (
+      <Pill tone="bad" icon="failed">
+        Trailer not OK{e.trailerCheck?.technician ? ` · ${e.trailerCheck.technician}` : ''}
+      </Pill>
+    ),
+    ready: (
+      <Pill tone="ok" icon="done">
+        Trailer OK · {clockTime(e.trailerCheck?.savedAt)}
+        {e.trailerCheck?.technician ? ` · ${e.trailerCheck.technician}` : ''}
+      </Pill>
+    ),
     loading: <Pill tone="mute" icon="waiting">Since {clockTime(e.loadStartedAt)}</Pill>,
     inspect: <Pill tone="warn" icon="inspect">Ready to inspect</Pill>,
     failed: <Pill tone="bad" icon="failed">Failed</Pill>,
@@ -357,7 +366,7 @@ export function DockBoard({ entries, onEdit, onCheckOut, onSaveInspection, onSav
   const cards = 'grid grid-cols-[repeat(auto-fit,minmax(min(100%,280px),1fr))] gap-4'
   const sheet = (part) => {
     if (!openEntry || (part === 'trailer') !== (open.part === 'trailer')) return null
-    const props = { key: `${openEntry.id}:${open.part}`, entry: openEntry, inspector, onClose: close }
+    const props = { key: `${openEntry.id}:${open.part}`, entry: openEntry, entries, inspector, onClose: close }
     if (open.part === 'trailer')
       return (
         <TrailerCheckSheet
