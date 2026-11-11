@@ -9,6 +9,7 @@ import ShippingDashboard from './components/ShippingDashboard'
 import { DockBoard, phaseOf } from './components/Dashboard'
 import Messages from './components/Messages'
 import Overview from './components/Overview'
+import Analytics from './components/Analytics'
 import { makeSampleEntries } from './sampleData'
 import { GATE } from './formConfig'
 import { awaitingRelease, checkOutBlock, isReleased } from './handoff'
@@ -24,6 +25,7 @@ const TABS = [
   { id: 'shipping', label: 'Shipping', icon: 'shipping' },
   { id: 'docks', label: 'Loading & Inspection', icon: 'dock' },
   { id: 'analytics', label: 'Overview', icon: 'overview' },
+  { id: 'insights', label: 'Insights', icon: 'speed' },
 ]
 
 const GATE_MODES = [
@@ -56,7 +58,8 @@ export default function App() {
   const [notice, setNotice] = useState('')
   const [storageError, setStorageError] = useState(false)
   const [clock, setClock] = useState(timeNow)
-  const [tab, setTab] = useState('gate')
+  // A link with ?tab=insights (Insights' shareable views) opens on Insights; otherwise the Gate.
+  const [tab, setTab] = useState(() => (new URLSearchParams(window.location.search).get('tab') === 'insights' ? 'insights' : 'gate'))
   // Gate sub-tab; `editing` is the entry open in that form (none = new check-in / truck list).
   const [gateMode, setGateMode] = useState('in')
   // The guard on duty and the day they were set; only today's counts, so the first guard of each day
@@ -321,7 +324,8 @@ export default function App() {
         </nav>
       </header>
 
-      <main className="mx-auto max-w-[1400px] space-y-6 px-4 py-6 sm:px-5">
+      {/* Insights uses the full width beside its fixed rail; the other tabs stay centered. */}
+      <main className={tab === 'insights' ? 'space-y-5 px-4 py-5 sm:px-5 lg:px-6 lg:py-6' : 'mx-auto max-w-[1400px] space-y-6 px-4 py-6 sm:px-5'}>
         {storageError && (
           <div role="alert" className="no-print flex items-start gap-3 rounded-2xl border border-danger/30 bg-danger-soft px-5 py-4 font-semibold text-danger shadow-card">
             <Icon name="warning" className="mt-0.5" />
@@ -389,6 +393,16 @@ export default function App() {
           <div role="tabpanel" id="panel-analytics" aria-labelledby="tab-analytics">
             <Overview
               entries={entries}
+              sampleCount={sampleCount}
+              onLoadSample={handleLoadSample}
+              onRemoveSample={handleRemoveSample}
+            />
+          </div>
+        ) : tab === 'insights' ? (
+          <div role="tabpanel" id="panel-insights" aria-labelledby="tab-insights">
+            <Analytics
+              entries={entries}
+              gateEvents={gateEvents}
               sampleCount={sampleCount}
               onLoadSample={handleLoadSample}
               onRemoveSample={handleRemoveSample}

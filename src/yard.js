@@ -4,6 +4,9 @@ import { DETENTION } from './turnaround/targets'
 // The yard's dock doors, shown as tiles in Dock Status and on the yard map.
 export const DOCKS = ['1', '2', '3', '4', '5', '6']
 
+// Parking spots the yard map draws for the yard lane. The data has no numbered spots; this is drawing only.
+export const STAGING_BAYS = 6
+
 // Detention: free time and fee come from turnaround/targets.js (METRICS.md); the warning point before it.
 export const DETENTION_FREE_MIN = DETENTION.freeMin
 export const DETENTION_WARN_MIN = 90
