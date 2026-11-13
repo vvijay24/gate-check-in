@@ -123,7 +123,8 @@ function YardBars({ points, focus, height: H = 280 }) {
   )
 }
 
-export default function LiveYardCard({ entries, now, compact }) {
+// `onStage(key)` (Shipping's Live Board): each stage count becomes a button that opens where that work is.
+export default function LiveYardCard({ entries, now, compact, onStage }) {
   const [table, setTable] = useState(false)
   const [focus, setFocus] = useState(null)
   const points = useMemo(() => yardHistory(entries, now), [entries, now])
@@ -197,20 +198,28 @@ export default function LiveYardCard({ entries, now, compact }) {
           <p className="text-[13px] text-muted">Every truck on site by stage, every half hour for the last six hours</p>
         </div>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
-          {YARD_STAGES.map((s) => (
-            <div
-              key={s.key}
-              onMouseEnter={() => setFocus(s.key)}
-              onMouseLeave={() => setFocus(null)}
-              className={'grid gap-1 rounded-xl px-3 py-2 transition-colors duration-150 ' + (focus === s.key ? 'bg-signal-tint' : 'bg-field')}
-            >
-              <span className="flex items-center gap-2 text-[13px] leading-tight font-semibold">
-                <i className="size-2.5 shrink-0 rounded-[3px]" style={{ background: s.color }} aria-hidden="true" />
-                {s.label}
-              </span>
-              <b className="text-[24px] leading-none tabular-nums">{counts[s.key]}</b>
-            </div>
-          ))}
+          {YARD_STAGES.map((s) => {
+            const Box = onStage ? 'button' : 'div'
+            return (
+              <Box
+                key={s.key}
+                {...(onStage && { type: 'button', onClick: () => onStage(s.key), 'aria-label': `${s.label}: ${counts[s.key]}. Open` })}
+                onMouseEnter={() => setFocus(s.key)}
+                onMouseLeave={() => setFocus(null)}
+                className={
+                  'grid gap-1 rounded-xl px-3 py-2 text-left transition-[background-color,transform,box-shadow] duration-150 ' +
+                  (focus === s.key ? 'bg-signal-tint' : 'bg-field') +
+                  (onStage ? ' cursor-pointer hover:-translate-y-0.5 hover:shadow-card' : '')
+                }
+              >
+                <span className="flex items-center gap-2 text-[13px] leading-tight font-semibold">
+                  <i className="size-2.5 shrink-0 rounded-[3px]" style={{ background: s.color }} aria-hidden="true" />
+                  {s.label}
+                </span>
+                <b className="text-[24px] leading-none tabular-nums">{counts[s.key]}</b>
+              </Box>
+            )
+          })}
         </div>
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
           <span className="text-[12px] font-semibold tracking-wide text-muted uppercase">

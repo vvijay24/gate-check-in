@@ -281,10 +281,10 @@ dialog[open]::backdrop { animation: var(--animate-fade); }
   body[data-print="entry-log"] #entry-log table { min-width: 0; }
 
   /* Outbound Shipments "Print": the same, for that table. */
-  body[data-print="outbound"] * { visibility: hidden; }
-  body[data-print="outbound"] #outbound,
-  body[data-print="outbound"] #outbound * { visibility: visible; }
-  body[data-print="outbound"] #outbound { position: absolute; inset: 0 0 auto 0; border: 0; }
-  body[data-print="outbound"] #outbound .overflow-x-auto { overflow: visible; }
-  body[data-print="outbound"] #outbound table { min-width: 0; }
+  /* Shipping → Daily report: only the report page. */
+  body[data-print="ship-report"] * { visibility: hidden; }
+  body[data-print="ship-report"] #ship-report,
+  body[data-print="ship-report"] #ship-report * { visibility: visible; }
+  body[data-print="ship-report"] #ship-report { position: absolute; inset: 0 0 auto 0; max-width: none; border: 0; padding: 0; }
+  body[data-print="ship-report"] #ship-report .overflow-x-auto { overflow: visible; }
 }

@@ -5,7 +5,7 @@ import { GateHeader } from './components/gate/parts'
 import { GuardStart, recentGuards } from './components/GuardOnDuty'
 import { dayKey } from './time'
 import EntryLog from './components/EntryLog'
-import ShippingDashboard from './components/ShippingDashboard'
+import ShippingPage from './components/ShippingPage'
 import { DockBoard, phaseOf } from './components/Dashboard'
 import Messages from './components/Messages'
 import Overview from './components/Overview'
@@ -161,6 +161,16 @@ export default function App() {
     requestAnimationFrame(() => document.getElementById(mode === 'out' ? 'gate-out' : 'gate-in')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
   }
   const handleEdit = (entry) => openGate('in', entry)
+  // "Open in Insights" from Shipping: Insights reads its section from the address when it opens.
+  const openInsights = (section) => {
+    try {
+      window.history.replaceState(null, '', `${window.location.pathname}?tab=insights&s=${section}`)
+    } catch {
+      // Insights still opens, on its first section.
+    }
+    setTab('insights')
+    window.scrollTo({ top: 0 })
+  }
   const handleCheckOut = (entry) => {
     // A guard opening a truck that can't leave yet is a mistake the system stopped.
     if (checkOutBlock(entry)) setGateEvents((list) => [...list, { type: 'blocked', id: entry.id, at: Date.now() }])
@@ -404,16 +414,15 @@ export default function App() {
           </div>
         ) : (
           <div role="tabpanel" id="panel-shipping" aria-labelledby="tab-shipping">
-            <ShippingDashboard
+            <ShippingPage
               entries={entries}
               onAssignDock={handleAssignDock}
               onOrderReady={handleOrderReady}
               onEdit={handleEdit}
               onUpdateEntry={handleShippingEdit}
               onCheckOut={handleCheckOut}
-              top={
-                <EntryLog entries={entries} onEdit={handleEdit} onCheckOut={handleCheckOut} onDelete={handleDelete} onAssignDock={handleAssignDock} />
-              }
+              onOpenInsights={openInsights}
+              log={<EntryLog entries={entries} onEdit={handleEdit} onCheckOut={handleCheckOut} onDelete={handleDelete} onAssignDock={handleAssignDock} onOrderReady={handleOrderReady} />}
             />
           </div>
         )}

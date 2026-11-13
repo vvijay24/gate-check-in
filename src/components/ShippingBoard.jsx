@@ -11,6 +11,7 @@ import { dockKey, occupiedDocks } from './AssignDock'
 import { TimerLegend, TimerLine, TimerPill } from './StageTimer'
 import LiveYardCard from './LiveYardCard'
 import EntryDialog from './EntryDialog'
+import { phaseOf } from './Dashboard'
 
 // The Shipping desk: what needs doing now, laid out the way trucks move. A one-line read of the
 // situation, the numbers that need action, the docks (free or busy, and how far along each truck is),
@@ -93,17 +94,33 @@ function Lane({ icon, badge, title, count, target, empty, emptyIcon, children })
 }
 
 // A number tile. `tone`: bad | warn | good colours the icon (and the note for bad); otherwise quiet.
-function Kpi({ icon, label, value, note, tone }) {
+// With `onClick` (and `to`, where it goes) the whole tile is a button that lifts on hover.
+function Kpi({ icon, label, value, note, tone, onClick, to }) {
   const ic = { bad: 'bg-danger-soft text-danger', warn: 'bg-warn text-warn-ink', good: 'bg-ok-soft text-ok' }[tone] ?? 'bg-signal-tint text-signal'
+  const Box = onClick ? 'button' : 'div'
   return (
-    <div className="grid grid-cols-[44px_1fr] items-center gap-x-3 gap-y-1 rounded-[18px] bg-panel px-4 py-3.5 shadow-card">
+    <Box
+      {...(onClick && { type: 'button', onClick, title: `Open ${to}` })}
+      className={
+        'grid grid-cols-[44px_1fr] items-center gap-x-3 gap-y-1 rounded-[18px] bg-panel px-4 py-3.5 text-left shadow-card' +
+        (onClick ? ' group cursor-pointer transition-[transform,box-shadow] duration-200 ease-out hover:-translate-y-0.5 hover:shadow-raised' : '')
+      }
+    >
       <span className={'row-span-2 grid size-11 place-items-center rounded-[14px] ' + ic}>
         <Icon name={icon} size={22} />
       </span>
       <span className="text-[13px] font-semibold text-muted">{label}</span>
       <span className="font-display text-[32px] leading-none font-bold tabular-nums">{value}</span>
-      <span className={'col-span-2 mt-1.5 border-t border-hair pt-2 text-[13px] ' + (tone === 'bad' ? 'font-semibold text-danger' : 'text-muted')}>{note}</span>
-    </div>
+      <span className={'col-span-2 mt-1.5 flex items-start gap-2 border-t border-hair pt-2 text-[13px] ' + (tone === 'bad' ? 'font-semibold text-danger' : 'text-muted')}>
+        <span className="min-w-0 flex-1">{note}</span>
+        {onClick && (
+          <span className="shrink-0 text-signal transition-transform duration-200 group-hover:translate-x-0.5" aria-hidden="true">
+            <Icon name="chevron" size={16} />
+          </span>
+        )}
+      </span>
+      {onClick && <span className="sr-only">. Open {to}</span>}
+    </Box>
   )
 }
 
@@ -146,11 +163,25 @@ function useTip() {
   return { show, hide: () => setTip(null), el }
 }
 
-function ChartCard({ title, sub, table, children }) {
+// `onOpen`: the card opens a section when clicked (except on its table toggle), with a button for keyboards.
+function ChartCard({ title, sub, table, onOpen, openLabel, children }) {
   return (
-    <div data-chart className="relative grid content-start gap-1.5 rounded-[20px] bg-panel px-5 pt-4 pb-3.5 shadow-card">
-      <div className="flex items-center gap-2.5">
+    <div
+      data-chart
+      onClick={onOpen ? (ev) => !ev.target.closest('details, button') && onOpen() : undefined}
+      className={
+        'relative grid content-start gap-1.5 rounded-[20px] bg-panel px-5 pt-4 pb-3.5 shadow-card' +
+        (onOpen ? ' cursor-pointer transition-[transform,box-shadow] duration-200 ease-out hover:-translate-y-0.5 hover:shadow-raised' : '')
+      }
+    >
+      <div className="flex flex-wrap items-center gap-2.5">
         <h3 className="font-display text-[20px] font-bold">{title}</h3>
+        {onOpen && (
+          <button type="button" onClick={onOpen} className={ui.btnGhost + ' min-h-9 px-2 text-[14px]'}>
+            {openLabel}
+            <Icon name="chevron" size={16} />
+          </button>
+        )}
         <span className="ml-auto inline-flex items-center gap-1.5 rounded-full bg-ok-soft px-2.5 py-0.5 text-[12px] font-bold text-ok">
           <i className="inline-block size-1.5 rounded-full bg-ok" />
           Live
@@ -167,7 +198,7 @@ function ChartCard({ title, sub, table, children }) {
 }
 
 // Average minutes per stage for trucks checked in today, against each stage's target window.
-function StageChart({ entries, now }) {
+function StageChart({ entries, now, onOpen }) {
   const tip = useTip()
   const today = dayKey(new Date(now))
   const visits = entries.filter((e) => e.dateIn === today)
@@ -205,6 +236,8 @@ function StageChart({ entries, now }) {
     <ChartCard
       title="Time per stage today"
       sub="Average minutes per truck checked in today · the shaded band is the target"
+      onOpen={onOpen}
+      openLabel="Daily report"
       table={
         <table className="mt-1.5 border-collapse">
           <thead>
@@ -291,7 +324,9 @@ function StageChart({ entries, now }) {
   )
 }
 
-export default function ShippingBoard({ entries, onAssignDock, onOrderReady, onUpdateEntry }) {
+// `onGo(section, tab, filters)` (Shipping page): the tiles, busy docks, Live yard stages and the stage chart
+// open the section where that work is shown.
+export default function ShippingBoard({ entries, onAssignDock, onOrderReady, onUpdateEntry, onGo }) {
   const [now, setNow] = useState(Date.now)
   // The ready truck whose dock is being picked.
   const [assigningId, setAssigningId] = useState(null)
@@ -333,6 +368,17 @@ export default function ShippingBoard({ entries, onAssignDock, onOrderReady, onU
   const over = onSite.map((e) => detentionState(e, now)).filter((d) => d?.level === 'over')
   const fee = over.reduce((s, d) => s + d.fee, 0)
 
+  const go = (section, tab, filters) => (onGo ? () => onGo(section, tab, filters) : undefined)
+  const dockTab = (e) => (['trailer', 'trailerFail', 'ready', 'loading'].includes(phaseOf(e)) ? 'loading' : 'inspection')
+  // Live yard stage → where it is shown.
+  const STAGE_GO = {
+    order: ['log', null, { status: 'Waiting for order' }],
+    wait: ['log', null, { status: 'Ready for a dock' }],
+    load: ['docks', 'loading'],
+    insp: ['docks', 'inspection'],
+    ready: ['docks', 'inspection'],
+  }
+
   const assign = (dock) => {
     onAssignDock(assigning.id, dock)
     setAssigningId(null)
@@ -354,7 +400,7 @@ export default function ShippingBoard({ entries, onAssignDock, onOrderReady, onU
   )
 
   return (
-    <div className="grid gap-6">
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-6">
       <EntryDialog
         entry={entries.find((x) => x.id === viewingId) ?? null}
         entries={entries}
@@ -367,7 +413,7 @@ export default function ShippingBoard({ entries, onAssignDock, onOrderReady, onU
       {/* What matters right now, in one line */}
       <div className="flex flex-wrap items-end gap-4">
         <div>
-          <h2 className="font-display text-[26px] leading-none font-bold">Shipping desk</h2>
+          <h2 className="font-display text-[26px] leading-none font-bold">Live Board</h2>
           <p className="mt-1.5 text-[15px] text-muted" aria-live="polite">
             {waitingOrder.length ? (
               <b className="text-ink">
@@ -401,7 +447,7 @@ export default function ShippingBoard({ entries, onAssignDock, onOrderReady, onU
         </span>
       </div>
 
-      <div className="grid grid-cols-2 gap-3.5 md:grid-cols-3 xl:grid-cols-6">
+      <div className="grid grid-cols-2 gap-3.5 md:grid-cols-3 2xl:grid-cols-6">
         <Kpi
           icon="waiting"
           label="Waiting for order"
@@ -416,6 +462,8 @@ export default function ShippingBoard({ entries, onAssignDock, onOrderReady, onU
                   : 'every order ready'
           }
           tone={lateOrder ? 'bad' : waitingOrder.length ? 'warn' : 'good'}
+          onClick={go('log', null, { status: 'Waiting for order' })}
+          to="the Entry log, trucks waiting for their order"
         />
         <Kpi
           icon="dock"
@@ -423,6 +471,8 @@ export default function ShippingBoard({ entries, onAssignDock, onOrderReady, onU
           value={readyForDock.length}
           note={lateDock ? `${lateDock} past ${STAGES.dock.max} min` : readyForDock.length ? 'none late yet' : `all docked${parked ? ` · ${parked} loaded in the yard` : ''}`}
           tone={lateDock ? 'bad' : readyForDock.length ? 'warn' : 'good'}
+          onClick={go('log', null, { status: 'Ready for a dock' })}
+          to="the Entry log, trucks ready for a dock"
         />
         <Kpi
           icon="dock"
@@ -435,14 +485,18 @@ export default function ShippingBoard({ entries, onAssignDock, onOrderReady, onU
           }
           note={free.length ? free.map((d) => `Dock ${d}`).join(' · ') : 'all in use'}
           tone={free.length ? 'good' : 'bad'}
+          onClick={go('docks', 'schedule')}
+          to="Docks, schedule and use"
         />
-        <Kpi icon="load" label="Loading now" value={loading} note={`${atDock.length} at the docks`} />
+        <Kpi icon="load" label="Loading now" value={loading} note={`${atDock.length} at the docks`} onClick={go('docks', 'loading')} to="Docks, loading" />
         <Kpi
           icon="inspected"
           label="Passed inspection"
           value={ready.length}
           note={lateRelease ? `${lateRelease} past the ${STAGES.checkout.max}-min checkout target` : ready.length ? `${toRelease} to release · ${released} at the gate` : 'none yet'}
           tone={lateRelease ? 'bad' : ready.length ? 'warn' : 'good'}
+          onClick={go('docks', 'inspection')}
+          to="Docks, inspection"
         />
         <Kpi
           icon="money"
@@ -450,14 +504,16 @@ export default function ShippingBoard({ entries, onAssignDock, onOrderReady, onU
           value={over.length}
           note={over.length ? `est. $${Math.round(fee)} so far` : 'no detention'}
           tone={over.length ? 'bad' : 'good'}
+          onClick={go('partners', 'detention')}
+          to="Partners, detention"
         />
       </div>
 
       {/* The live graphs, side by side under the numbers: the Live yard (the same as Loading & Inspection,
           view only here) and the time per stage today. They stack on narrower screens. */}
-      <div className="grid items-stretch gap-5 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
-        <LiveYardCard entries={entries} now={now} compact />
-        <StageChart entries={entries} now={now} />
+      <div className="grid items-stretch gap-5 2xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
+        <LiveYardCard entries={entries} now={now} compact onStage={onGo ? (key) => onGo(...STAGE_GO[key]) : undefined} />
+        <StageChart entries={entries} now={now} onOpen={go('report')} />
       </div>
 
       {/* Docks: free or busy, and how far along the truck is */}
@@ -476,8 +532,16 @@ export default function ShippingBoard({ entries, onAssignDock, onOrderReady, onU
             const e = occupied.get(dockKey(d))
             if (e) {
               const st = currentStage(e)
+              const Box = onGo ? 'button' : 'div'
               return (
-                <div key={d} className="grid min-h-[104px] content-start gap-1.5 rounded-2xl bg-gradient-to-br from-[var(--p-hero-2)] to-[var(--p-hero)] px-3.5 py-3 text-white shadow-card">
+                <Box
+                  key={d}
+                  {...(onGo && { type: 'button', onClick: () => onGo('docks', dockTab(e)), title: `Open Docks, ${dockTab(e)}` })}
+                  className={
+                    'grid min-h-[104px] content-start gap-1.5 rounded-2xl bg-gradient-to-br from-[var(--p-hero-2)] to-[var(--p-hero)] px-3.5 py-3 text-left text-white shadow-card' +
+                    (onGo ? ' on-chrome cursor-pointer transition-[transform,box-shadow] duration-200 ease-out hover:-translate-y-0.5 hover:shadow-raised' : '')
+                  }
+                >
                   <span className="flex items-center gap-2 font-display text-[18px] font-bold">
                     <i className="inline-block size-2.5 rounded-full bg-signal-bright" />
                     Dock {d}
@@ -489,7 +553,7 @@ export default function ShippingBoard({ entries, onAssignDock, onOrderReady, onU
                     {st?.recheck ? 'Re-check' : st ? STAGES[st.key].label : isReleased(e) ? 'Released to gate' : 'At the dock'}
                   </span>
                   <StepBars current={st?.key === 'checkout' || !st ? 'done' : st.key} dark />
-                </div>
+                </Box>
               )
             }
             return assigning ? (
@@ -519,7 +583,7 @@ export default function ShippingBoard({ entries, onAssignDock, onOrderReady, onU
       </section>
 
       {/* The work board, in the order trucks move */}
-      <div className="grid items-start gap-5 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid items-start gap-5 md:grid-cols-2 2xl:grid-cols-4">
         <Lane
           icon="waiting"
           badge="bg-warn text-warn-ink"
