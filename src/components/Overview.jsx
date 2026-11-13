@@ -5,7 +5,12 @@ import { DETENTION, DOCK_TARGET, G2G_TARGET, ON_TIME_WINDOW, STAGE_TARGETS } fro
 import { parseManualWeek, visitsInRange } from '../turnaround/visits'
 import { deepDive } from '../turnaround/deepDives'
 import { IMPACT_DIVES, STAFF_MINUTES, impactDive } from '../turnaround/impactDives'
+import { IMPACT_PLAIN, KPI_PLAIN, OVERVIEW_PLAIN } from '../turnaround/plainWords'
 import { dayKey, shiftDate } from '../time'
+
+// The two parts of the wait for a dock (turnaround/targets.js).
+const ORDER_WAIT = STAGE_TARGETS.find((s) => s.key === 'orderWait')
+const ASSIGN = STAGE_TARGETS.find((s) => s.key === 'dockAssign')
 
 // The truck turnaround Overview (design/turnaround-kit): a hero with the week's takeaway, six KPI cards
 // that open detail views, the impact of going digital (manual week vs digital week), where the time
@@ -77,10 +82,11 @@ const KPIS = [
     truck: (v) => v.g2g_min,
     fmt: (v) => F().min(v),
     unit: 'min average',
+    desc: 'How long a truck stays with us, from check-in at the gate to check-out.',
     band: [G2G_TARGET.min, G2G_TARGET.max],
     bad: (v) => v > G2G_TARGET.max,
     target: `Target ${G2G_TARGET.min}–${G2G_TARGET.max} min`,
-    about: `Minutes from gate check-in to gate checkout: check-in, dock assignment, pre-loading, loading or unloading, inspection and checkout. Target ${G2G_TARGET.min}–${G2G_TARGET.max} min.`,
+    about: `Minutes from gate check-in to gate checkout: check-in, waiting for the order, dock assignment, pre-loading, loading, inspection and checkout. Target ${G2G_TARGET.min}–${G2G_TARGET.max} min.`,
     table: 'Slowest gate-to-gate first.',
     sort: (a, b) => b.g2g_min - a.g2g_min,
     icon: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>,
@@ -94,10 +100,11 @@ const KPIS = [
     truck: (v) => v.dock_min,
     fmt: (v) => F().min(v),
     unit: 'min average',
+    desc: 'Time parked at the dock door: getting the trailer ready, loading, and inspection.',
     band: [DOCK_TARGET.min, DOCK_TARGET.max],
     bad: (v) => v > DOCK_TARGET.max,
     target: `Target ${DOCK_TARGET.min}–${DOCK_TARGET.max} min`,
-    about: `Minutes the truck spends at the door: pre-loading, loading or unloading, and inspection. Target ${DOCK_TARGET.min}–${DOCK_TARGET.max} min.`,
+    about: `Minutes the truck spends at the door: pre-loading, loading and inspection. Target ${DOCK_TARGET.min}–${DOCK_TARGET.max} min.`,
     table: 'Longest time at the door first.',
     sort: (a, b) => b.dock_min - a.dock_min,
     icon: <><path d="M3 21V9l9-5 9 5v12" /><path d="M7 21v-8h10v8" /><path d="M7 17h10" /></>,
@@ -112,6 +119,7 @@ const KPIS = [
     fmt: (v) => F().pct(v),
     truckFmt: (v) => `${v > 0 ? '+' : ''}${F().min(v)} min`,
     unit: 'of trucks',
+    desc: `Trucks that showed up within ${ON_TIME_WINDOW} minutes of their booked time.`,
     bad: () => false,
     target: `On time = within ±${ON_TIME_WINDOW} min of the appointment`,
     about: `Arrival time compared with the appointment time. On time = within ±${ON_TIME_WINDOW} min.`,
@@ -129,9 +137,10 @@ const KPIS = [
     fmt: (v) => F().int(v),
     truckFmt: (v) => `${v > 0 ? '+' : ''}${F().min(v)} min`,
     unit: 'trucks',
+    desc: 'Every truck that checked in at the gate. Shows how busy we were.',
     bad: () => false,
-    target: 'Deliveries, pickups and drop trailers',
-    about: 'Every truck checked in at the gate shack: deliveries (unloading), pickups (loading) and drop trailers.',
+    target: (s) => `${F().int(s.pickup)} pickups · ${F().int(s.drop)} drop trailers`,
+    about: 'Every truck checked in at the gate shack: pickups (the driver waits while it loads) and drop trailers (left to be loaded and hooked later).',
     table: 'In arrival order.',
     sort: (a, b) => (a.day + a.arrived < b.day + b.arrived ? -1 : 1),
     icon: <><path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2" /><path d="M15 18H9" /><path d="M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.624l-3.48-4.35A1 1 0 0 0 17.52 8H14" /><circle cx="17" cy="18" r="2" /><circle cx="7" cy="18" r="2" /></>,
@@ -146,6 +155,7 @@ const KPIS = [
     fmt: (v) => F().pct(v),
     truckFmt: (v) => `${F().min(v)} min`,
     unit: 'of trucks',
+    desc: `Out of every truck, how many were done in ${G2G_TARGET.max} minutes or less.`,
     bad: () => false,
     target: `Gate to gate ≤ ${G2G_TARGET.max} min`,
     about: `Share of trucks whose gate-to-gate time stayed at or under ${G2G_TARGET.max} min.`,
@@ -162,8 +172,13 @@ const KPIS = [
     truck: (v) => v.detention_usd,
     fmt: (v) => F().usd(v),
     unit: 'in this range',
+    desc: `Money carriers could charge us for keeping their trucks over ${DETENTION.freeMin / 60} hours.`,
     bad: (v) => v > 0,
-    target: `${DETENTION.freeMin / 60} h free time, then $${DETENTION.ratePerHour}/h`,
+    // How much of it sat on trucks whose order took longer than its target to be ready.
+    target: (s, visits) => {
+      const late = visits.filter((v) => v.detention_usd > 0 && v.order_wait_min > ORDER_WAIT.max).reduce((n, v) => n + v.detention_usd, 0)
+      return `${DETENTION.freeMin / 60} h free time, then $${DETENTION.ratePerHour}/h${late ? ` · ${F().usd(late)} of it on trucks whose order was late` : ''}`
+    },
     about: `Estimate of what carriers could bill when we hold their trucks: the clock starts at the later of appointment and arrival, ${DETENTION.freeMin / 60} h free, then $${DETENTION.ratePerHour}/h. Trucks more than ${DETENTION.lateGraceMin} min late aren't charged.`,
     table: 'Largest estimated charge first.',
     sort: (a, b) => b.detention_usd - a.detention_usd,
@@ -171,7 +186,7 @@ const KPIS = [
   },
 ]
 
-function KpiCard({ k, all, days, onOpen }) {
+function KpiCard({ k, all, visits, days, onOpen }) {
   const v = k.group(all)
   const isBad = k.bad(v)
   const pill =
@@ -196,13 +211,14 @@ function KpiCard({ k, all, days, onOpen }) {
         </span>
         <span className="tt-card-label">{k.label}</span>
       </span>
+      <span className="tt-note">{k.desc}</span>
       <span className="tt-big">
         <b className={isBad ? 'is-bad' : undefined}>{Number.isFinite(v) ? k.fmt(v) : '—'}</b>
         <span className="tt-unit">{k.unit}</span>
       </span>
       <span className="tt-meta">
         {pill && <span className={`tt-pill ${pill[0]}`}>{pill[1]}</span>}
-        <span className="tt-note">{k.target}</span>
+        <span className="tt-note">{typeof k.target === 'function' ? k.target(all, visits) : k.target}</span>
       </span>
       <Spark rows={days} value={k.group} color={TT.C[{ 'navy-2': 'navy2' }[k.accent] ?? k.accent]} id={k.id} isBad={(r) => k.bad(k.group(r))} />
       <span className="tt-more">See details →</span>
@@ -210,11 +226,12 @@ function KpiCard({ k, all, days, onOpen }) {
   )
 }
 
-// An "Impact of going digital" tile; opens its deep dive, like the KPI cards.
-function ImpactTile({ id, label, hot, onOpen, children }) {
+// An "Impact of going digital" tile, with a one-line plain description; opens its deep dive, like the KPI cards.
+function ImpactTile({ id, label, desc, hot, onOpen, children }) {
   return (
     <button type="button" className={'tt-itile' + (hot ? ' hot' : '')} onClick={() => onOpen(id)}>
       <span className="tt-itile-label">{label}</span>
+      {desc && <span className="tt-note">{desc}</span>}
       {children}
       <span className="tt-more">See details →</span>
     </button>
@@ -242,10 +259,12 @@ function Section({ eyebrow, title, children }) {
   )
 }
 
-function Panel({ title, note, legend, wide, warm, children }) {
+// `plain`: how to read the chart in plain words (turnaround/plainWords.js), right under the title.
+function Panel({ title, note, plain, legend, wide, warm, children }) {
   return (
     <div className={'tt-panel' + (wide ? ' tt-wide' : '') + (warm ? ' warm' : '')}>
       <h3>{title}</h3>
+      {plain && <p className="tt-plain">{plain}</p>}
       {note && <p className="tt-note">{note}</p>}
       {legend && <div className="tt-legend">{legend}</div>}
       {children}
@@ -269,6 +288,7 @@ function Detail({ id, setId, data, rangeText }) {
   const trucks = [...src.visits].sort(k.sort)
   const tfmt = k.truckFmt ?? k.fmt
   const panels = deepDive(id, { visits: src.visits, summary: src.summary, labels: { day: dayLabel, longDay: longDate, hour: hourLabel } })
+  const plain = KPI_PLAIN[id]
   return (
     <div className="tt">
       <div className="tt-top" style={{ '--accent': `var(--p-${k.accent})` }}>
@@ -293,13 +313,14 @@ function Detail({ id, setId, data, rangeText }) {
           <span className="tt-unit">{k.unit}</span>
         </span>
       </header>
+      {plain?.intro && <p className="tt-intro">{plain.intro}</p>}
       <div className="tt-grid dive-grid" style={{ '--accent': `var(--p-${k.accent})` }}>
         {panels.map((p) => (
-          <Panel key={id + p.key} title={p.title} note={p.note} wide={p.wide} legend={p.legend.map(([name, c]) => <Key key={name} color={c}>{name}</Key>)}>
+          <Panel key={id + p.key} title={p.title} note={p.note} plain={plain?.panels[p.key]} wide={p.wide} legend={p.legend.map(([name, c]) => <Key key={name} color={c}>{name}</Key>)}>
             <Chart label={p.title} deps={[id, src]} draw={p.draw} />
           </Panel>
         ))}
-        <Panel title="Trucks behind this number" note={k.table} wide>
+        <Panel title="Trucks behind this number" note={k.table} plain={plain?.table} wide>
           <div className="tt-tablebox">
             <table>
               <thead>
@@ -348,6 +369,7 @@ function ImpactDetail({ id, setId, data, staff, setStaff }) {
   const ctx = data.impactCtx
   const sampleNote = [data.manualSample && 'the manual week is the kit’s sample until you import your paper-log week', data.sample && 'the digital week is sample data until real visits are fully timed'].filter(Boolean)
   const legendOf = (p) => p.legend && p.legend.map(([name, c]) => <Key key={name} color={c}>{name}</Key>)
+  const plain = IMPACT_PLAIN[id]
   const minBox = (key, label) => (
     <label className="imp-assume">
       {label}
@@ -388,6 +410,7 @@ function ImpactDetail({ id, setId, data, staff, setStaff }) {
           <span className="tt-unit">{d.unit}</span>
         </span>
       </header>
+      {plain?.intro && <p className="tt-intro">{plain.intro}</p>}
       {d.take && <p className="imp-take">{d.take}</p>}
       <div className="tt-grid dive-grid" style={{ '--accent': `var(--p-${k.accent})` }}>
         <div className="imp-stats">
@@ -401,7 +424,7 @@ function ImpactDetail({ id, setId, data, staff, setStaff }) {
         </div>
         {d.panels.map((p) =>
           p.kind === 'swap' ? (
-            <Panel key={id + p.key} title={p.title} note={p.note} wide>
+            <Panel key={id + p.key} title={p.title} note={p.note} plain={plain?.panels[p.key]} wide>
               <div className="tt-tablebox">
                 <table className="imp-swap">
                   <thead>
@@ -422,7 +445,7 @@ function ImpactDetail({ id, setId, data, staff, setStaff }) {
               </div>
             </Panel>
           ) : p.kind === 'staff' ? (
-            <Panel key={id + p.key} title={p.title} note={p.note} wide>
+            <Panel key={id + p.key} title={p.title} note={p.note} plain={plain?.panels[p.key]} wide>
               <div className="imp-assumes">
                 {minBox('call', 'Each phone call')}
                 {minBox('paper', 'Each paper handoff')}
@@ -434,7 +457,7 @@ function ImpactDetail({ id, setId, data, staff, setStaff }) {
               </div>
             </Panel>
           ) : (
-            <Panel key={id + p.key} title={p.title} note={p.note} wide={p.wide} legend={legendOf(p)}>
+            <Panel key={id + p.key} title={p.title} note={p.note} plain={plain?.panels[p.key]} wide={p.wide} legend={legendOf(p)}>
               <Chart label={p.title} deps={[id, ctx]} draw={p.draw} />
             </Panel>
           ),
@@ -592,6 +615,17 @@ export default function Overview({ entries, sampleCount, onLoadSample, onRemoveS
   const firstDay = daysCount[0]?.group
   const lastDay = daysCount[daysCount.length - 1]?.group
   const stageColor = (i) => TT.C.stages[i]
+  // The wait for a dock in two parts: is it the order (the plant) or the docks?
+  const waitTotal = (all.avg_order_wait ?? 0) + (all.avg_assign ?? 0)
+  const orderShare = waitTotal ? all.avg_order_wait / waitTotal : 0
+  const worstWaitDay = [...daysTimed].sort((a, b) => b.avg_order_wait - a.avg_order_wait)[0]
+  const dockWaitTake = !waitTotal
+    ? 'No waits for a dock in this range.'
+    : `Trucks waited ${F().min1(all.avg_order_wait)} min on average for their order (target ≤ ${ORDER_WAIT.max}) and ${F().min1(all.avg_assign)} min for a dock after that (target ${ASSIGN.min}–${ASSIGN.max}). ` +
+      (orderShare >= 0.5
+        ? `About ${Math.round(orderShare * 100)}% of the wait is orders that were not ready, not a shortage of docks.`
+        : `Most of the wait (${Math.round((1 - orderShare) * 100)}%) came after the order was ready: docks were full or not assigned quickly.`) +
+      (worstWaitDay?.avg_order_wait ? ` The longest order waits were on ${longDate(worstWaitDay.group)}.` : '')
 
   // One sentence: minutes saved, detention avoided, trucks over the limit, slowest stage, slowest day.
   const take = [
@@ -615,7 +649,7 @@ export default function Overview({ entries, sampleCount, onLoadSample, onRemoveS
         <h1>Truck turnaround overview</h1>
         <p className="tt-hero-sub">
           {firstDay && lastDay ? `${longDate(firstDay)} – ${longDate(lastDay)}` : rangeText} · every truck measured from gate check-in to gate checkout, against its appointment
-          {!data.sample && ` · ${data.fullyTimed} of ${data.checkedIn} trucks fully timed${data.drops ? ` (${data.drops} drop trailer${data.drops === 1 ? '' : 's'} have no dock stages)` : ''}`}
+          {!data.sample && ` · ${data.fullyTimed} of ${data.checkedIn} trucks fully timed${data.drops ? ` (${data.drops} drop trailer${data.drops === 1 ? '' : 's'} not timed: no driver waits with them)` : ''}`}
         </p>
         {data.sample && <p className="tt-hero-sub" style={{ color: 'var(--p-yolk)', fontWeight: 500 }}>● Sample data: no fully timed visits in this range yet. Real numbers appear as trucks go through every step.</p>}
         <p className="tt-take">{take}</p>
@@ -623,7 +657,7 @@ export default function Overview({ entries, sampleCount, onLoadSample, onRemoveS
 
       <div className="tt-cards">
         {KPIS.map((k) => (
-          <KpiCard key={k.id} k={k} all={k.src === 'timed' ? all : allCount} days={(k.src === 'timed' ? daysTimed : daysCount).slice(-7)} onOpen={setDetail} />
+          <KpiCard key={k.id} k={k} all={k.src === 'timed' ? all : allCount} visits={(k.src === 'timed' ? timed : count).visits} days={(k.src === 'timed' ? daysTimed : daysCount).slice(-7)} onOpen={setDetail} />
         ))}
       </div>
 
@@ -642,7 +676,7 @@ export default function Overview({ entries, sampleCount, onLoadSample, onRemoveS
         ) : (
           <>
             <div className="tt-itiles">
-              <ImpactTile id="g2g" onOpen={setImpactDetail} label="Faster per truck">
+              <ImpactTile id="g2g" onOpen={setImpactDetail} desc="Minutes each truck saves now, compared with the paper week." label="Faster per truck">
                 <span className="tt-ibig">
                   <b>{F().min(imp.g2g.saved)}</b>
                   <span className="tt-unit">min saved</span>
@@ -651,13 +685,13 @@ export default function Overview({ entries, sampleCount, onLoadSample, onRemoveS
                   {F().min(imp.g2g.before)} → {F().min(imp.g2g.after)} min gate to gate ({F().spct(imp.g2g.change_pct)})
                 </span>
               </ImpactTile>
-              <ImpactTile id="detention" onOpen={setImpactDetail} label="Detention avoided this week" hot>
+              <ImpactTile id="detention" onOpen={setImpactDetail} desc="Money we no longer pay carriers for keeping trucks too long." label="Detention avoided this week" hot>
                 <span className="tt-ibig">
                   <b>{F().usd(imp.detention.saved)}</b>
                 </span>
                 <span className="tt-note">About {F().usd(imp.detention_year.saved)} a year at this pace</span>
               </ImpactTile>
-              <ImpactTile id="dock_wait" onOpen={setImpactDetail} label="Shorter wait for a dock">
+              <ImpactTile id="dock_wait" onOpen={setImpactDetail} desc="How much sooner a truck is told which dock to go to." label="Shorter wait for a dock">
                 <span className="tt-ibig">
                   <b>{F().min(imp.dock_wait.saved)}</b>
                   <span className="tt-unit">min saved</span>
@@ -666,13 +700,13 @@ export default function Overview({ entries, sampleCount, onLoadSample, onRemoveS
                   {F().min(imp.dock_wait.before)} → {F().min(imp.dock_wait.after)} min per truck
                 </span>
               </ImpactTile>
-              <ImpactTile id="within" onOpen={setImpactDetail} label="Trucks within target">
+              <ImpactTile id="within" onOpen={setImpactDetail} desc="Trucks done in time now, compared with the paper week." label="Trucks within target">
                 <span className="tt-ibig">
                   <b>{F().pct(imp.within.after)}</b>
                 </span>
                 <span className="tt-note">Up from {F().pct(imp.within.before)}</span>
               </ImpactTile>
-              <ImpactTile id="phone" onOpen={setImpactDetail} label="Phone calls no longer needed">
+              <ImpactTile id="phone" onOpen={setImpactDetail} desc="Calls and paper runs the shared screen replaced." label="Phone calls no longer needed">
                 <span className="tt-ibig">
                   <b>{F().int(imp.phone_calls.saved)}</b>
                   <span className="tt-unit">calls</span>
@@ -681,7 +715,7 @@ export default function Overview({ entries, sampleCount, onLoadSample, onRemoveS
                   plus {F().int(imp.paper_handoffs.saved)} paper handoffs and {F().min(imp.yard_search.saved)} h searching the yard
                 </span>
               </ImpactTile>
-              <ImpactTile id="hours" onOpen={setImpactDetail} label="Truck hours freed up">
+              <ImpactTile id="hours" onOpen={setImpactDetail} desc="Total time trucks spent here, compared with the paper week." label="Truck hours freed up">
                 <span className="tt-ibig">
                   <b>{F().min(imp.truck_hours.saved)}</b>
                   <span className="tt-unit">hours</span>
@@ -693,7 +727,7 @@ export default function Overview({ entries, sampleCount, onLoadSample, onRemoveS
             </div>
             <div className="tt-grid">
               <Panel
-                title="Every stage, manual vs digital"
+                title="Every stage, manual vs digital" plain={OVERVIEW_PLAIN.impactStages}
                 note="Average minutes per truck. The biggest gains are in the handoffs: check-in, waiting for a dock, finding the truck before loading, and paperwork at inspection and checkout."
                 legend={
                   <>
@@ -711,7 +745,7 @@ export default function Overview({ entries, sampleCount, onLoadSample, onRemoveS
                 />
               </Panel>
               <Panel
-                title="Gate to gate by weekday"
+                title="Gate to gate by weekday" plain={OVERVIEW_PLAIN.impactWeekday}
                 note={`Average minutes per truck. Red dashed line = the ${G2G_TARGET.max}-minute maximum.`}
                 legend={
                   <>
@@ -738,7 +772,7 @@ export default function Overview({ entries, sampleCount, onLoadSample, onRemoveS
                 />
               </Panel>
               <Panel
-                title="Detention by weekday"
+                title="Detention by weekday" plain={OVERVIEW_PLAIN.impactDetention}
                 note="Estimated carrier charges, $ per day."
                 legend={
                   <>
@@ -772,17 +806,50 @@ export default function Overview({ entries, sampleCount, onLoadSample, onRemoveS
       <Section eyebrow="Process" title="Where the time goes">
         {data.sample && <SampleTag>no fully timed visits in this range yet.</SampleTag>}
         <Panel
-          title="Average minutes per stage, by day"
+          title="Why trucks wait for a dock" plain={OVERVIEW_PLAIN.dockWait}
+          note={`Average minutes from check-in to a dock, per day, split by cause. Targets: order ready within ${ORDER_WAIT.max} min, then a dock within ${ASSIGN.min}–${ASSIGN.max} min.`}
+          legend={
+            <>
+              <Key color="var(--chart-muted)">Waiting for order (plant)</Key>
+              <Key color="var(--p-navy)">Order ready, waiting for a dock</Key>
+            </>
+          }
+          wide
+        >
+          <p className="tt-note" style={{ marginBottom: 8 }}>
+            <b>{dockWaitTake}</b>
+          </p>
+          <Chart
+            label="Why trucks wait for a dock, by day"
+            deps={[daysTimed]}
+            draw={(el) =>
+              TT.stackBars(el, {
+                rows: daysTimed,
+                key: (r) => r.group,
+                label: dayLabel,
+                fmt: F().min,
+                series: [
+                  { field: 'avg_order_wait', name: 'Waiting for order', color: 'var(--chart-muted)' },
+                  { field: 'avg_assign', name: 'Waiting for a dock', color: TT.C.navy },
+                ],
+                tipHead: (r) => `${longDate(r.group)} · ${r.trucks} trucks`,
+              })
+            }
+          />
+        </Panel>
+        <Panel
+          title="Average minutes per stage, by day" plain={OVERVIEW_PLAIN.stagesByDay}
           note={`Each bar is one day's average truck, stacked in the order a truck moves through the plant. The red dashed line is the gate-to-gate maximum.`}
           legend={
             <>
               <span className="grp">Gate &amp; yard</span>
               <Key color="var(--p-sky)">Gate check-in</Key>
+              <Key color="var(--chart-muted)">Waiting for order</Key>
               <Key color="var(--p-navy)">Dock assignment</Key>
               <Key color="var(--p-navy-2)">Gate checkout</Key>
               <span className="grp">At the door</span>
               <Key color="var(--p-gold-1)">Pre-loading</Key>
-              <Key color="var(--p-yolk)">Loading / unloading</Key>
+              <Key color="var(--p-yolk)">Loading</Key>
               <Key color="var(--p-amber)">Inspection</Key>
             </>
           }
@@ -799,13 +866,13 @@ export default function Overview({ entries, sampleCount, onLoadSample, onRemoveS
                 fmt: F().min,
                 ref: G2G_TARGET.max,
                 refLabel: `Max ${G2G_TARGET.max} min`,
-                series: ['avg_gate_in', 'avg_assign', 'avg_preload', 'avg_load', 'avg_inspection', 'avg_checkout'].map((field, i) => ({ field, name: STAGE_TARGETS[i].label, color: stageColor(i) })),
+                series: ['avg_gate_in', 'avg_order_wait', 'avg_assign', 'avg_preload', 'avg_load', 'avg_inspection', 'avg_checkout'].map((field, i) => ({ field, name: STAGE_TARGETS[i].label, color: stageColor(i) })),
                 tipHead: (r) => `${longDate(r.group)} · ${r.trucks} trucks`,
               })
             }
           />
         </Panel>
-        <Panel title="Each stage against its target" note="Bar = average minutes in this range. Green band = target range. Values in red are past the top of the range." warm>
+        <Panel title="Each stage against its target" plain={OVERVIEW_PLAIN.stageTargets} note="Bar = average minutes in this range. Green band = target range. Values in red are past the top of the range." warm>
           <Chart
             label="Each stage against its target"
             deps={[stages]}
@@ -830,10 +897,9 @@ export default function Overview({ entries, sampleCount, onLoadSample, onRemoveS
       <Section eyebrow="Gate" title="Arrivals and volume">
         {data.sample && <SampleTag>no visits in this range yet.</SampleTag>}
         <Panel
-          title="Trucks per day by visit type"
+          title="Trucks per day by visit type" plain={OVERVIEW_PLAIN.typesPerDay}
           legend={
             <>
-              <Key color="var(--p-navy)">Delivery</Key>
               <Key color="var(--p-yolk)">Pickup</Key>
               <Key color="var(--p-teal)">Drop trailer</Key>
             </>
@@ -850,9 +916,8 @@ export default function Overview({ entries, sampleCount, onLoadSample, onRemoveS
                 label: dayLabel,
                 fmt: F().int,
                 series: [
-                  { field: 'delivery', name: 'Delivery', color: TT.C.types[0] },
-                  { field: 'pickup', name: 'Pickup', color: TT.C.types[1] },
-                  { field: 'drop', name: 'Drop trailer', color: TT.C.types[2] },
+                  { field: 'pickup', name: 'Pickup', color: TT.C.types[0] },
+                  { field: 'drop', name: 'Drop trailer', color: TT.C.types[1] },
                 ],
                 tipHead: (r) => `${longDate(r.group)} · ${r.trucks} trucks`,
               })
@@ -860,7 +925,7 @@ export default function Overview({ entries, sampleCount, onLoadSample, onRemoveS
           />
         </Panel>
         <Panel
-          title="Arrival vs appointment"
+          title="Arrival vs appointment" plain={OVERVIEW_PLAIN.arrivalDonut}
           legend={
             <>
               <Key color="var(--p-teal)">Early</Key>
@@ -885,7 +950,7 @@ export default function Overview({ entries, sampleCount, onLoadSample, onRemoveS
             }
           />
         </Panel>
-        <Panel title="Arrivals by appointment hour" note={`Bar = trucks per hour, coloured by their average gate to gate (red = over ${G2G_TARGET.max} min).`}>
+        <Panel title="Arrivals by appointment hour" plain={OVERVIEW_PLAIN.apptHour} note={`Bar = trucks per hour, coloured by their average gate to gate (red = over ${G2G_TARGET.max} min).`}>
           <Chart
             label="Arrivals by appointment hour"
             deps={[count, timed]}
@@ -904,7 +969,7 @@ export default function Overview({ entries, sampleCount, onLoadSample, onRemoveS
             }}
           />
         </Panel>
-        <Panel title="Does arriving late slow the whole visit?" note={`One dot per truck. Green band = on time. Above the red line = over the gate-to-gate maximum.`} wide>
+        <Panel title="Does arriving late slow the whole visit?" plain={OVERVIEW_PLAIN.lateScatter} note={`One dot per truck. Green band = on time. Above the red line = over the gate-to-gate maximum.`} wide>
           <Chart
             label="Minutes vs appointment against gate to gate"
             deps={[timed]}

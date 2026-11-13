@@ -16,8 +16,13 @@ const MD = [['Manual week', MAN], ['Digital week', DIG]]
 const WD = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 const wd = (day) => ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][new Date(`${day}T00:00`).getDay()]
 const HOURS = d3.range(5, 20)
-const SHORT = { gate_in_min: 'Check-in', dock_assign_min: 'Dock wait', preload_min: 'Pre-load', load_min: 'Loading', inspection_min: 'Inspection', checkout_min: 'Checkout' }
-const TYPES = ['Delivery', 'Pickup', 'Drop trailer']
+const SHORT = { gate_in_min: 'Check-in', dock_wait_min: 'Dock wait', order_wait_min: 'Order wait', dock_assign_min: 'Dock assign', preload_min: 'Pre-load', load_min: 'Loading', inspection_min: 'Inspection', checkout_min: 'Checkout' }
+const TYPES = ['Pickup', 'Drop trailer']
+// The manual week has no "Order ready" time, so manual vs digital compares the whole wait for a dock (waiting
+// for the order + dock assignment) as one stage; its target is the two added up.
+const T = Object.fromEntries(STAGE_TARGETS.map((s) => [s.key, s]))
+const DOCK_WAIT = { key: 'dockWait', field: 'dock_wait_min', label: 'Waiting for order and dock', min: T.orderWait.min + T.dockAssign.min, max: T.orderWait.max + T.dockAssign.max }
+const IMPACT_STAGES = STAGE_TARGETS.filter((s) => s.key !== 'orderWait').map((s) => (s.key === 'dockAssign' ? DOCK_WAIT : s))
 const FULL_TIME_HOURS = 2080
 
 // The tiles, in the order they sit on the Overview.
@@ -255,7 +260,7 @@ export function impactDive(id, { man, dig, imp, staff }) {
   }
 
   if (id === 'g2g') {
-    const steps = STAGE_TARGETS.map((s) => {
+    const steps = IMPACT_STAGES.map((s) => {
       const value = avg(man, s.field) - avg(dig, s.field)
       return { name: SHORT[s.field], long: s.label, value, color: value >= 0 ? SAVED : BAD }
     })
@@ -329,12 +334,12 @@ export function impactDive(id, { man, dig, imp, staff }) {
   }
 
   if (id === 'dock_wait') {
-    const max = STAGE_TARGETS.find((s) => s.field === 'dock_assign_min')
-    const byHour = pair(HOURS, (v) => v.hour, (vs) => avg(vs, 'dock_assign_min'))
+    const max = DOCK_WAIT
+    const byHour = pair(HOURS, (v) => v.hour, (vs) => avg(vs, 'dock_wait_min'))
     const busy = pair(HOURS, (v) => v.hour, (vs) => vs.length).sort((a, b) => (b.m ?? 0) + (b.d ?? 0) - ((a.m ?? 0) + (a.d ?? 0)))[0]
     const busyRow = byHour.find((r) => r.k === busy?.k)
-    const wMan = within(man, 'dock_assign_min', max.max) ?? 0
-    const wDig = within(dig, 'dock_assign_min', max.max) ?? 0
+    const wMan = within(man, 'dock_wait_min', max.max) ?? 0
+    const wDig = within(dig, 'dock_wait_min', max.max) ?? 0
     const parts = (w, n) => [
       { name: `Within ${max.max} min`, value: Math.round(w * n), color: DIG },
       { name: 'Longer', value: n - Math.round(w * n), color: 'var(--chart-muted)' },
@@ -350,18 +355,18 @@ export function impactDive(id, { man, dig, imp, staff }) {
       stats: [
         ['Average wait', `${F.min(imp.dock_wait.before)} → ${F.min(imp.dock_wait.after)} min`, 'manual → digital', true],
         [`Within ${max.max} min`, `${F.pct(wMan)} → ${F.pct(wDig)}`, 'of trucks', true],
-        ['Longest wait', `${F.min(d3.max(man, (v) => v.dock_assign_min) ?? 0)} → ${F.min(d3.max(dig, (v) => v.dock_assign_min) ?? 0)} min`, 'single truck'],
+        ['Longest wait', `${F.min(d3.max(man, (v) => v.dock_wait_min) ?? 0)} → ${F.min(d3.max(dig, (v) => v.dock_wait_min) ?? 0)} min`, 'single truck'],
         ['Waiting saved', `${F.min((imp.dock_wait.saved * nD) / 60)} h`, 'over the digital week', true],
       ],
       panels: [
         { key: 'hour', title: 'Wait for a dock, by arrival hour', note: `Average minutes from check-in to dock assigned. Green band = the ${max.min}–${max.max} min target; the shaded gap is the time saved.`, legend: MD, wide: true,
           draw: (el) => lines(el, { keys: HOURS, label: hourLabel, fmt: F.min, band: [max.min, max.max], gap: DIG, series: series(byHour) }) },
         { key: 'bands', title: 'How long trucks waited', note: 'Trucks per 15-minute band.', legend: MD,
-          draw: (el) => grouped(el, bins([0, 15, 30, 45, 60, 75], 'dock_assign_min'), F.int) },
+          draw: (el) => grouped(el, bins([0, 15, 30, 45, 60, 75], 'dock_wait_min'), F.int) },
         { key: 'share', title: `Given a dock within ${max.max} minutes`, note: 'Share of trucks given a dock inside the target.', legend: [[`Within ${max.max} min`, DIG], ['Longer', 'var(--chart-muted)']],
           draw: (el) => twinDonut(el, { m: parts(wMan, man.length), d: parts(wDig, nD), centerLabel: 'within' }) },
         { key: 'weekday', title: 'By weekday', note: 'Average minutes waiting for a dock.', legend: MD, wide: true,
-          draw: (el) => dumbbell(el, { rows: pair(WD, (v) => wd(v.day), (vs) => avg(vs, 'dock_assign_min')), fmt: minFmt }) },
+          draw: (el) => dumbbell(el, { rows: pair(WD, (v) => wd(v.day), (vs) => avg(vs, 'dock_wait_min')), fmt: minFmt }) },
       ],
     }
   }
@@ -370,7 +375,7 @@ export function impactDive(id, { man, dig, imp, staff }) {
     const max = G2G_TARGET.max
     const om = man.filter((v) => v.g2g_min > max)
     const od = dig.filter((v) => v.g2g_min > max)
-    const stageRows = STAGE_TARGETS.map((s) => ({ k: s.label, m: within(man, s.field, s.max), d: within(dig, s.field, s.max) }))
+    const stageRows = IMPACT_STAGES.map((s) => ({ k: s.label, m: within(man, s.field, s.max), d: within(dig, s.field, s.max) }))
     const best = [...both(stageRows)].sort((a, b) => b.d - b.m - (a.d - a.m))[0]
     const daily = pair(WD, (v) => wd(v.day), (vs) => within(vs))
     const ob = (vs, lo, hi) => vs.filter((v) => v.g2g_min - max > lo && v.g2g_min - max <= hi).length
@@ -391,7 +396,7 @@ export function impactDive(id, { man, dig, imp, staff }) {
       panels: [
         { key: 'daily', title: 'Within target, day by day', note: `Share of each weekday’s trucks at or under ${max} min. The shaded gap is the gain.`, legend: MD, wide: true,
           draw: (el) => lines(el, { keys: WD, fmt: (v) => F.pct(v).replace('.0%', '%'), max: 1, gap: DIG, series: series(daily) }) },
-        { key: 'stages', title: 'Every stage against its own target', note: `Share of trucks inside each stage’s maximum (${STAGE_TARGETS.map((s) => `${SHORT[s.field].toLowerCase()} ${s.max}`).join(', ')} min).`, legend: MD,
+        { key: 'stages', title: 'Every stage against its own target', note: `Share of trucks inside each stage’s maximum (${IMPACT_STAGES.map((s) => `${SHORT[s.field].toLowerCase()} ${s.max}`).join(', ')} min).`, legend: MD,
           draw: (el) => dumbbell(el, { rows: stageRows, fmt: F.pct, higherIsBetter: true, delta: pts }) },
         { key: 'type', title: 'By visit type', note: `Share within ${max} min, manual → digital.`, legend: MD,
           draw: (el) => dumbbell(el, { rows: pair(TYPES, (v) => v.visit_type, (vs) => within(vs)), fmt: F.pct, higherIsBetter: true, delta: pts }) },
@@ -455,7 +460,7 @@ export function impactDive(id, { man, dig, imp, staff }) {
   }
 
   // Truck hours freed up
-  const stageHours = STAGE_TARGETS.map((s) => ({ k: s.label, v: ((avg(man, s.field) - avg(dig, s.field)) * nD) / 60 }))
+  const stageHours = IMPACT_STAGES.map((s) => ({ k: s.label, v: ((avg(man, s.field) - avg(dig, s.field)) * nD) / 60 }))
   const docks = [...new Set(man.concat(dig).map((v) => v.door).filter((d) => d != null))].sort((a, b) => a - b)
   const dockSaved = (sum(man, 'dock_min') - sum(dig, 'dock_min')) / 60
   const avgDock = avg(dig, 'dock_min')

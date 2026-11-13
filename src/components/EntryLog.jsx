@@ -3,11 +3,18 @@ import { flushSync } from 'react-dom'
 import * as ui from '../ui'
 import { LOG_COLUMNS, exportToExcel } from '../logColumns'
 import AssignDock, { occupiedDocks } from './AssignDock'
-import { dayKey } from '../time'
+import { LATE_GRACE_MIN, arrivalMs, clockTime, dayKey, departureMs, duration, minutesLate } from '../time'
 import { DETENTION_ICON, DETENTION_TAG, detentionState } from '../detention'
 import { Icon } from '../icons'
 import CardHead from './CardHead'
-import { awaitingRelease, isReleased } from '../handoff'
+import { awaitingRelease, inYard, isReleased } from '../handoff'
+import { isDrop } from '../metrics'
+import { checkedInAt } from '../stages'
+import { STAGE_TARGETS } from '../turnaround/targets'
+
+const ORDER_WAIT_MAX = STAGE_TARGETS.find((s) => s.key === 'orderWait').max
+// Check-in to "Order ready", ms.
+const orderWait = (e) => e.orderReadyAt - checkedInAt(e)
 
 // Today = checked in today, plus anything still on site from earlier (the default view).
 // On site = not checked out yet, including trucks already at a dock.
@@ -24,9 +31,24 @@ const Dash = () => <span className="text-muted">—</span>
 
 // After a passed inspection: Awaiting release (the inspector's turn), then Released to gate (the Gate's
 // turn). Same wording as Outbound Shipments.
-const STATUSES = ['Waiting', 'At dock', 'Awaiting release', 'Released to gate', 'Departed']
+const STATUSES = ['Waiting for order', 'Ready for a dock', 'At dock', 'Awaiting release', 'Released to gate', 'Released to yard', 'Departed']
 const statusOf = (e) =>
-  e.timeOut ? 'Departed' : isReleased(e) ? 'Released to gate' : awaitingRelease(e) ? 'Awaiting release' : e.dockDoor ? 'At dock' : 'Waiting'
+  e.timeOut
+    ? 'Departed'
+    : inYard(e)
+      ? 'Released to yard'
+      : isReleased(e)
+        ? 'Released to gate'
+        : awaitingRelease(e)
+          ? 'Awaiting release'
+          : e.dockDoor
+            ? 'At dock'
+            : e.orderReadyAt
+              ? 'Ready for a dock'
+              : 'Waiting for order'
+const HOUR = 3600000
+const onSiteMs = (e, now) => (e.timeOut ? departureMs(e) : now) - arrivalMs(e)
+const isLate = (e) => (minutesLate(e) ?? 0) > LATE_GRACE_MIN
 const hourOf = (e) => (e.timeIn ? Number(e.timeIn.slice(0, 2)) : null)
 const hourLabel = (h) => `${h % 12 || 12} ${h < 12 ? 'AM' : 'PM'}`
 const sortedUnique = (values) => [...new Set(values.filter(Boolean))].sort()
@@ -43,12 +65,13 @@ function friendlyDate(key) {
   return d.toLocaleDateString([], { month: 'short', day: 'numeric', ...(d.getFullYear() !== now.getFullYear() && { year: 'numeric' }) })
 }
 
-// The five columns on screen. `options` lists the header dropdown's choices for the rows in the tab;
+// The six columns on screen. `options` lists the header dropdown's choices for the rows in the tab;
 // `match` says whether an entry fits the chosen value. Every field still goes into the Excel export.
 const COLUMNS = [
   {
     id: 'order',
     label: 'Order No',
+    minWidth: 170,
     options: () => [
       { value: 'with', label: 'With order no' },
       { value: 'none', label: 'No order no' },
@@ -64,17 +87,40 @@ const COLUMNS = [
   {
     id: 'date',
     label: 'Date In',
+    minWidth: 110,
     options: (rows) => sortedUnique(rows.map((e) => e.dateIn)).reverse().map((d) => ({ value: d, label: friendlyDate(d) })),
     match: (e, v) => e.dateIn === v,
   },
+  // From the old Outbound shipments table: the appointment against the arrival, and time on site.
   {
-    id: 'time',
-    label: 'Time In',
-    options: (rows) =>
-      [...new Set(rows.map(hourOf).filter((h) => h !== null))]
+    id: 'appt',
+    label: 'Appointment / Arrived',
+    // On time / late, then the hour it arrived (what the Time In column used to filter by).
+    options: (rows) => [
+      { value: 'ontime', label: 'On time' },
+      { value: 'late', label: 'Late' },
+      { value: 'none', label: 'No appointment' },
+      ...[...new Set(rows.map(hourOf).filter((h) => h !== null))]
         .sort((a, b) => a - b)
-        .map((h) => ({ value: String(h), label: `${hourLabel(h)}–${hourLabel((h + 1) % 24)}` })),
-    match: (e, v) => hourOf(e) === Number(v),
+        .map((h) => ({ value: `h${h}`, label: `Arrived ${hourLabel(h)}–${hourLabel((h + 1) % 24)}` })),
+    ],
+    match: (e, v) =>
+      v.startsWith('h') ? hourOf(e) === Number(v.slice(1)) : v === 'none' ? !e.appointmentTime : !!e.appointmentTime && isLate(e) === (v === 'late'),
+  },
+  {
+    id: 'onsite',
+    label: 'Time on Site',
+    options: () => [
+      { value: '0-1', label: 'Under 1 h' },
+      { value: '1-2', label: '1–2 h' },
+      { value: '2-4', label: '2–4 h' },
+      { value: '4-', label: 'Over 4 h' },
+    ],
+    match: (e, v, now) => {
+      const [from, to] = v.split('-').map((h) => (h === '' ? Infinity : Number(h) * HOUR))
+      const ms = onSiteMs(e, now)
+      return ms >= from && ms < to
+    },
   },
   {
     id: 'status',
@@ -87,10 +133,11 @@ const COLUMNS = [
 // The dock number is in the Dock column, so the status doesn't repeat it.
 function StatusTag({ e }) {
   if (e.timeOut) return <span className={ui.tag + ' bg-ok-soft text-ok'}>Departed</span>
+  if (inYard(e)) return <span className={ui.tag + ' bg-drop-soft text-drop'}>Released to yard</span>
   if (isReleased(e)) return <span className={ui.tag + ' bg-delivery-soft text-delivery'}>Released to gate</span>
   if (awaitingRelease(e)) return <span className={ui.tag + ' bg-ok text-panel'}>Awaiting release</span>
   if (e.dockDoor) return <span className={ui.tag + ' bg-ink text-panel'}>At dock</span>
-  return <span className={ui.tag + ' bg-warn text-warn-ink'}>Waiting</span>
+  return <span className={ui.tag + ' bg-warn text-warn-ink'}>{e.orderReadyAt ? 'Ready for a dock' : 'Waiting for order'}</span>
 }
 
 // Prints only the Entry Log: index.css hides everything else while body has data-print="entry-log".
@@ -104,11 +151,12 @@ function printEntryLog() {
   window.print()
 }
 
-export default function EntryLog({ entries, onEdit, onCheckOut, onDelete, onAssignDock }) {
+// `initialFilters` (e.g. { status: 'Waiting for order' }): header filters already set when it opens.
+export default function EntryLog({ entries, onEdit, onCheckOut, onDelete, onAssignDock, onOrderReady, initialFilters }) {
   const [tab, setTab] = useState('today')
   const [search, setSearch] = useState('')
   // Header dropdown choices by column id; '' = All.
-  const [filters, setFilters] = useState({})
+  const [filters, setFilters] = useState(() => initialFilters ?? {})
   // The table shows the first MAX_ROWS rows until "Show all" is clicked.
   const [showAll, setShowAll] = useState(false)
   const [exporting, setExporting] = useState(false)
@@ -137,7 +185,7 @@ export default function EntryLog({ entries, onEdit, onCheckOut, onDelete, onAssi
   const lists = tabLists(matches)
   // Header dropdowns narrow the selected tab further.
   const active = COLUMNS.filter((c) => filters[c.id])
-  const rows = lists[tab].filter((e) => active.every((c) => c.match(e, filters[c.id])))
+  const rows = lists[tab].filter((e) => active.every((c) => c.match(e, filters[c.id], now)))
   const setFilter = (id, value) => setFilters((f) => ({ ...f, [id]: value }))
   const clearAll = () => {
     setSearch('')
@@ -232,11 +280,11 @@ export default function EntryLog({ entries, onEdit, onCheckOut, onDelete, onAssi
       </div>
 
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[720px] border-collapse text-left text-[14px]">
+        <table className="w-full min-w-[1040px] border-collapse text-left text-[14px]">
           <thead className="bg-field text-[13px] font-semibold text-muted">
             <tr className="border-y border-hair">
               {COLUMNS.map((c) => (
-                <th key={c.id} className="px-3.5 py-3 align-top">
+                <th key={c.id} className="px-3.5 py-3 align-top" style={c.minWidth ? { minWidth: c.minWidth } : undefined}>
                   <span className="block">{c.label}</span>
                   <select
                     aria-label={`Filter by ${c.label}`}
@@ -263,7 +311,7 @@ export default function EntryLog({ entries, onEdit, onCheckOut, onDelete, onAssi
           <tbody className="divide-y divide-hair">
             {rows.length === 0 ? (
               <tr>
-                <td colSpan={7} className="px-5 py-8 text-center text-muted">
+                <td colSpan={8} className="px-5 py-8 text-center text-muted">
                   {empty}
                 </td>
               </tr>
@@ -290,22 +338,59 @@ export default function EntryLog({ entries, onEdit, onCheckOut, onDelete, onAssi
                   <td className="whitespace-nowrap px-3.5 py-3" title={e.dateIn}>
                     {friendlyDate(e.dateIn) || <Dash />}
                   </td>
-                  <td className="whitespace-nowrap px-3.5 py-3">{e.timeIn || <Dash />}</td>
-                  <td className="px-3.5 py-3">
-                    <StatusTag e={e} />
+                  <td className="whitespace-nowrap px-3.5 py-3">
+                    {e.appointmentTime ? `Appt ${e.appointmentTime}` : 'No appt'}
+                    <span className="block text-[13px] text-muted">In {e.timeIn || '—'}</span>
+                    {isLate(e) && (
+                      <span className="flex items-center gap-1 text-[13px] font-semibold text-danger">
+                        <Icon name="warning" size={14} />
+                        {duration(minutesLate(e) * 60000)} late
+                      </span>
+                    )}
+                  </td>
+                  <td className="whitespace-nowrap px-3.5 py-3">
+                    {Number.isFinite(onSiteMs(e, now)) ? duration(onSiteMs(e, now)) : <Dash />}
                     {det && (
                       <span className={ui.tag + ' mt-1 flex w-fit ' + DETENTION_TAG[det.level]}>
                         <Icon name={DETENTION_ICON[det.level]} size={14} />
                         {det.text}
                       </span>
                     )}
+                    {e.timeOut && <span className="block text-[13px] text-muted">Left {e.timeOut}</span>}
+                    {e.dockAssignedAt && <span className="block text-[13px] text-muted">Docked {clockTime(e.dockAssignedAt)}</span>}
                   </td>
-                  {/* Assign dock only for trucks still on site without a dock. */}
+                  <td className="px-3.5 py-3">
+                    <StatusTag e={e} />
+                    {/* The order: when it was ready and how long the truck waited for it. */}
+                    {e.orderReadyAt ? (
+                      <span className={'block text-[13px] ' + (orderWait(e) > ORDER_WAIT_MAX * 60000 ? 'font-semibold text-danger' : 'text-muted')}>
+                        Order ready {clockTime(e.orderReadyAt)} · waited {duration(orderWait(e))}
+                      </span>
+                    ) : (
+                      !e.timeOut &&
+                      !e.dockDoor &&
+                      !isDrop(e) && (
+                        <span className={'block text-[13px] ' + (now - checkedInAt(e) > ORDER_WAIT_MAX * 60000 ? 'font-semibold text-danger' : 'text-muted')}>
+                          Waiting {duration(now - checkedInAt(e))} for the order
+                        </span>
+                      )
+                    )}
+                  </td>
+                  {/* Assign dock only for trucks still on site without a dock, once their order is ready. */}
                   <td className="no-print whitespace-nowrap px-3.5 py-3">
                     {e.dockDoor ? (
                       <span className="font-semibold">Dock {e.dockDoor}</span>
                     ) : e.timeOut ? (
                       <Dash />
+                    ) : !e.orderReadyAt ? (
+                      onOrderReady ? (
+                        <button type="button" onClick={() => onOrderReady(e.id)} className={ui.btnSmallPrimary}>
+                          <Icon name="done" size={18} />
+                          Order ready
+                        </button>
+                      ) : (
+                        <span className="text-[13px] text-muted">Order not ready</span>
+                      )
                     ) : (
                       <AssignDock entry={e} occupied={occupied} onAssignDock={onAssignDock} compact />
                     )}

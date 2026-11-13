@@ -3,7 +3,7 @@ import * as ui from '../ui'
 import { Icon } from '../icons'
 import { clockTime, dayKey } from '../time'
 import { LOAD_CHECKS, TRAILER_CHECKS } from '../inspectionChecks'
-import { BottomBar, More, Note, Stepper, goButton } from './gate/parts'
+import { BottomBar, Chips, More, Note, Stepper, goButton } from './gate/parts'
 
 // The poultry loading inspection, in two short checklists at the moment each is done:
 // - Before loading (Loading section): the empty trailer, reefer and pre-cool. Saved on `entry.trailerCheck`;
@@ -246,6 +246,36 @@ function Bar({ missing, issues, ready, label, okText, onSave }) {
   )
 }
 
+// Technicians who checked or inspected trailers on this device, most recent first.
+export function recentTechnicians(entries = [], max = 6) {
+  const last = new Map()
+  for (const e of entries) {
+    for (const c of [e.trailerCheck, e.loadingInspection]) {
+      const n = String(c?.technician ?? '').trim()
+      if (n && (c.savedAt ?? 0) >= (last.get(n) ?? -1)) last.set(n, c.savedAt ?? 0)
+    }
+  }
+  return [...last].sort((a, b) => b[1] - a[1]).slice(0, max).map(([n]) => n)
+}
+
+// Who did the work on the trailer (required on both checklists): recent names to tap, or type one.
+function TechnicianStep({ n, form, set, recent, hint }) {
+  return (
+    <Step n={n} id="step-tech" title="Technician" done={filled(form.technician)} hint={hint}>
+      <Chips label="Recent technicians" items={recent} value={form.technician} onPick={(v) => set('technician', v)} />
+      <input
+        id="field-technician"
+        value={form.technician ?? ''}
+        onChange={(e) => set('technician', e.target.value)}
+        aria-labelledby="step-tech-title"
+        placeholder={recent.length ? 'Or type a name' : 'Technician name'}
+        autoComplete="off"
+        className={ui.input + ' max-w-[420px]'}
+      />
+    </Step>
+  )
+}
+
 const trailerSteps = ({ form, set, setMany, entry, n0 = 1 }) => {
   const checksDone = TRAILER_CHECKS.every((c) => form[c.name])
   const reeferDone = filled(form.precoolTemp) && filled(form.setPoint) && !!form.reeferRunning
@@ -307,21 +337,30 @@ const trailerBlank = (entry) => ({
   precoolTemp: '',
   setPoint: entry.tempSet || '',
   reeferRunning: '',
+  technician: '',
 })
 
-// Before loading: the empty trailer. Pass lets the dock start loading; Fail tells Shipping.
-export function TrailerCheckSheet({ entry, inspector, onSave, onClose }) {
+// Before loading: the technician, then the empty trailer. Pass lets the dock start loading; Fail tells Shipping.
+export function TrailerCheckSheet({ entry, entries, inspector, onSave, onClose }) {
   const { form, set, setMany, clearDraft } = useChecklist(entry, 'trailer', trailerBlank(entry))
-  const { steps, missing, issues } = trailerSteps({ form, set, setMany, entry })
-  const allMissing = inspector ? missing : [...missing, ['Inspector on duty', 'inspector-on-duty']]
+  const recent = useMemo(() => recentTechnicians(entries), [entries])
+  const { steps, missing, issues } = trailerSteps({ form, set, setMany, entry, n0: 2 })
+  const allMissing = [
+    ...(filled(form.technician) ? [] : [['Technician', 'step-tech']]),
+    ...missing,
+    ...(inspector ? [] : [['Inspector on duty', 'inspector-on-duty']]),
+  ]
   const ready = allMissing.length === 0
   const save = () => {
     clearDraft()
-    onSave(entry.id, { ...form, inspector, result: issues.length ? 'Fail' : 'Pass', issues, savedAt: Date.now() })
+    onSave(entry.id, { ...form, technician: form.technician.trim(), inspector, result: issues.length ? 'Fail' : 'Pass', issues, savedAt: Date.now() })
   }
   return (
     <Sheet title="Before loading" entry={entry} onClose={onClose}>
-      <div className="max-w-[960px] px-5">{steps}</div>
+      <div className="max-w-[960px] px-5">
+        <TechnicianStep n={1} form={form} set={set} recent={recent} hint="Who is checking this trailer and loading it." />
+        {steps}
+      </div>
       <div className="px-3 pb-3">
         <Bar
           missing={allMissing}
@@ -338,7 +377,7 @@ export function TrailerCheckSheet({ entry, inspector, onSave, onClose }) {
 
 // After loading: product temperatures, pallets and load checks, then Pass / Fail. A visit loaded before
 // the trailer check existed answers the trailer steps here too.
-export function LoadCheckSheet({ entry, inspector, onSave, onClose }) {
+export function LoadCheckSheet({ entry, entries, inspector, onSave, onClose }) {
   const tc = entry.trailerCheck
   const prior = entry.loadingInspection
   const initial = useMemo(
@@ -350,7 +389,8 @@ export function LoadCheckSheet({ entry, inspector, onSave, onClose }) {
       sealApplied: prior?.sealApplied || entry.outgoingSeals || '',
       caseCount: prior?.caseCount ?? '',
       totalWeight: prior?.totalWeight ?? '',
-      technician: prior?.technician ?? '',
+      // The technician from Before loading carries over; change it if someone else loaded the trailer.
+      technician: prior?.technician || tc?.technician || '',
       notes: prior?.notes ?? '',
       correctiveAction: '',
     }),
@@ -358,8 +398,10 @@ export function LoadCheckSheet({ entry, inspector, onSave, onClose }) {
     [entry.id],
   )
   const { form, set, setMany, clearDraft } = useChecklist(entry, 'load', initial)
-  const trailer = tc ? null : trailerSteps({ form, set, setMany, entry })
-  const n0 = trailer ? 3 : 1
+  const recent = useMemo(() => recentTechnicians(entries), [entries])
+  const techDone = filled(form.technician)
+  const trailer = tc ? null : trailerSteps({ form, set, setMany, entry, n0: 2 })
+  const n0 = trailer ? 4 : 2
   const tempsDone = PRODUCT_TEMPS.every((t) => filled(form[t.name]))
   const palletsDone = filled(form.palletsLoaded)
   const checksDone = LOAD_CHECKS.every((c) => form[c.name])
@@ -368,6 +410,7 @@ export function LoadCheckSheet({ entry, inspector, onSave, onClose }) {
   const fail = issues.length > 0
   const fixDone = filled(form.correctiveAction)
   const missing = [
+    ...(techDone ? [] : [['Technician', 'step-tech']]),
     ...(trailer?.missing ?? []),
     ...(tempsDone ? [] : [['Product temperatures', 'step-temps']]),
     ...(palletsDone ? [] : [['Pallets', 'step-pallets']]),
@@ -386,6 +429,7 @@ export function LoadCheckSheet({ entry, inspector, onSave, onClose }) {
     onSave(entry.id, {
       ...(tc ? Object.fromEntries(Object.entries(tc).filter(([k]) => !['result', 'issues', 'savedAt', 'inspector'].includes(k))) : {}),
       ...form,
+      technician: form.technician.trim(),
       inspectionDate: dayKey(new Date(now)),
       inspectionTime: hhmm(now),
       loadStart: entry.loadStartedAt ? hhmm(entry.loadStartedAt) : '',
@@ -423,6 +467,13 @@ export function LoadCheckSheet({ entry, inspector, onSave, onClose }) {
             </Note>
           </div>
         )}
+        <TechnicianStep
+          n={1}
+          form={form}
+          set={set}
+          recent={recent}
+          hint={tc?.technician ? 'From the check before loading. Change it if someone else loaded the trailer.' : 'Who loaded this trailer.'}
+        />
         {trailer?.steps}
         <Step n={n0} id="step-temps" title="Product temperatures" done={tempsDone} hint={`Probe front, middle and rear. Frozen product: ${LIMIT.product}°F or below.`}>
           <div className="grid gap-3 sm:grid-cols-3">
@@ -463,12 +514,11 @@ export function LoadCheckSheet({ entry, inspector, onSave, onClose }) {
           </Step>
         )}
         <div className="pb-5">
-          <More label="case count, weight, technician, notes" open={[form.caseCount, form.totalWeight, form.technician, form.notes].some(filled)}>
+          <More label="case count, weight, notes" open={[form.caseCount, form.totalWeight, form.notes].some(filled)}>
             <div className="grid gap-3 sm:grid-cols-2">
               {[
                 ['caseCount', 'Case count', 'numeric'],
                 ['totalWeight', 'Total weight (lbs)', 'numeric'],
-                ['technician', 'Technician', 'text'],
               ].map(([name, label, mode]) => (
                 <label key={name} className="grid gap-1.5">
                   <span className={ui.label}>{label}</span>

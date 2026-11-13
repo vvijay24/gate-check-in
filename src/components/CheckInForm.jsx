@@ -12,10 +12,9 @@ import { Badge, BottomBar, Chips, FieldBox, GateStep, GateTopLine, LinkButton, M
 // Gate Check In on one page, kept simple for the guard: (1) purpose and appointment at the window,
 // (2) vehicle details from the driver, (3) the trailer — seal, reefer, and optional extras — then a short
 // recap and Check In in the bar at the bottom. Used for new check-ins and for editing one. The guard on
-// duty comes from the page header; `switcher` (Check In / Check Out) sits in the top line.
+// duty comes from the page header; `switcher` (the column's Check In title) sits in the top line.
 
 const PURPOSE = {
-  Delivery: { icon: 'load', on: 'border-delivery bg-delivery-soft text-delivery' },
   Pickup: { icon: 'truck', on: 'border-pickup bg-pickup-soft text-pickup' },
   'Drop Trailer': { icon: 'drop', on: 'border-drop bg-drop-soft text-drop' },
 }
@@ -30,7 +29,7 @@ const FUEL_LABEL = { '1/4': '¼', '1/2': '½', '3/4': '¾' }
 // Required answers by step, for the progress bar and "Still needed" (only those that apply count).
 const SECTION_FIELDS = [
   ['dateIn', 'timeIn', 'gateIn', 'visitPurpose', 'appointmentTime'],
-  ['trailerNumber', 'truckName', 'truckerNameIn', 'pickupNumber', 'customerPickupFor'],
+  ['trailerNumber', 'truckName', 'driverPhone', 'truckerNameIn', 'pickupNumber', 'customerPickupFor'],
   ['incomingSeals', 'sealIntact', 'reefer', 'tempSet', 'tempActual', 'fuelIn'],
 ]
 const STEP_IDS = ['in-purpose', 'in-vehicle', 'in-trailer']
@@ -43,6 +42,7 @@ const SHORT = {
   appointmentTime: 'Appointment time',
   trailerNumber: 'Trailer #',
   truckName: 'Carrier',
+  driverPhone: 'Driver phone',
   truckerNameIn: 'Driver name',
   pickupNumber: 'Order No',
   customerPickupFor: 'Customer',
@@ -252,7 +252,7 @@ export default function CheckInForm({ initial, entries, guard, switcher, onSave,
       {/* 1 · Purpose */}
       <GateStep n={1} of={3} id="in-purpose" icon="purpose" title="Purpose" hint="What it's here for and when it was booked" ok={sectionOk[0]} started={sectionStarted[0]}>
         <FieldBox name="visitPurpose" label="What's it here for?" required group error={err('visitPurpose')}>
-          <div role="group" aria-labelledby="field-visitPurpose-label" className="grid grid-cols-3 gap-2.5">
+          <div role="group" aria-labelledby="field-visitPurpose-label" className="grid grid-cols-2 gap-2.5">
             {VISIT_PURPOSES.map((p, i) => {
               const on = purposes.includes(p)
               return (
@@ -269,7 +269,7 @@ export default function CheckInForm({ initial, entries, guard, switcher, onSave,
                   }
                 >
                   <Icon name={PURPOSE[p].icon} size={26} />
-                  {p === 'Drop Trailer' ? 'Drop' : p}
+                  {p === 'Drop Trailer' ? 'Drop trailer' : p}
                 </button>
               )
             })}
@@ -311,7 +311,21 @@ export default function CheckInForm({ initial, entries, guard, switcher, onSave,
         )}
         <FieldBox name="truckName" label="Carrier" required error={err('truckName')}>
           <Chips label="Recent carriers" items={memory.carriers} value={form.truckName} onPick={(truckName) => set({ truckName })} />
-          <input {...text('truckName')} placeholder="Or type it" enterKeyHint="next" onKeyDown={enterNext('truckerNameIn')} className={inputCls('truckName')} />
+          <input {...text('truckName')} placeholder="Or type it" enterKeyHint="next" onKeyDown={enterNext('driverPhone')} className={inputCls('truckName')} />
+        </FieldBox>
+        <FieldBox name="driverPhone" label="Driver phone" required error={err('driverPhone')} hint="10 digits. A number seen before fills in the driver's name.">
+          <input
+            id="field-driverPhone"
+            name="driverPhone"
+            type="tel"
+            inputMode="tel"
+            autoComplete="off"
+            value={form.driverPhone ?? ''}
+            onChange={(e) => setPhone(e.target.value)}
+            enterKeyHint="next"
+            onKeyDown={enterNext('truckerNameIn')}
+            className={inputCls('driverPhone')}
+          />
         </FieldBox>
         <FieldBox
           name="truckerNameIn"
@@ -342,11 +356,6 @@ export default function CheckInForm({ initial, entries, guard, switcher, onSave,
             </FieldBox>
           </div>
         )}
-        <More label="driver phone" open={filled(form.driverPhone)}>
-          <FieldBox name="driverPhone" label="Driver phone" hint="A number seen before fills in the driver's name.">
-            <input id="field-driverPhone" type="tel" inputMode="tel" value={form.driverPhone ?? ''} onChange={(e) => setPhone(e.target.value)} className={inputCls('driverPhone')} />
-          </FieldBox>
-        </More>
       </GateStep>
 
       {/* 3 · Trailer */}

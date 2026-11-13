@@ -41,8 +41,9 @@ export const REQUIRED_IN = [
   'gateIn',
   'visitPurpose',
   'appointmentTime',
-  'truckName',
   'trailerNumber',
+  'truckName',
+  'driverPhone',
   'truckerNameIn',
   'pickupNumber',
   'customerPickupFor',
@@ -56,7 +57,7 @@ export const REQUIRED_IN = [
 ]
 
 // Required to check a truck out, in on-screen order.
-export const REQUIRED_OUT = ['dateOut', 'timeOut', 'gateOut', 'truckerNameOut', 'outgoingSeals', 'fuelOut', 'guardOut']
+export const REQUIRED_OUT = ['dateOut', 'timeOut', 'gateOut', 'truckerNameOut', 'driverPhoneOut', 'outgoingSeals', 'fuelOut', 'guardOut']
 
 // Only required when the visit includes a pickup (a loaded trailer leaves sealed).
 const PICKUP_ONLY = ['pickupNumber', 'customerPickupFor', 'outgoingSeals']
@@ -96,7 +97,9 @@ export const FIELD_NAMES = {
   fuelOut: 'Fuel Going Out',
 }
 
-export const VISIT_PURPOSES = ['Delivery', 'Pickup', 'Drop Trailer']
+// The plant only loads outbound: trucks pick up (the driver waits) or drop an empty trailer to be loaded
+// and hooked later. There are no deliveries.
+export const VISIT_PURPOSES = ['Pickup', 'Drop Trailer']
 
 // Trucks come in and go out through the one gate; the forms record it without asking.
 export const GATE = 'Gate'

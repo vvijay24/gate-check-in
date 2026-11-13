@@ -2,7 +2,7 @@ import * as ui from '../../ui'
 import { Icon } from '../../icons'
 import { arrivalMs, clockTime } from '../../time'
 import { today } from '../../gateForm'
-import { checkOutBlock, isReleased } from '../../handoff'
+import { atDockNow, checkOutBlock, isReleased } from '../../handoff'
 import GuardOnDuty, { recentGuards } from '../GuardOnDuty'
 
 // Building blocks of the Gate's Check In and Check Out pages, kept simple for a guard working with a
@@ -45,7 +45,7 @@ export function GateHeader({ entries, guard, onGuardChange, onReady }) {
   const ready = onSite.filter((e) => isReleased(e) && !checkOutBlock(e)).length
   // Trucks at a dock still waiting on their inspection or the inspector's release.
   const held = onSite.filter((e) => e.dockDoor && checkOutBlock(e)).length
-  const atDocks = onSite.filter((e) => e.dockDoor).length
+  const atDocks = onSite.filter(atDockNow).length
   const arrived = entries.filter((e) => e.dateIn === today())
   const lastIn = arrived.length ? Math.max(...arrived.map(arrivalMs).filter(Number.isFinite)) : NaN
   return (

@@ -52,6 +52,8 @@
   --color-chart-live: #3A6EA5;
   /* Live yard on Loading & Inspection: waiting for a dock, loading, inspection, ready to leave.
      Validated with the dataviz palette check (light on #FFF, dark on #171D26). */
+  /* Waiting for order: neutral grey, before the blue "ready for a dock" stage. */
+  --color-yard-order: #6F7D92;
   --color-yard-wait: #4A86D0;
   --color-yard-load: #C98F00;
   --color-yard-insp: #8E5BC9;
@@ -66,6 +68,25 @@
   --color-lane: #F9FAFB;
   --color-building: #C9CFD8;
   --color-track: #E6E9EE;
+
+  /* Insights tab and the yard map / 3D yard (merged from keep-ours-plus-his). Design roles map onto ours;
+     scene, paint and gate colors are theirs. */
+  --font-scene: "Barlow Condensed", "Arial Narrow", sans-serif;
+  --color-signal-line: var(--color-signal);
+  --color-warn-soft: var(--color-warn);
+  --color-warn-line: var(--color-warn-edge);
+  --color-rail-muted: #8a97a8;
+  --color-gate-in: #2b7d52; --color-gate-in-soft: #e2f2e9; --color-gate-out: #b8406a; --color-gate-out-soft: #fbe6ee;
+  --color-chart-drop: #a3478f;
+  --color-stage-1: #a9cdee; --color-stage-2: #5f9fd8; --color-stage-3: #1f6fb2; --color-stage-4: #0f3f6b;
+  --color-iso-ground: #c3cfb8; --color-iso-lot: #7b838a; --color-iso-paint: #f2f3f1; --color-iso-curb: #d3d6d2;
+  --color-iso-street: #555c62; --color-iso-wall: #e7e3da; --color-iso-band: #34414d; --color-iso-roof: #b8bdc1;
+  --color-iso-door: #cdd3d8; --color-iso-glass: #2a3846; --color-iso-light: #fff3c4; --color-iso-trailer: #f4f5f6;
+  --color-iso-steel: #8f989f; --color-iso-chrome: #dfe3e6; --color-iso-tire: #202428; --color-iso-tree: #6a8f5c;
+  --color-iso-tree-dark: #4d7344; --color-iso-shadow: rgb(20 28 36 / 0.28); --color-iso-night: #1a2a52;
+  --color-iso-dusk: #ffae73; --color-iso-glow: #ffc561;
+  --color-paint-1: #b8352a; --color-paint-2: #d97b29; --color-paint-3: #4d555d; --color-paint-4: #7b2d32;
+  --color-paint-5: #a9b1b8; --color-paint-6: #eef0f2;
 
   /* Depth: cards and tiles; primary buttons and hovered tiles; dialogs and pop-overs */
   --shadow-card: 0 1px 2px rgba(15, 30, 58, 0.06), 0 4px 16px rgba(15, 30, 58, 0.06);
@@ -95,6 +116,7 @@
    assignment, pre-loading, loading, inspection, checkout) and blue / gold / purple / teal for categories,
    matching the Live yard. Validated light on #FFF and dark on #171D26; red stays for problems only. */
 :root {
+  --dive-s0: #6F7D92;
   --dive-s1: #E0763A; --dive-s2: #4A86D0; --dive-s3: #D9559A; --dive-s4: #C99300; --dive-s5: #8E5BC9; --dive-s6: #13998A;
   --dive-blue: #4A86D0; --dive-gold: #C99300; --dive-purple: #8E5BC9; --dive-teal: #13998A;
 }
@@ -112,6 +134,16 @@
 .tt button.tt-itile:hover, .tt button.tt-itile:focus-visible { transform: translateY(-3px); box-shadow: var(--shadow-pop); border-color: var(--accent); }
 .tt button.tt-itile:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .tt button.tt-itile .tt-more { margin-top: auto; padding-top: 4px; }
+/* Plain-words help (turnaround/plainWords.js): an intro under each deep dive's header, and a
+   how-to-read line under each chart title. Soft yolk tint so it reads as help, not data. */
+.tt .tt-intro {
+  margin: 14px 0 4px; max-width: 60rem; padding: 10px 14px; border-radius: 12px; font-size: 15px; line-height: 1.5;
+  border-left: 4px solid var(--p-yolk); background: color-mix(in srgb, var(--p-yolk) 12%, var(--p-surface));
+}
+.tt .tt-plain {
+  margin: 0; padding: 7px 11px; border-radius: 10px; font-size: 13.5px; line-height: 1.45; color: var(--color-fg);
+  background: color-mix(in srgb, var(--p-yolk) 10%, var(--p-surface));
+}
 .tt .imp-take { margin: 14px 0 4px; font-size: 15px; line-height: 1.5; max-width: 60rem; }
 .tt .imp-stats { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr)); gap: 12px; }
 .tt .imp-stat {
@@ -144,12 +176,21 @@
     --color-drop: #2EC4B2; --color-drop-soft: #0F2E2B; --color-ok: #3DD07F; --color-ok-soft: #12301F;
     --color-danger: #FF5468; --color-danger-soft: #3A1820;
     --color-chart-live: #7AA7E3; --color-rail-text: #9FB6CF;
-    --color-yard-wait: #5B95DE; --color-yard-load: #BF8700; --color-yard-insp: #9B6BD6; --color-yard-ready: #1FA594;
-    --dive-s1: #D9763B; --dive-s2: #5B95DE; --dive-s3: #CF5A9B; --dive-s4: #BF8700; --dive-s5: #9B6BD6; --dive-s6: #1FA594;
+    --color-yard-order: #8A97AB; --color-yard-wait: #5B95DE; --color-yard-load: #BF8700; --color-yard-insp: #9B6BD6; --color-yard-ready: #1FA594;
+    --dive-s0: #8A97AB; --dive-s1: #D9763B; --dive-s2: #5B95DE; --dive-s3: #CF5A9B; --dive-s4: #BF8700; --dive-s5: #9B6BD6; --dive-s6: #1FA594;
     --dive-blue: #5B95DE; --dive-gold: #BF8700; --dive-purple: #9B6BD6; --dive-teal: #1FA594;
     --color-asphalt: #1C232D; --color-lane: #242C38; --color-building: #2E3846; --color-track: #2A323E;
     --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4), 0 4px 16px rgba(0, 0, 0, 0.25);
     --shadow-raised: 0 2px 4px rgba(0, 0, 0, 0.45), 0 8px 20px rgba(0, 0, 0, 0.35);
+
+    --color-gate-in: #5bbf86; --color-gate-in-soft: #1b3127; --color-gate-out: #ee8fb0; --color-gate-out-soft: #3a2130;
+    --color-chart-drop: #cc5e98; --color-stage-1: #1f4f7a; --color-stage-2: #2f78bd; --color-stage-3: #5ca4e3; --color-stage-4: #a9cdee;
+    --color-iso-ground: #253024; --color-iso-lot: #30363c; --color-iso-paint: #c9ced2; --color-iso-curb: #3d4449;
+    --color-iso-street: #1c2024; --color-iso-wall: #4b5157; --color-iso-band: #1b222a; --color-iso-roof: #383e44;
+    --color-iso-door: #646c73; --color-iso-glass: #101922; --color-iso-light: #ffe48a; --color-iso-trailer: #d7dbde;
+    --color-iso-steel: #687179; --color-iso-chrome: #a6aeb5; --color-iso-tire: #0c0e10; --color-iso-tree: #3b5a36;
+    --color-iso-tree-dark: #2a4227; --color-iso-shadow: rgb(0 0 0 / 0.45); --color-iso-night: #0a1226;
+    --color-iso-dusk: #ff9a5c; --color-iso-glow: #ffbf4d; --iso-tint: 0.55;
     --shadow-overlay: 0 24px 64px rgba(0, 0, 0, 0.6); }
 }
 :root[data-theme="dark"] { color-scheme: dark;
@@ -162,13 +203,36 @@
     --color-drop: #2EC4B2; --color-drop-soft: #0F2E2B; --color-ok: #3DD07F; --color-ok-soft: #12301F;
     --color-danger: #FF5468; --color-danger-soft: #3A1820;
     --color-chart-live: #7AA7E3; --color-rail-text: #9FB6CF;
-    --color-yard-wait: #5B95DE; --color-yard-load: #BF8700; --color-yard-insp: #9B6BD6; --color-yard-ready: #1FA594;
-    --dive-s1: #D9763B; --dive-s2: #5B95DE; --dive-s3: #CF5A9B; --dive-s4: #BF8700; --dive-s5: #9B6BD6; --dive-s6: #1FA594;
+    --color-yard-order: #8A97AB; --color-yard-wait: #5B95DE; --color-yard-load: #BF8700; --color-yard-insp: #9B6BD6; --color-yard-ready: #1FA594;
+    --dive-s0: #8A97AB; --dive-s1: #D9763B; --dive-s2: #5B95DE; --dive-s3: #CF5A9B; --dive-s4: #BF8700; --dive-s5: #9B6BD6; --dive-s6: #1FA594;
     --dive-blue: #5B95DE; --dive-gold: #BF8700; --dive-purple: #9B6BD6; --dive-teal: #1FA594;
     --color-asphalt: #1C232D; --color-lane: #242C38; --color-building: #2E3846; --color-track: #2A323E;
     --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4), 0 4px 16px rgba(0, 0, 0, 0.25);
     --shadow-raised: 0 2px 4px rgba(0, 0, 0, 0.45), 0 8px 20px rgba(0, 0, 0, 0.35);
+
+    --color-gate-in: #5bbf86; --color-gate-in-soft: #1b3127; --color-gate-out: #ee8fb0; --color-gate-out-soft: #3a2130;
+    --color-chart-drop: #cc5e98; --color-stage-1: #1f4f7a; --color-stage-2: #2f78bd; --color-stage-3: #5ca4e3; --color-stage-4: #a9cdee;
+    --color-iso-ground: #253024; --color-iso-lot: #30363c; --color-iso-paint: #c9ced2; --color-iso-curb: #3d4449;
+    --color-iso-street: #1c2024; --color-iso-wall: #4b5157; --color-iso-band: #1b222a; --color-iso-roof: #383e44;
+    --color-iso-door: #646c73; --color-iso-glass: #101922; --color-iso-light: #ffe48a; --color-iso-trailer: #d7dbde;
+    --color-iso-steel: #687179; --color-iso-chrome: #a6aeb5; --color-iso-tire: #0c0e10; --color-iso-tree: #3b5a36;
+    --color-iso-tree-dark: #2a4227; --color-iso-shadow: rgb(0 0 0 / 0.45); --color-iso-night: #0a1226;
+    --color-iso-dusk: #ff9a5c; --color-iso-glow: #ffbf4d; --iso-tint: 0.55;
     --shadow-overlay: 0 24px 64px rgba(0, 0, 0, 0.6); }
+
+/* Insights and the yard map (merged from keep-ours-plus-his). */
+:root { --iso-tint: 1; }
+.figure { font-variant-numeric: tabular-nums; font-stretch: 92%; letter-spacing: -0.015em; }
+.eyebrow { font-size: 12px; font-weight: 550; letter-spacing: 0; }
+.yard-unit:focus { outline: none; }
+.yard-unit:focus-visible .ring { stroke: var(--color-signal-line); stroke-dasharray: none; stroke-width: 4; }
+/* A driving rig's blinkers and beacon: on, off, on (left steady with reduced motion). */
+@keyframes rig-blink {
+  0%, 55% { opacity: 1; }
+  56%, 100% { opacity: 0.12; }
+}
+.rig-blink { animation: rig-blink 0.9s steps(1, end) infinite; }
+@media (prefers-reduced-motion: reduce) { .rig-blink { animation: none; } }
 
 body {
   background: var(--color-page);
@@ -217,10 +281,10 @@ dialog[open]::backdrop { animation: var(--animate-fade); }
   body[data-print="entry-log"] #entry-log table { min-width: 0; }
 
   /* Outbound Shipments "Print": the same, for that table. */
-  body[data-print="outbound"] * { visibility: hidden; }
-  body[data-print="outbound"] #outbound,
-  body[data-print="outbound"] #outbound * { visibility: visible; }
-  body[data-print="outbound"] #outbound { position: absolute; inset: 0 0 auto 0; border: 0; }
-  body[data-print="outbound"] #outbound .overflow-x-auto { overflow: visible; }
-  body[data-print="outbound"] #outbound table { min-width: 0; }
+  /* Shipping → Daily report: only the report page. */
+  body[data-print="ship-report"] * { visibility: hidden; }
+  body[data-print="ship-report"] #ship-report,
+  body[data-print="ship-report"] #ship-report * { visibility: visible; }
+  body[data-print="ship-report"] #ship-report { position: absolute; inset: 0 0 auto 0; max-width: none; border: 0; padding: 0; }
+  body[data-print="ship-report"] #ship-report .overflow-x-auto { overflow: visible; }
 }

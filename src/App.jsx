@@ -5,10 +5,11 @@ import { GateHeader } from './components/gate/parts'
 import { GuardStart, recentGuards } from './components/GuardOnDuty'
 import { dayKey } from './time'
 import EntryLog from './components/EntryLog'
-import ShippingDashboard from './components/ShippingDashboard'
+import ShippingPage from './components/ShippingPage'
 import { DockBoard, phaseOf } from './components/Dashboard'
 import Messages from './components/Messages'
 import Overview from './components/Overview'
+import Analytics from './components/Analytics'
 import { makeSampleEntries } from './sampleData'
 import { GATE } from './formConfig'
 import { awaitingRelease, checkOutBlock, isReleased } from './handoff'
@@ -24,11 +25,7 @@ const TABS = [
   { id: 'shipping', label: 'Shipping', icon: 'shipping' },
   { id: 'docks', label: 'Loading & Inspection', icon: 'dock' },
   { id: 'analytics', label: 'Overview', icon: 'overview' },
-]
-
-const GATE_MODES = [
-  { id: 'in', label: 'Check In', icon: 'checkIn' },
-  { id: 'out', label: 'Check Out', icon: 'checkOut' },
+  { id: 'insights', label: 'Insights', icon: 'speed' },
 ]
 
 const timeNow = () => new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
@@ -39,9 +36,10 @@ function loadEntries() {
     // Older entries stored a single `loadType`; convert to the `visitPurpose` list.
     // There is one gate: entries from before (no gate, or Gate 1 in / Gate 2 out) came in and, if
     // departed, went out through it.
+    // The plant has no deliveries: older visits saved as Delivery count as pickups.
     return saved.map(({ loadType, ...e }) => ({
       ...e,
-      visitPurpose: e.visitPurpose ?? (loadType ? [loadType] : []),
+      visitPurpose: [...new Set((e.visitPurpose ?? (loadType ? [loadType] : [])).map((p) => (p === 'Delivery' ? 'Pickup' : p)))],
       gateIn: GATE,
       gateOut: e.timeOut ? GATE : '',
     }))
@@ -56,9 +54,11 @@ export default function App() {
   const [notice, setNotice] = useState('')
   const [storageError, setStorageError] = useState(false)
   const [clock, setClock] = useState(timeNow)
-  const [tab, setTab] = useState('gate')
-  // Gate sub-tab; `editing` is the entry open in that form (none = new check-in / truck list).
-  const [gateMode, setGateMode] = useState('in')
+  // A link with ?tab=insights (Insights' shareable views) opens on Insights; otherwise the Gate.
+  const [tab, setTab] = useState(() => (new URLSearchParams(window.location.search).get('tab') === 'insights' ? 'insights' : 'gate'))
+  // The Gate shows Check In and Check Out side by side. `editing`: the saved entry open in Check In (none =
+  // a new check-in); `leaving`: the truck open in Check Out (none = the list of trucks on site).
+  const [leaving, setLeaving] = useState(null)
   // The guard on duty and the day they were set; only today's counts, so the first guard of each day
   // has to enter it (also at midnight with the app open — the clock re-renders every 15 s).
   const [guardSet, setGuardSet] = useState(() => {
@@ -131,18 +131,21 @@ export default function App() {
     }
   }, [gateEvents])
 
-  const handleSave = (form) => {
+  // `mode`: 'in' (Check In, new or a correction) or 'out' (Check Out, or a correction to a departure).
+  const handleSave = (form, mode) => {
     if (form.id) {
-      const checkedOut = gateMode === 'out' && !editing?.timeOut
+      const opened = mode === 'out' ? leaving : editing
+      const checkedOut = mode === 'out' && !opened?.timeOut
       // Anything but a first check-out is a correction to a saved entry; the Overview counts them.
       setEntries((list) =>
         list.map((e) =>
           e.id === form.id
-            ? { ...form, updatedAt: Date.now(), ...(!checkedOut && { edits: (e.edits ?? 0) + 1, editedAt: Date.now() }) }
+            ? { ...form, updatedAt: Date.now(), ...(!checkedOut && { edits: (e.edits ?? 0) + 1, editedAt: Date.now(), editedBy: 'Gate' }) }
             : e,
         ),
       )
-      setEditing(null)
+      if (mode === 'out') setLeaving(null)
+      else setEditing(null)
       setNotice(checkedOut ? `Checked out ${form.truckName} — trailer ${form.trailerNumber}` : `Updated entry for ${form.truckName}`)
     } else {
       // The form shows its own "Check In Confirmed" banner, so no page notice here.
@@ -151,16 +154,42 @@ export default function App() {
   }
 
   const openGate = (mode, entry) => {
-    setGateMode(mode)
-    setEditing(entry)
+    if (mode === 'out') setLeaving(entry)
+    else setEditing(entry)
     setTab('gate')
-    window.scrollTo({ top: 0, behavior: 'smooth' })
+    // Scroll to the column it opened in (Check Out comes first on narrow screens, beside Check In on wide ones).
+    requestAnimationFrame(() => document.getElementById(mode === 'out' ? 'gate-out' : 'gate-in')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
   }
   const handleEdit = (entry) => openGate('in', entry)
+  // "Open in Insights" from Shipping: Insights reads its section from the address when it opens.
+  const openInsights = (section) => {
+    try {
+      window.history.replaceState(null, '', `${window.location.pathname}?tab=insights&s=${section}`)
+    } catch {
+      // Insights still opens, on its first section.
+    }
+    setTab('insights')
+    window.scrollTo({ top: 0 })
+  }
   const handleCheckOut = (entry) => {
     // A guard opening a truck that can't leave yet is a mistake the system stopped.
     if (checkOutBlock(entry)) setGateEvents((list) => [...list, { type: 'blocked', id: entry.id, at: Date.now() }])
     openGate('out', entry)
+  }
+
+  // Shipping's correction from the View entry pop-up: only the changed check-in details, counted as an edit.
+  const handleShippingEdit = (id, changes) => {
+    const now = Date.now()
+    setEntries((list) => list.map((e) => (e.id === id ? { ...e, ...changes, updatedAt: now, edits: (e.edits ?? 0) + 1, editedAt: now, editedBy: 'Shipping' } : e)))
+    const entry = entries.find((e) => e.id === id)
+    setNotice(`Updated entry for trailer ${changes.trailerNumber ?? entry?.trailerNumber ?? ''}`)
+  }
+
+  // Shipping marks a waiting truck's order ready (the product is staged); only then can it get a dock.
+  const handleOrderReady = (id) => {
+    setEntries((list) => list.map((e) => (e.id === id ? { ...e, orderReadyAt: Date.now(), orderReadyBy: 'Shipping' } : e)))
+    const entry = entries.find((e) => e.id === id)
+    setNotice(`${entry?.pickupNumber ? `Order ${entry.pickupNumber}` : 'Order'} ready · trailer ${entry?.trailerNumber ?? ''} can get a dock`)
   }
 
   const handleAssignDock = (id, dockDoor) => {
@@ -208,8 +237,9 @@ export default function App() {
 
   // The inspector releases a truck that passed its inspection to the gate (Loading & Inspection only;
   // Shipping just sees the status). The confirmed seal and order
-  // number go onto the visit, so the Gate's check-out starts with them.
-  const handleRelease = (id, { orderNo, seal, paperwork, releasedBy, note }) => {
+  // number go onto the visit, so the Gate's check-out starts with them. A dropped trailer is released to
+  // the yard instead (`toYard`, with its parking `spot`): it leaves the dock and waits there for a driver.
+  const handleRelease = (id, { orderNo, seal, paperwork, releasedBy, note, toYard, spot }) => {
     setEntries((list) =>
       list.map((e) =>
         e.id === id
@@ -217,13 +247,13 @@ export default function App() {
               ...e,
               pickupNumber: orderNo || e.pickupNumber,
               outgoingSeals: seal || e.outgoingSeals,
-              release: { releasedAt: Date.now(), releasedBy, paperwork, orderNo, seal, note },
+              release: { releasedAt: Date.now(), releasedBy, paperwork, orderNo, seal, note, ...(toYard && { toYard: true, spot }) },
             }
           : e,
       ),
     )
     const trailer = entries.find((e) => e.id === id)?.trailerNumber ?? ''
-    setNotice(`Trailer ${trailer} released to the gate`)
+    setNotice(toYard ? `Trailer ${trailer} released to the yard${spot ? ` · spot ${spot}` : ''}` : `Trailer ${trailer} released to the gate`)
   }
 
   // Tab badges: what's waiting for each team.
@@ -248,27 +278,15 @@ export default function App() {
   const handleDelete = (id) => {
     setEntries((list) => list.filter((e) => e.id !== id))
     if (editing?.id === id) setEditing(null)
+    if (leaving?.id === id) setLeaving(null)
   }
 
-  // Check In / Check Out switch, shown in the Gate page's top line.
-  const gateSwitch = (
-    <div role="tablist" aria-label="Gate form" className="inline-flex gap-1 rounded-xl bg-field p-1">
-      {GATE_MODES.map((m) => (
-        <button
-          key={m.id}
-          role="tab"
-          aria-selected={gateMode === m.id}
-          onClick={() => openGate(m.id, null)}
-          className={
-            'inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-[10px] px-4 font-display text-[16px] font-bold transition-[background-color,color,box-shadow] duration-150 ease-out ' +
-            (gateMode === m.id ? 'bg-signal text-signal-ink shadow-card' : 'text-ink hover:bg-panel')
-          }
-        >
-          <Icon name={m.icon} size={22} />
-          {m.label}
-        </button>
-      ))}
-    </div>
+  // Each Gate column's name, where the Check In / Check Out switch used to be in the top line.
+  const gateTitle = (icon, label) => (
+    <h2 className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-signal px-4 font-display text-[17px] font-bold text-signal-ink shadow-card">
+      <Icon name={icon} size={22} />
+      {label}
+    </h2>
   )
 
   return (
@@ -313,7 +331,8 @@ export default function App() {
         </nav>
       </header>
 
-      <main className="mx-auto max-w-[1400px] space-y-6 px-4 py-6 sm:px-5">
+      {/* Insights uses the full width beside its fixed rail; the other tabs stay centered. */}
+      <main className={tab === 'insights' ? 'space-y-5 px-4 py-5 sm:px-5 lg:px-6 lg:py-6' : 'mx-auto max-w-[1400px] space-y-6 px-4 py-6 sm:px-5'}>
         {storageError && (
           <div role="alert" className="no-print flex items-start gap-3 rounded-2xl border border-danger/30 bg-danger-soft px-5 py-4 font-semibold text-danger shadow-card">
             <Icon name="warning" className="mt-0.5" />
@@ -330,39 +349,36 @@ export default function App() {
         )}
 
         {tab === 'gate' ? (
-          <div
-            role="tabpanel"
-            id="panel-gate"
-            aria-labelledby="tab-gate"
-            className="mx-auto grid max-w-[860px] gap-6"
-          >
+          <div role="tabpanel" id="panel-gate" aria-labelledby="tab-gate" className="grid gap-6">
             <GateHeader entries={entries} guard={guard} onGuardChange={changeGuard} onReady={() => openGate('out', null)} />
             {!guard && <GuardStart recent={recentGuards(entries)} onChange={changeGuard} />}
-            {/* The Check In / Check Out page: one column, at tablet width. Hidden (not removed) while no
-                guard is on duty, so anything already typed survives the midnight reset. */}
-            <div className="min-w-0" hidden={!guard}>
-              {gateMode === 'out' ? (
+            {/* Check In and Check Out on one page: side by side on wide screens, Check Out (who is ready to
+                leave) first on narrower ones. Hidden (not removed) while no guard is on duty, so anything
+                already typed survives the midnight reset. */}
+            <div className="grid items-start gap-6 xl:grid-cols-2" hidden={!guard}>
+              <div id="gate-out" className="min-w-0 scroll-mt-[calc(var(--header-h,114px)+16px)] xl:order-2">
                 <CheckOutPage
-                  key={editing?.id ?? 'list'}
+                  key={leaving?.id ?? 'list'}
                   entries={entries}
-                  initial={editing}
+                  initial={leaving}
                   guard={guard}
-                  switcher={gateSwitch}
+                  switcher={gateTitle('checkOut', 'Check Out')}
                   onPick={handleCheckOut}
-                  onSave={handleSave}
-                  onCancel={() => setEditing(null)}
+                  onSave={(form) => handleSave(form, 'out')}
+                  onCancel={() => setLeaving(null)}
                 />
-              ) : (
+              </div>
+              <div id="gate-in" className="min-w-0 scroll-mt-[calc(var(--header-h,114px)+16px)] xl:order-1">
                 <CheckInForm
                   key={editing?.id ?? 'new'}
                   initial={editing}
                   entries={entries}
                   guard={guard}
-                  switcher={gateSwitch}
-                  onSave={handleSave}
+                  switcher={gateTitle('checkIn', 'Check In')}
+                  onSave={(form) => handleSave(form, 'in')}
                   onCancel={editing ? () => setEditing(null) : undefined}
                 />
-              )}
+              </div>
             </div>
           </div>
         ) : tab === 'docks' ? (
@@ -386,16 +402,27 @@ export default function App() {
               onRemoveSample={handleRemoveSample}
             />
           </div>
+        ) : tab === 'insights' ? (
+          <div role="tabpanel" id="panel-insights" aria-labelledby="tab-insights">
+            <Analytics
+              entries={entries}
+              gateEvents={gateEvents}
+              sampleCount={sampleCount}
+              onLoadSample={handleLoadSample}
+              onRemoveSample={handleRemoveSample}
+            />
+          </div>
         ) : (
           <div role="tabpanel" id="panel-shipping" aria-labelledby="tab-shipping">
-            <ShippingDashboard
+            <ShippingPage
               entries={entries}
               onAssignDock={handleAssignDock}
+              onOrderReady={handleOrderReady}
               onEdit={handleEdit}
+              onUpdateEntry={handleShippingEdit}
               onCheckOut={handleCheckOut}
-              top={
-                <EntryLog entries={entries} onEdit={handleEdit} onCheckOut={handleCheckOut} onDelete={handleDelete} onAssignDock={handleAssignDock} />
-              }
+              onOpenInsights={openInsights}
+              log={<EntryLog entries={entries} onEdit={handleEdit} onCheckOut={handleCheckOut} onDelete={handleDelete} onAssignDock={handleAssignDock} onOrderReady={handleOrderReady} />}
             />
           </div>
         )}

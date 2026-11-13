@@ -1,5 +1,8 @@
 import {
+  Activity,
   Ban,
+  Building2,
+  CalendarDays,
   Camera,
   Check,
   ChartColumn,
@@ -7,11 +10,14 @@ import {
   CircleCheck,
   CircleX,
   ClipboardCheck,
+  ClipboardList,
   Clock,
   Container,
   Database,
   DollarSign,
   Download,
+  ExternalLink,
+  FileText,
   Gauge,
   History,
   Info,
@@ -86,6 +92,13 @@ export const ICONS = {
   edit: Pencil,
   undo: RotateCcw,
   chevron: ChevronRight,
+  // Shipping sidebar
+  live: Activity,
+  orders: ClipboardList,
+  customer: Building2,
+  report: FileText,
+  calendar: CalendarDays,
+  external: ExternalLink,
 }
 
 export function Icon({ name, size = 20, className = '' }) {

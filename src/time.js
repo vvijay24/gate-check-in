@@ -34,4 +34,20 @@ export const minutesLate = (e) => {
   return Number.isFinite(diff) ? diff : null
 }
 
+// "just now" under a minute, else "12m ago" / "1h 5m ago".
+export const ago = (ms) => (Number.isFinite(ms) && ms < 60000 ? 'just now' : `${duration(ms)} ago`)
+
+// Short date for read-outs: "Today", "Yesterday" or "Oct 28" (with the year when it isn't this year).
+export function shortDate(key) {
+  if (!key) return ''
+  const now = new Date()
+  const yesterday = new Date(now)
+  yesterday.setDate(now.getDate() - 1)
+  if (key === dayKey(now)) return 'Today'
+  if (key === dayKey(yesterday)) return 'Yesterday'
+  const d = new Date(`${key}T00:00`)
+  if (Number.isNaN(d.getTime())) return key
+  return d.toLocaleDateString([], { month: 'short', day: 'numeric', ...(d.getFullYear() !== now.getFullYear() && { year: 'numeric' }) })
+}
+
 export const clockTime = (ms) => new Date(ms).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })

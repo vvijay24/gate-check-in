@@ -49,7 +49,6 @@ export const seg = (on, bad = false, danger = false) =>
       : (bad ? 'border-danger' : 'border-line') + ' bg-field text-ink hover:border-signal-bright')
 
 export const PURPOSE_STYLES = {
-  Delivery: { stripe: 'bg-delivery', tag: 'bg-delivery-soft text-delivery', check: 'accent-delivery has-[:checked]:border-delivery' },
   Pickup: { stripe: 'bg-pickup', tag: 'bg-pickup-soft text-pickup', check: 'accent-pickup has-[:checked]:border-pickup' },
   'Drop Trailer': { stripe: 'bg-drop', tag: 'bg-drop-soft text-drop', check: 'accent-drop has-[:checked]:border-drop' },
 }

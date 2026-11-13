@@ -3,9 +3,12 @@ import * as ui from '../ui'
 import { Icon } from '../icons'
 import { GATE, isRequired } from '../formConfig'
 import { arrivalMs, clockTime, departureMs, duration } from '../time'
-import { checkOutBlock, expectedSeal, isReleased } from '../handoff'
+import { checkOutBlock, expectedSeal, inYard, isReleased } from '../handoff'
+
+// Where the truck or trailer is: its dock, or the yard (with its spot for a loaded drop trailer).
+const placeOf = (e) => (inYard(e) ? `In the yard${e.release.spot ? ` · spot ${e.release.spot}` : ''}` : e.dockDoor ? `Dock ${e.dockDoor}` : 'In the yard')
 import { DETENTION_ICON, DETENTION_TAG, detentionState } from '../detention'
-import { FIELD_LABELS, checkOutStart, dayLabel, timeLabel, validate } from '../gateForm'
+import { FIELD_LABELS, checkOutStart, dayLabel, isPhone, timeLabel, validate, withPhones } from '../gateForm'
 import ErrorSummary from './ErrorSummary'
 import { BottomBar, FieldBox, GateStep, GateTopLine, LinkButton, More, Note, Recap, Seg, goButton } from './gate/parts'
 
@@ -13,7 +16,7 @@ import { BottomBar, FieldBox, GateStep, GateTopLine, LinkButton, More, Note, Rec
 // with what's already known — (2) the driver going out, (3) the seal and reefer fuel, then a short recap
 // and Check Out → "Confirm Check Out?" in the bar at the bottom. Without `initial` only the truck list
 // shows; picking a truck calls `onPick`, which opens this page for it. A truck that already left opens
-// for editing its departure. `switcher` (Check In / Check Out) sits in the top line.
+// for editing its departure. `switcher` (the column's Check Out title) sits in the top line.
 
 const FUEL = [
   { value: 'Empty', danger: true },
@@ -23,8 +26,8 @@ const FUEL = [
   { value: 'Full' },
 ]
 const FUEL_LABEL = { '1/4': '¼', '1/2': '½', '3/4': '¾' }
-const STRIPE = { Delivery: 'bg-delivery', Pickup: 'bg-pickup', 'Drop Trailer': 'bg-drop' }
-const PURPOSE_TAG = { Delivery: 'bg-delivery-soft text-delivery', Pickup: 'bg-pickup-soft text-pickup', 'Drop Trailer': 'bg-drop-soft text-drop' }
+const STRIPE = { Pickup: 'bg-pickup', 'Drop Trailer': 'bg-drop' }
+const PURPOSE_TAG = { Pickup: 'bg-pickup-soft text-pickup', 'Drop Trailer': 'bg-drop-soft text-drop' }
 const filled = (v) => String(v ?? '').trim() !== ''
 // Short names for "Still needed".
 const SHORT = {
@@ -32,6 +35,7 @@ const SHORT = {
   timeOut: 'Time out',
   gateOut: 'Gate out',
   truckerNameOut: 'Driver name',
+  driverPhoneOut: 'Driver phone',
   sealConfirmed: 'Seal check',
   sealNote: 'Seal found',
   outgoingSeals: 'Outgoing seal #',
@@ -90,7 +94,7 @@ function TruckRow({ e, now, onPick }) {
             {e.trailerNumber} · {e.truckName}
           </b>
           <span className="text-[15px] text-muted">
-            {[e.dockDoor ? `Dock ${e.dockDoor}` : 'In the yard', e.truckerNameIn, `here ${duration(now - arrivalMs(e))}`].filter(Boolean).join(' · ')}
+            {[placeOf(e), inYard(e) ? 'loaded, waiting for a driver' : e.truckerNameIn, `here ${duration(now - arrivalMs(e))}`].filter(Boolean).join(' · ')}
           </span>
           <Pills e={e} now={now} />
         </span>
@@ -229,8 +233,12 @@ function CheckOutForm({ entry, guard, switcher, now, onSave, onCancel }) {
     )
   }
 
+  // The same driver keeps their check-in phone; ask for one when it's a different driver, the check-in
+  // has no valid number on file, or the departure has a different one (an older entry saved without it).
+  const askPhone = driver === 'diff' || !isPhone(entry.driverPhone) || form.driverPhoneOut !== entry.driverPhone
+
   // Required answers by section, for the progress strip.
-  const vehicle = ['dateOut', 'timeOut', 'gateOut', 'truckerNameOut'].filter(required)
+  const vehicle = ['dateOut', 'timeOut', 'gateOut', 'truckerNameOut', 'driverPhoneOut'].filter(required)
   const sealReefer = [
     ...(sealToCheck ? ['sealConfirmed'] : []),
     ...(form.sealConfirmed === 'No' ? ['sealNote'] : []),
@@ -265,10 +273,10 @@ function CheckOutForm({ entry, guard, switcher, now, onSave, onCancel }) {
       return
     }
     // A new check-out asks once more against accidental taps; editing a departure saves straight away.
-    if (editing) onSave(data)
+    if (editing) onSave(withPhones(data))
     else setConfirming(true)
   }
-  const save = () => onSave({ ...form, guardOut: guard, checkOutStartedAt: openedAt.current, checkedOutAt: Date.now() })
+  const save = () => onSave({ ...withPhones(form), guardOut: guard, checkOutStartedAt: openedAt.current, checkedOutAt: Date.now() })
 
   const handleRevert = () => {
     if (JSON.stringify(form) !== JSON.stringify(baseline.current) && !window.confirm('Undo your changes to this check-out?')) return
@@ -279,13 +287,13 @@ function CheckOutForm({ entry, guard, switcher, now, onSave, onCancel }) {
   const fuelIn = FUEL_LABEL[entry.fuelIn] ?? entry.fuelIn
 
   const progress = { filled: total - missing.length, total, blocked: Boolean(blocked) }
-  const stepOf = (n) => (['dateOut', 'timeOut', 'gateOut', 'truckerNameOut'].includes(n) ? 'out-driver' : 'out-seal')
+  const stepOf = (n) => (['dateOut', 'timeOut', 'gateOut', 'truckerNameOut', 'driverPhoneOut'].includes(n) ? 'out-driver' : 'out-seal')
   const stillNeeded = missing.map((n) => [SHORT[n] ?? FIELD_LABELS[n] ?? n, stepOf(n)])
   const by = editing ? form.guardOut || guard : guard
   const det = editing ? null : detentionState(entry, now)
   const facts = [
     (entry.visitPurpose ?? []).join(' + '),
-    entry.dockDoor ? `Dock ${entry.dockDoor}` : 'In the yard',
+    placeOf(entry),
     `${editing ? 'stayed' : 'here'} ${duration((editing ? departureMs(entry) : now) - arrivalMs(entry))}`,
     entry.pickupNumber && `order ${entry.pickupNumber}`,
     entry.release?.releasedAt && `released ${clockTime(entry.release.releasedAt)} by ${entry.release.releasedBy}`,
@@ -370,17 +378,19 @@ function CheckOutForm({ entry, guard, switcher, now, onSave, onCancel }) {
               />
             </FieldBox>
           )}
-          {driver === 'diff' && (
-            <>
-              <FieldBox name="truckerNameOut" label="Driver name going out" required={required('truckerNameOut')} error={err('truckerNameOut')}>
-                <input {...text('truckerNameOut')} className={inputCls('truckerNameOut')} />
-              </FieldBox>
-              <More label="driver phone" open={filled(form.driverPhoneOut)}>
-                <FieldBox name="driverPhoneOut" label="Driver phone">
-                  <input {...text('driverPhoneOut')} type="tel" inputMode="tel" className={inputCls('driverPhoneOut')} />
+          {(driver === 'diff' || askPhone) && (
+            <div className="grid gap-4 sm:grid-cols-2">
+              {askPhone && (
+                <FieldBox name="driverPhoneOut" label="Driver phone" required={required('driverPhoneOut')} error={err('driverPhoneOut')} hint="10 digits">
+                  <input {...text('driverPhoneOut')} type="tel" inputMode="tel" autoComplete="off" className={inputCls('driverPhoneOut')} />
                 </FieldBox>
-              </More>
-            </>
+              )}
+              {driver === 'diff' && (
+                <FieldBox name="truckerNameOut" label="Driver name going out" required={required('truckerNameOut')} error={err('truckerNameOut')}>
+                  <input {...text('truckerNameOut')} className={inputCls('truckerNameOut')} />
+                </FieldBox>
+              )}
+            </div>
           )}
         </GateStep>
 
