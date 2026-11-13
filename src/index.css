@@ -52,6 +52,8 @@
   --color-chart-live: #3A6EA5;
   /* Live yard on Loading & Inspection: waiting for a dock, loading, inspection, ready to leave.
      Validated with the dataviz palette check (light on #FFF, dark on #171D26). */
+  /* Waiting for order: neutral grey, before the blue "ready for a dock" stage. */
+  --color-yard-order: #6F7D92;
   --color-yard-wait: #4A86D0;
   --color-yard-load: #C98F00;
   --color-yard-insp: #8E5BC9;
@@ -114,6 +116,7 @@
    assignment, pre-loading, loading, inspection, checkout) and blue / gold / purple / teal for categories,
    matching the Live yard. Validated light on #FFF and dark on #171D26; red stays for problems only. */
 :root {
+  --dive-s0: #6F7D92;
   --dive-s1: #E0763A; --dive-s2: #4A86D0; --dive-s3: #D9559A; --dive-s4: #C99300; --dive-s5: #8E5BC9; --dive-s6: #13998A;
   --dive-blue: #4A86D0; --dive-gold: #C99300; --dive-purple: #8E5BC9; --dive-teal: #13998A;
 }
@@ -173,8 +176,8 @@
     --color-drop: #2EC4B2; --color-drop-soft: #0F2E2B; --color-ok: #3DD07F; --color-ok-soft: #12301F;
     --color-danger: #FF5468; --color-danger-soft: #3A1820;
     --color-chart-live: #7AA7E3; --color-rail-text: #9FB6CF;
-    --color-yard-wait: #5B95DE; --color-yard-load: #BF8700; --color-yard-insp: #9B6BD6; --color-yard-ready: #1FA594;
-    --dive-s1: #D9763B; --dive-s2: #5B95DE; --dive-s3: #CF5A9B; --dive-s4: #BF8700; --dive-s5: #9B6BD6; --dive-s6: #1FA594;
+    --color-yard-order: #8A97AB; --color-yard-wait: #5B95DE; --color-yard-load: #BF8700; --color-yard-insp: #9B6BD6; --color-yard-ready: #1FA594;
+    --dive-s0: #8A97AB; --dive-s1: #D9763B; --dive-s2: #5B95DE; --dive-s3: #CF5A9B; --dive-s4: #BF8700; --dive-s5: #9B6BD6; --dive-s6: #1FA594;
     --dive-blue: #5B95DE; --dive-gold: #BF8700; --dive-purple: #9B6BD6; --dive-teal: #1FA594;
     --color-asphalt: #1C232D; --color-lane: #242C38; --color-building: #2E3846; --color-track: #2A323E;
     --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4), 0 4px 16px rgba(0, 0, 0, 0.25);
@@ -200,8 +203,8 @@
     --color-drop: #2EC4B2; --color-drop-soft: #0F2E2B; --color-ok: #3DD07F; --color-ok-soft: #12301F;
     --color-danger: #FF5468; --color-danger-soft: #3A1820;
     --color-chart-live: #7AA7E3; --color-rail-text: #9FB6CF;
-    --color-yard-wait: #5B95DE; --color-yard-load: #BF8700; --color-yard-insp: #9B6BD6; --color-yard-ready: #1FA594;
-    --dive-s1: #D9763B; --dive-s2: #5B95DE; --dive-s3: #CF5A9B; --dive-s4: #BF8700; --dive-s5: #9B6BD6; --dive-s6: #1FA594;
+    --color-yard-order: #8A97AB; --color-yard-wait: #5B95DE; --color-yard-load: #BF8700; --color-yard-insp: #9B6BD6; --color-yard-ready: #1FA594;
+    --dive-s0: #8A97AB; --dive-s1: #D9763B; --dive-s2: #5B95DE; --dive-s3: #CF5A9B; --dive-s4: #BF8700; --dive-s5: #9B6BD6; --dive-s6: #1FA594;
     --dive-blue: #5B95DE; --dive-gold: #BF8700; --dive-purple: #9B6BD6; --dive-teal: #1FA594;
     --color-asphalt: #1C232D; --color-lane: #242C38; --color-building: #2E3846; --color-track: #2A323E;
     --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4), 0 4px 16px rgba(0, 0, 0, 0.25);

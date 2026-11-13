@@ -7,10 +7,11 @@ import { DOCK_TARGET, STAGE_TARGETS } from './turnaround/targets'
 const KEY = 'impact-settings'
 const STAGE = Object.fromEntries(STAGE_TARGETS.map((t) => [t.key, t]))
 
-// Defaults follow the stage targets in turnaround/targets.js (METRICS.md): dock assignment ≤ 30 min,
+// Defaults follow the stage targets in turnaround/targets.js (METRICS.md): arrival to dock ≤ 30 min (waiting
+// for the order ≤ 15, then dock assignment ≤ 15),
 // pre-load + loading + inspection ≤ 85 min at the door, gate checkout ≤ 5 min.
 export const HANDOFFS = [
-  { key: 'waitDockMs', label: 'Arrived → dock assigned', owner: 'Shipping', target: STAGE.dockAssign.max },
+  { key: 'waitDockMs', label: 'Arrived → dock assigned', owner: 'Shipping', target: STAGE.orderWait.max + STAGE.dockAssign.max },
   { key: 'toInspectMs', label: 'Docked → inspected', owner: 'Dock / QA', target: DOCK_TARGET.max },
   { key: 'toReleaseMs', label: 'Passed → released by the inspector', owner: 'Dock / QA', target: STAGE.checkout.max },
   { key: 'releaseToOutMs', label: 'Released → checked out', owner: 'Gate', target: STAGE.checkout.max },

@@ -1,12 +1,13 @@
 import { useState } from 'react'
 import * as ui from '../ui'
 import { Icon } from '../icons'
+import { atDockNow } from '../handoff'
 
 export const dockKey = (dock) => String(dock ?? '').trim().toUpperCase()
 
-// Docks in use right now, keyed by normalized dock #: on-site trucks that have a dock.
-export const occupiedDocks = (entries) =>
-  new Map(entries.filter((e) => !e.timeOut && e.dockDoor).map((e) => [dockKey(e.dockDoor), e]))
+// Docks in use right now, keyed by normalized dock #: on-site trucks at their dock (a dropped trailer
+// released to the yard has left its dock).
+export const occupiedDocks = (entries) => new Map(entries.filter(atDockNow).map((e) => [dockKey(e.dockDoor), e]))
 
 // "Assign Dock" button that opens an inline Dock # form. Refuses a dock another truck is using.
 // `extra` renders beside the button while the form is closed.

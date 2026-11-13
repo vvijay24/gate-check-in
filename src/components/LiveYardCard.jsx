@@ -3,6 +3,7 @@ import * as ui from '../ui'
 import { Icon } from '../icons'
 import CardHead from './CardHead'
 import { DOCKS } from '../yard'
+import { atDockNow } from '../handoff'
 import { YARD_STAGES, yardHistory, yardStageAt } from '../liveYard'
 
 // The Live yard at the top of Loading & Inspection: how many trucks are in each stage right now (the
@@ -131,7 +132,7 @@ export default function LiveYardCard({ entries, now, compact }) {
   const docks = useMemo(
     () =>
       DOCKS.map((d) => {
-        const e = entries.find((x) => !x.timeOut && x.dockDoor === d)
+        const e = entries.find((x) => atDockNow(x) && x.dockDoor === d)
         return { d, stage: e ? YARD_STAGES.find((s) => s.key === yardStageAt(e, now)) : null, e }
       }),
     [entries, now],
@@ -195,7 +196,7 @@ export default function LiveYardCard({ entries, now, compact }) {
           </div>
           <p className="text-[13px] text-muted">Every truck on site by stage, every half hour for the last six hours</p>
         </div>
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
           {YARD_STAGES.map((s) => (
             <div
               key={s.key}

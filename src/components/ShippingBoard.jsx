@@ -4,7 +4,7 @@ import { Icon } from '../icons'
 import { arrivalMs, clockTime, dayKey, duration } from '../time'
 import { DOCKS } from '../yard'
 import { isDrop } from '../metrics'
-import { awaitingRelease, isReleased } from '../handoff'
+import { atDockNow, awaitingRelease, inYard, isReleased } from '../handoff'
 import { detentionState } from '../detention'
 import { DOCK_STEPS, STAGES, checkedInAt, currentStage, inspectionSavedAt, toneOf } from '../stages'
 import { dockKey, occupiedDocks } from './AssignDock'
@@ -14,12 +14,13 @@ import EntryDialog from './EntryDialog'
 
 // The Shipping desk: what needs doing now, laid out the way trucks move. A one-line read of the
 // situation, the numbers that need action, the docks (free or busy, and how far along each truck is),
-// then three lanes — Needs a dock → At the docks → Passed inspection — with a timer on every truck, and
-// the Live yard and a stage chart. Shipping only watches the last lane: the inspector releases trucks to the gate on
-// Loading & Inspection. Assigning a dock is two taps: Assign dock, then a free dock (on the card or a door).
+// then four lanes — Waiting for order → Ready for a dock → At the docks → Passed inspection — with a timer
+// on every truck, and the Live yard and a stage chart. Shipping marks a waiting truck's order ready; only
+// then can it get a dock (two taps: Assign dock, then a free dock). Shipping only watches the last lane:
+// the inspector releases trucks to the gate (or a loaded drop trailer to the yard) on Loading & Inspection.
 
-const PURPOSE_EDGE = { Delivery: 'before:bg-delivery', Pickup: 'before:bg-pickup', 'Drop Trailer': 'before:bg-drop' }
-const PURPOSE_DOT = { Delivery: 'bg-delivery', Pickup: 'bg-pickup', 'Drop Trailer': 'bg-drop' }
+const PURPOSE_EDGE = { Pickup: 'before:bg-pickup', 'Drop Trailer': 'before:bg-drop' }
+const PURPOSE_DOT = { Pickup: 'bg-pickup', 'Drop Trailer': 'bg-drop' }
 const MIN = 60000
 
 const byDock = (a, b) => dockKey(a.dockDoor).localeCompare(dockKey(b.dockDoor), undefined, { numeric: true })
@@ -65,14 +66,17 @@ function TruckCard({ e, stage, now, selected, dock, children }) {
 
 function Lane({ icon, badge, title, count, target, empty, emptyIcon, children }) {
   return (
-    <section aria-label={title} className="grid content-start gap-3">
-      <div className="flex items-center gap-2.5 px-1">
-        <span className={'grid size-9 place-items-center rounded-xl ' + badge}>
-          <Icon name={icon} />
-        </span>
-        <h3 className="font-display text-[20px] font-bold">{title}</h3>
-        <span className="grid h-7 min-w-7 place-items-center rounded-full bg-panel px-2 font-display text-[16px] font-bold shadow-card">{count}</span>
-        <span className="ml-auto text-right text-[13px] leading-tight text-muted">{target}</span>
+    // min-w-0: four lanes side by side on wide screens, so cards shrink instead of overflowing.
+    <section aria-label={title} className="grid min-w-0 content-start gap-3">
+      <div className="grid gap-1 px-1">
+        <div className="flex items-center gap-2.5">
+          <span className={'grid size-9 shrink-0 place-items-center rounded-xl ' + badge}>
+            <Icon name={icon} />
+          </span>
+          <h3 className="font-display text-[19px] leading-tight font-bold">{title}</h3>
+          <span className="grid h-7 min-w-7 place-items-center rounded-full bg-panel px-2 font-display text-[16px] font-bold shadow-card">{count}</span>
+        </div>
+        <span className="text-[13px] leading-tight text-muted">{target}</span>
       </div>
       <div className="grid min-h-[140px] content-start gap-3 rounded-[20px] bg-gradient-to-b from-signal-soft/60 to-signal-soft/25 p-2.5">
         {count ? (
@@ -168,8 +172,10 @@ function StageChart({ entries, now }) {
   const today = dayKey(new Date(now))
   const visits = entries.filter((e) => e.dateIn === today)
   const span = (a, b) => (Number.isFinite(a) && Number.isFinite(b) && b >= a ? (b - a) / MIN : null)
+  // Older visits have no "Order ready" time: their whole wait counts as dock assignment.
   const rows = [
-    ['dock', (e) => span(arrivalMs(e), e.dockAssignedAt)],
+    ['orderWait', (e) => (e.orderReadyAt ? span(checkedInAt(e), e.orderReadyAt) : null)],
+    ['dock', (e) => span(e.orderReadyAt ?? arrivalMs(e), e.dockAssignedAt)],
     ['preload', (e) => span(e.dockAssignedAt, e.loadStartedAt)],
     ['load', (e) => span(e.loadStartedAt, e.loadFinishedAt)],
     ['inspect', (e) => span(e.loadFinishedAt, inspectionSavedAt(e))],
@@ -285,9 +291,9 @@ function StageChart({ entries, now }) {
   )
 }
 
-export default function ShippingBoard({ entries, onAssignDock, onUpdateEntry }) {
+export default function ShippingBoard({ entries, onAssignDock, onOrderReady, onUpdateEntry }) {
   const [now, setNow] = useState(Date.now)
-  // The waiting truck whose dock is being picked.
+  // The ready truck whose dock is being picked.
   const [assigningId, setAssigningId] = useState(null)
   // The truck whose entry is open in the View entry pop-up.
   const [viewingId, setViewingId] = useState(null)
@@ -297,23 +303,31 @@ export default function ShippingBoard({ entries, onAssignDock, onUpdateEntry }) 
   }, [])
 
   const onSite = entries.filter((e) => !e.timeOut)
-  // Dropped trailers park in the yard; they don't need a dock.
-  const waiting = onSite.filter((e) => !e.dockDoor && !isDrop(e)).sort((a, b) => arrivalMs(a) - arrivalMs(b))
-  const parked = onSite.filter((e) => !e.dockDoor && isDrop(e)).length
-  const atDock = onSite.filter((e) => e.dockDoor && !awaitingRelease(e) && !isReleased(e)).sort(byDock)
+  // Without a dock, a truck first waits for its order; once Shipping marks it ready it can get a dock.
+  // Dropped trailers go the same way (no driver waits with them, so they have no timer).
+  const noDock = onSite.filter((e) => !e.dockDoor)
+  const waitingOrder = noDock.filter((e) => !e.orderReadyAt).sort((a, b) => arrivalMs(a) - arrivalMs(b))
+  const readyForDock = noDock.filter((e) => e.orderReadyAt).sort((a, b) => a.orderReadyAt - b.orderReadyAt)
+  // Loaded dropped trailers released to the yard, waiting for a driver to hook them.
+  const parked = onSite.filter(inYard).length
+  const atDock = onSite.filter((e) => atDockNow(e) && !awaitingRelease(e) && !isReleased(e)).sort(byDock)
   // Passed inspection: waiting for the inspector's release, or released and waiting for the gate.
-  const ready = onSite.filter((e) => awaitingRelease(e) || isReleased(e)).sort((a, b) => (inspectionSavedAt(a) ?? 0) - (inspectionSavedAt(b) ?? 0))
+  const ready = onSite
+    .filter((e) => !inYard(e) && (awaitingRelease(e) || isReleased(e)))
+    .sort((a, b) => (inspectionSavedAt(a) ?? 0) - (inspectionSavedAt(b) ?? 0))
   const released = ready.filter(isReleased).length
   const toRelease = ready.length - released
   const occupied = occupiedDocks(entries)
   const free = DOCKS.filter((d) => !occupied.has(dockKey(d)))
-  const assigning = waiting.find((e) => e.id === assigningId)
+  const assigning = readyForDock.find((e) => e.id === assigningId)
 
   const minsIn = (e) => {
     const st = currentStage(e)
     return st && Number.isFinite(st.since) ? { key: st.key, m: (now - st.since) / MIN } : null
   }
-  const lateDock = waiting.filter((e) => (now - checkedInAt(e)) / MIN > STAGES.dock.max).length
+  const lateOrder = waitingOrder.filter((e) => !isDrop(e) && (now - checkedInAt(e)) / MIN > STAGES.orderWait.max).length
+  const longestOrder = Math.max(0, ...waitingOrder.filter((e) => !isDrop(e)).map((e) => now - checkedInAt(e)))
+  const lateDock = readyForDock.filter((e) => (now - e.orderReadyAt) / MIN > STAGES.dock.max).length
   const lateRelease = ready.filter((e) => (minsIn(e)?.m ?? 0) > STAGES.checkout.max).length
   const loading = atDock.filter((e) => currentStage(e)?.key === 'load').length
   const over = onSite.map((e) => detentionState(e, now)).filter((d) => d?.level === 'over')
@@ -323,6 +337,21 @@ export default function ShippingBoard({ entries, onAssignDock, onUpdateEntry }) 
     onAssignDock(assigning.id, dock)
     setAssigningId(null)
   }
+
+  // The line under a card's title: purpose, driver, check-in and appointment.
+  const facts = (e) => (
+    <div className="flex flex-wrap gap-x-3 gap-y-1 text-[13px] text-muted">
+      <Purpose e={e} />
+      {e.pickupNumber && <span>order {e.pickupNumber}</span>}
+      {e.customerPickupFor && <span>{e.customerPickupFor}</span>}
+      {isDrop(e) ? <span>dropped, no driver waiting</span> : e.truckerNameIn && <span>{e.truckerNameIn}</span>}
+      <span>
+        in {clockTime(checkedInAt(e))}
+        {e.guardOnDuty && <> by {e.guardOnDuty}</>}
+      </span>
+      {e.appointmentTime && <span>appt {e.appointmentTime}</span>}
+    </div>
+  )
 
   return (
     <div className="grid gap-6">
@@ -340,12 +369,19 @@ export default function ShippingBoard({ entries, onAssignDock, onUpdateEntry }) 
         <div>
           <h2 className="font-display text-[26px] leading-none font-bold">Shipping desk</h2>
           <p className="mt-1.5 text-[15px] text-muted" aria-live="polite">
-            {waiting.length ? (
+            {waitingOrder.length ? (
               <b className="text-ink">
-                {waiting.length} truck{waiting.length === 1 ? ' needs' : 's need'} a dock
+                {waitingOrder.length} order{waitingOrder.length === 1 ? '' : 's'} not ready
               </b>
             ) : (
-              <b className="text-ink">No one waiting for a dock</b>
+              'Every order on site is ready'
+            )}
+            {lateOrder > 0 && <span className="font-semibold text-danger"> ({lateOrder} late)</span>}
+            {' · '}
+            {readyForDock.length ? (
+              <b className="text-ink">{readyForDock.length} ready for a dock</b>
+            ) : (
+              'none waiting for a dock'
             )}
             {lateDock > 0 && <span className="font-semibold text-danger"> ({lateDock} late)</span>}
             {' · '}
@@ -365,13 +401,28 @@ export default function ShippingBoard({ entries, onAssignDock, onUpdateEntry }) 
         </span>
       </div>
 
-      <div className="grid grid-cols-2 gap-3.5 md:grid-cols-3 xl:grid-cols-5">
+      <div className="grid grid-cols-2 gap-3.5 md:grid-cols-3 xl:grid-cols-6">
         <Kpi
           icon="waiting"
-          label="Need a dock"
-          value={waiting.length}
-          note={lateDock ? `${lateDock} past ${STAGES.dock.max} min` : waiting.length ? 'none late yet' : `all docked${parked ? ` · ${parked} parked` : ''}`}
-          tone={lateDock ? 'bad' : waiting.length ? 'warn' : 'good'}
+          label="Waiting for order"
+          value={waitingOrder.length}
+          note={
+            lateOrder
+              ? `${lateOrder} past ${STAGES.orderWait.max} min`
+              : longestOrder
+                ? `longest ${duration(longestOrder)}`
+                : waitingOrder.length
+                  ? 'dropped trailers only'
+                  : 'every order ready'
+          }
+          tone={lateOrder ? 'bad' : waitingOrder.length ? 'warn' : 'good'}
+        />
+        <Kpi
+          icon="dock"
+          label="Ready for a dock"
+          value={readyForDock.length}
+          note={lateDock ? `${lateDock} past ${STAGES.dock.max} min` : readyForDock.length ? 'none late yet' : `all docked${parked ? ` · ${parked} loaded in the yard` : ''}`}
+          tone={lateDock ? 'bad' : readyForDock.length ? 'warn' : 'good'}
         />
         <Kpi
           icon="dock"
@@ -416,7 +467,7 @@ export default function ShippingBoard({ entries, onAssignDock, onUpdateEntry }) 
             Docks
           </h3>
           <span className="text-[14px] text-muted">
-            {free.length} of {DOCKS.length} free
+            {free.length} of {DOCKS.length} free · a dock goes to a truck once its order is ready
           </span>
           {assigning && <span className="ml-auto text-[14px] font-bold text-ok">Tap a free dock for trailer {assigning.trailerNumber}</span>}
         </div>
@@ -467,35 +518,60 @@ export default function ShippingBoard({ entries, onAssignDock, onUpdateEntry }) 
         </div>
       </section>
 
-      {/* The work board */}
-      <div className="grid items-start gap-5 xl:grid-cols-3">
+      {/* The work board, in the order trucks move */}
+      <div className="grid items-start gap-5 md:grid-cols-2 xl:grid-cols-4">
         <Lane
           icon="waiting"
           badge="bg-warn text-warn-ink"
-          title="Needs a dock"
-          count={waiting.length}
+          title="Waiting for order"
+          count={waitingOrder.length}
           target={
             <>
-              assign within
-              <br />
-              {STAGES.dock.min}–{STAGES.dock.max} min
+              order ready within {STAGES.orderWait.max} min
             </>
           }
-          empty={`Every truck has a dock.${parked ? ` ${parked} dropped trailer${parked === 1 ? ' is' : 's are'} parked in the yard.` : ''}`}
+          empty="Every truck on site has its order ready."
           emptyIcon="done"
         >
-          {waiting.map((e) => (
-            <TruckCard key={e.id} e={e} stage={currentStage(e)} now={now} selected={assigningId === e.id}>
-              <div className="flex flex-wrap gap-x-3 gap-y-1 text-[13px] text-muted">
-                <Purpose e={e} />
-                {e.truckerNameIn && <span>{e.truckerNameIn}</span>}
-                <span>
-                  in {clockTime(checkedInAt(e))}
-                  {e.guardOnDuty && <> by {e.guardOnDuty}</>}
-                </span>
-                {e.appointmentTime && <span>appt {e.appointmentTime}</span>}
+          {waitingOrder.map((e) => (
+            <TruckCard key={e.id} e={e} stage={currentStage(e)} now={now}>
+              {facts(e)}
+              {!isDrop(e) && <TimerLine stage="orderWait" since={checkedInAt(e)} now={now} scale={30} />}
+              <div className="flex items-center gap-2">
+                <button type="button" onClick={() => onOrderReady(e.id)} className={ui.btnSmallPrimary + ' flex-1'}>
+                  <Icon name="done" />
+                  Order ready
+                </button>
+                <button type="button" onClick={() => setViewingId(e.id)} className={ui.btnGhost}>
+                  View entry
+                </button>
               </div>
-              <TimerLine stage="dock" since={checkedInAt(e)} now={now} scale={45} />
+              <span className="text-center text-[12px] text-muted">A dock can be assigned once the order is ready</span>
+            </TruckCard>
+          ))}
+        </Lane>
+
+        <Lane
+          icon="dock"
+          badge="bg-warn text-warn-ink"
+          title="Ready for a dock"
+          count={readyForDock.length}
+          target={
+            <>
+              assign within {STAGES.dock.min}–{STAGES.dock.max} min
+            </>
+          }
+          empty={`No ready orders waiting for a dock.${parked ? ` ${parked} loaded trailer${parked === 1 ? ' is' : 's are'} parked in the yard.` : ''}`}
+          emptyIcon="done"
+        >
+          {readyForDock.map((e) => (
+            <TruckCard key={e.id} e={e} stage={currentStage(e)} now={now} selected={assigningId === e.id}>
+              {facts(e)}
+              <span className="text-[13px] text-muted">
+                Order ready {clockTime(e.orderReadyAt)}
+                {e.orderReadyBy && <> by {e.orderReadyBy}</>}
+              </span>
+              {!isDrop(e) && <TimerLine stage="dock" since={e.orderReadyAt} now={now} scale={30} />}
               {assigningId === e.id ? (
                 <div className="grid gap-2 rounded-xl bg-ok-soft p-2.5">
                   <span className="flex items-center text-[14px] font-bold text-ok">
@@ -537,15 +613,13 @@ export default function ShippingBoard({ entries, onAssignDock, onUpdateEntry }) 
         </Lane>
 
         <Lane
-          icon="dock"
+          icon="load"
           badge="bg-signal text-signal-ink"
           title="At the docks"
           count={atDock.length}
           target={
             <>
-              pre-load {STAGES.preload.min}–{STAGES.preload.max} · load {STAGES.load.min}–{STAGES.load.max}
-              <br />
-              inspect {STAGES.inspect.min}–{STAGES.inspect.max} min
+              pre-load {STAGES.preload.min}–{STAGES.preload.max} · load {STAGES.load.min}–{STAGES.load.max} · inspect {STAGES.inspect.min}–{STAGES.inspect.max} min
             </>
           }
           empty="No trucks at a dock."
@@ -578,9 +652,7 @@ export default function ShippingBoard({ entries, onAssignDock, onUpdateEntry }) 
           count={ready.length}
           target={
             <>
-              release and check out
-              <br />
-              within {STAGES.checkout.min}–{STAGES.checkout.max} min
+              release and check out within {STAGES.checkout.min}–{STAGES.checkout.max} min
             </>
           }
           empty="No trucks have passed inspection yet."
@@ -594,7 +666,7 @@ export default function ShippingBoard({ entries, onAssignDock, onUpdateEntry }) 
                 {e.customerPickupFor && <span>{e.customerPickupFor}</span>}
                 {inspectionSavedAt(e) && <span>passed {clockTime(inspectionSavedAt(e))}</span>}
               </div>
-              <TimerLine stage="checkout" since={inspectionSavedAt(e)} now={now} scale={10} />
+              {!isDrop(e) && <TimerLine stage="checkout" since={inspectionSavedAt(e)} now={now} scale={10} />}
               {/* View only: the inspector releases on Loading & Inspection. */}
               {isReleased(e) ? (
                 <p className={ui.tag + ' min-h-9 justify-center bg-delivery-soft text-delivery'}>
@@ -604,14 +676,13 @@ export default function ShippingBoard({ entries, onAssignDock, onUpdateEntry }) 
               ) : (
                 <p className={ui.tag + ' min-h-9 justify-center bg-warn text-warn-ink'}>
                   <Icon name="waiting" size={16} />
-                  Waiting for the inspector to release it
+                  {isDrop(e) ? 'Waiting for the inspector to release it to the yard' : 'Waiting for the inspector to release it'}
                 </p>
               )}
             </TruckCard>
           ))}
         </Lane>
       </div>
-
     </div>
   )
 }

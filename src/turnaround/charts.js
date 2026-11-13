@@ -13,10 +13,10 @@ import * as d3 from 'd3'
   const C = {
     navy: V('navy'), navy2: V('navy-2'), sky: V('sky'), yolk: V('yolk'), gold: V('gold-1'), amber: V('amber'),
     teal: V('teal'), red: V('red'), green: V('green'), muted: 'var(--chart-muted)',
-    // stage order: gate check-in, dock assignment, pre-loading, loading/unloading, inspection, gate checkout
-    stages: ['sky', 'navy', 'gold-1', 'yolk', 'amber', 'navy-2'].map(V),
-    // visit types: delivery, pickup, drop trailer
-    types: ['navy', 'yolk', 'teal'].map(V),
+    // stage order: gate check-in, waiting for order (grey), dock assignment, pre-loading, loading, inspection, gate checkout
+    stages: [V('sky'), 'var(--chart-muted)', V('navy'), V('gold-1'), V('yolk'), V('amber'), V('navy-2')],
+    // visit types: pickup, drop trailer
+    types: ['yolk', 'teal'].map(V),
   };
   const FMT = {
     min: (v) => d3.format(',.0f')(v), min1: (v) => d3.format(',.1f')(v), pct: (v) => d3.format('.1%')(v),

@@ -40,7 +40,6 @@ const FUEL = [
 ]
 const FUEL_LABEL = { '1/4': '¼', '1/2': '½', '3/4': '¾' }
 const PURPOSE_ON = {
-  Delivery: 'border-delivery bg-delivery-soft text-delivery',
   Pickup: 'border-pickup bg-pickup-soft text-pickup',
   'Drop Trailer': 'border-drop bg-drop-soft text-drop',
 }
@@ -217,7 +216,7 @@ function EditForm({ entry, entries, form, set, errors }) {
   return (
     <div className="grid gap-4">
       <FieldBox name="visitPurpose" label="Purpose" required group error={err('visitPurpose')}>
-        <div role="group" aria-labelledby="field-visitPurpose-label" className="grid grid-cols-3 gap-2">
+        <div role="group" aria-labelledby="field-visitPurpose-label" className="grid grid-cols-2 gap-2">
           {VISIT_PURPOSES.map((p, i) => {
             const on = purposes.includes(p)
             return (

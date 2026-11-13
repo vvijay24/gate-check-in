@@ -7,7 +7,7 @@ import { dayKey } from '../time'
 import { DETENTION_ICON, DETENTION_TAG, detentionState } from '../detention'
 import { Icon } from '../icons'
 import CardHead from './CardHead'
-import { awaitingRelease, isReleased } from '../handoff'
+import { awaitingRelease, inYard, isReleased } from '../handoff'
 
 // Today = checked in today, plus anything still on site from earlier (the default view).
 // On site = not checked out yet, including trucks already at a dock.
@@ -24,9 +24,21 @@ const Dash = () => <span className="text-muted">—</span>
 
 // After a passed inspection: Awaiting release (the inspector's turn), then Released to gate (the Gate's
 // turn). Same wording as Outbound Shipments.
-const STATUSES = ['Waiting', 'At dock', 'Awaiting release', 'Released to gate', 'Departed']
+const STATUSES = ['Waiting for order', 'Ready for a dock', 'At dock', 'Awaiting release', 'Released to gate', 'Released to yard', 'Departed']
 const statusOf = (e) =>
-  e.timeOut ? 'Departed' : isReleased(e) ? 'Released to gate' : awaitingRelease(e) ? 'Awaiting release' : e.dockDoor ? 'At dock' : 'Waiting'
+  e.timeOut
+    ? 'Departed'
+    : inYard(e)
+      ? 'Released to yard'
+      : isReleased(e)
+        ? 'Released to gate'
+        : awaitingRelease(e)
+          ? 'Awaiting release'
+          : e.dockDoor
+            ? 'At dock'
+            : e.orderReadyAt
+              ? 'Ready for a dock'
+              : 'Waiting for order'
 const hourOf = (e) => (e.timeIn ? Number(e.timeIn.slice(0, 2)) : null)
 const hourLabel = (h) => `${h % 12 || 12} ${h < 12 ? 'AM' : 'PM'}`
 const sortedUnique = (values) => [...new Set(values.filter(Boolean))].sort()
@@ -87,10 +99,11 @@ const COLUMNS = [
 // The dock number is in the Dock column, so the status doesn't repeat it.
 function StatusTag({ e }) {
   if (e.timeOut) return <span className={ui.tag + ' bg-ok-soft text-ok'}>Departed</span>
+  if (inYard(e)) return <span className={ui.tag + ' bg-drop-soft text-drop'}>Released to yard</span>
   if (isReleased(e)) return <span className={ui.tag + ' bg-delivery-soft text-delivery'}>Released to gate</span>
   if (awaitingRelease(e)) return <span className={ui.tag + ' bg-ok text-panel'}>Awaiting release</span>
   if (e.dockDoor) return <span className={ui.tag + ' bg-ink text-panel'}>At dock</span>
-  return <span className={ui.tag + ' bg-warn text-warn-ink'}>Waiting</span>
+  return <span className={ui.tag + ' bg-warn text-warn-ink'}>{e.orderReadyAt ? 'Ready for a dock' : 'Waiting for order'}</span>
 }
 
 // Prints only the Entry Log: index.css hides everything else while body has data-print="entry-log".
@@ -300,12 +313,14 @@ export default function EntryLog({ entries, onEdit, onCheckOut, onDelete, onAssi
                       </span>
                     )}
                   </td>
-                  {/* Assign dock only for trucks still on site without a dock. */}
+                  {/* Assign dock only for trucks still on site without a dock, once their order is ready. */}
                   <td className="no-print whitespace-nowrap px-3.5 py-3">
                     {e.dockDoor ? (
                       <span className="font-semibold">Dock {e.dockDoor}</span>
                     ) : e.timeOut ? (
                       <Dash />
+                    ) : !e.orderReadyAt ? (
+                      <span className="text-[13px] text-muted">Order not ready</span>
                     ) : (
                       <AssignDock entry={e} occupied={occupied} onAssignDock={onAssignDock} compact />
                     )}

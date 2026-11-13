@@ -1,5 +1,8 @@
 // A month of made-up gate entries for trying out the dashboards. Each one is marked `sample: true`
 // so it can be removed later without touching real entries. Same seed = same visits every time.
+// The plant only loads outbound: about 4 in 5 visits are pickups (the driver waits), the rest drop an empty
+// trailer that is loaded and released to the yard, then hooked by a driver later. Every visit waits for
+// Shipping to mark its order ready before it gets a dock; now and then an order runs late.
 // Weekends are quieter, dock waits and dock time shrink over the month (the team getting used to
 // going digital), and now and then something goes wrong: a late or early truck, a broken seal, a
 // reefer off temperature, a failed trailer check or load inspection that has to be re-checked.
@@ -74,7 +77,8 @@ export function makeSampleEntries(now = Date.now()) {
       const arrive = dayStart.getTime() + minute * MIN
       if (arrive > now) continue
       const r = random()
-      const purpose = r < 0.4 ? 'Delivery' : r < 0.85 ? 'Pickup' : 'Drop Trailer'
+      const purpose = r < 0.8 ? 'Pickup' : 'Drop Trailer'
+      const drop = purpose === 'Drop Trailer'
       const carrier = pick(CARRIERS)
       const reefer = random() < 0.6
       const sealBroken = random() < 0.02
@@ -110,21 +114,19 @@ export function makeSampleEntries(now = Date.now()) {
       // stage times vary with the visit number instead of new random draws, so the rest of the sample
       // stays the same.
       e.checkInStartedAt = e.createdAt - (3 + ((n * 7) % 5) + (n % 9 === 0 ? 4 : 0)) * MIN
-      if (purpose === 'Pickup') {
+      // Every visit is loaded for an order; only pickups (a driver waiting) have an appointment.
+      e.pickupNumber = `SO-${50000 + n}`
+      e.customerPickupFor = pick(CUSTOMERS)
+      if (!drop) {
         // Most arrive around their appointment; about 1 in 20 is 45 min – 2 h late, a few come very early.
         const r2 = random()
         const offset = r2 < 0.05 ? -between(45, 120) : r2 < 0.08 ? between(45, 90) : between(-40, 25)
         const appt = Math.min(23 * 60 + 45, Math.max(0, Math.round((minute + offset) / 15) * 15))
         e.appointmentTime = `${pad(Math.floor(appt / 60))}:${pad(appt % 60)}`
-        e.pickupNumber = `SO-${50000 + n}`
-        e.customerPickupFor = pick(CUSTOMERS)
       }
 
       let depart
-      if (purpose === 'Drop Trailer') {
-        // Most dropped trailers are collected within a day; a few sit long enough to go stale.
-        depart = arrive + Math.round((random() < 0.06 ? between(26, 52) : between(1, 8)) * 60) * MIN
-      } else {
+      {
         // Now and then the empty trailer or the finished load fails its check and is fixed and re-checked,
         // which holds the dock 15–30 min longer. The app keeps only the latest check, so a visit that
         // already moved on shows the passing re-check (with what was done); one still waiting shows the fail.
@@ -132,23 +134,31 @@ export function makeSampleEntries(now = Date.now()) {
         const loadFail = random() < 0.04 && pick(['palletsGood', 'packagingIntact', 'loadSecured'])
         const trailerDelay = trailerFail ? between(15, 30) * MIN : 0
         const recheckDelay = loadFail ? between(15, 30) * MIN : 0
-        // Trucks queue for the door that frees up first, then load or unload.
+        // Shipping marks the order ready (the product is staged): for a pickup usually within 15 min of
+        // check-in, about 1 in 5 later; a dropped trailer's order can wait longer, as no driver is waiting.
+        const orderWait = drop ? between(20, 180) : (random() < 0.2 ? between(16, 45) : between(0, 12)) * slowWait
+        const orderReadyAt = Math.round(e.createdAt + orderWait * MIN)
+        if (orderReadyAt <= now) Object.assign(e, { orderReadyAt, orderReadyBy: 'Shipping' })
+        // Then it queues for the door that frees up first.
         let door = 0
         DOCKS.forEach((_, i) => {
           if (doorFree[i] < doorFree[door]) door = i
         })
-        const dockAt = Math.max(arrive + between(4, 30) * slowWait * MIN, doorFree[door])
-        const dwell = (purpose === 'Pickup' ? between(50, 135) : between(35, 85)) * slowDock * MIN
-        depart = Math.round(dockAt + trailerDelay + dwell + recheckDelay + between(4, 12) * MIN)
-        doorFree[door] = depart
+        const dockAt = Math.max(orderReadyAt + between(3, 14) * slowWait * MIN, doorFree[door])
+        const dwell = between(50, 125) * slowDock * MIN
+        // A pickup leaves through the gate; a dropped trailer is released to the yard a few minutes after
+        // it passes, which frees the dock, and is hooked by a driver hours later (now and then a day or two).
+        const pickupDepart = Math.round(dockAt + trailerDelay + dwell + recheckDelay + between(4, 12) * MIN)
         if (dockAt <= now) {
           e.dockDoor = DOCKS[door]
           e.dockAssignedAt = Math.round(dockAt)
         }
-        // Everything at a dock is inspected; the inspector then releases it to the gate partway through
-        // the time left before it departs.
+        // Everything at a dock is inspected; the inspector then releases it partway through the time left.
         const firstInspectAt = Math.round(dockAt + trailerDelay + dwell * 0.75)
         const inspectedAt = Math.round(firstInspectAt + recheckDelay)
+        const yardAt = Math.round(inspectedAt + between(4, 10) * MIN)
+        depart = drop ? yardAt + Math.round((random() < 0.06 ? between(26, 52) : between(1, 8)) * 60) * MIN : pickupDepart
+        doorFree[door] = drop ? yardAt : pickupDepart
         // Loading & Inspection's "Loading started / finished": a short pre-load, then loading, then the
         // inspection (each now and then running long).
         // The dock technician who checks and loads the trailer (picked without random() so the rest of the sample stays the same).
@@ -201,7 +211,7 @@ export function makeSampleEntries(now = Date.now()) {
           }
         }
         if (inspectedAt <= now) {
-          const releasedAt = Math.round(inspectedAt + (depart - inspectedAt) * (0.35 + random() * 0.4))
+          const releasedAt = drop ? yardAt : Math.round(inspectedAt + (depart - inspectedAt) * (0.35 + random() * 0.4))
           if (releasedAt <= now) {
             e.release = {
               releasedAt,
@@ -210,6 +220,8 @@ export function makeSampleEntries(now = Date.now()) {
               orderNo: e.pickupNumber ?? '',
               seal: e.loadingInspection.sealApplied,
               note: '',
+              // Parking spots taken by loaded trailers still waiting for a hook are skipped.
+              ...(drop && { toYard: true, spot: String(1 + ((n * 3) % 10)) }),
             }
           }
         }
@@ -222,7 +234,7 @@ export function makeSampleEntries(now = Date.now()) {
           timeOut: hhmm(out),
           gateOut: GATE,
           guardOut: guardAt(depart),
-          truckerNameOut: purpose === 'Drop Trailer' ? pick(DRIVERS) : e.truckerNameIn,
+          truckerNameOut: drop ? pick(DRIVERS) : e.truckerNameIn,
           outgoingSeals: e.loadingInspection?.sealApplied ?? '',
           fuelOut: reefer ? pick(FUEL) : '',
           // The guard's check-out took a few minutes.
@@ -247,6 +259,14 @@ export function makeSampleEntries(now = Date.now()) {
       const failed = LOAD_CHECKS.find((c) => c.name === 'loadSecured')
       Object.assign(e.loadingInspection, { [failed.name]: 'No', result: 'Fail', issues: [`${failed.label}: No`], correctiveAction: '' })
     }
+  }
+  // No two loaded trailers waiting in the yard share a parking spot.
+  const used = new Set()
+  for (const e of entries.filter((x) => !x.timeOut && x.release?.toYard)) {
+    let spot = Number(e.release.spot)
+    while (used.has(String(spot))) spot = (spot % 10) + 1
+    e.release.spot = String(spot)
+    used.add(e.release.spot)
   }
   // Newest first, like the log.
   return entries.reverse()

@@ -6,7 +6,10 @@ import { DETENTION, DOCK_TARGET, G2G_TARGET, ON_TIME_WINDOW, STAGE_TARGETS } fro
 const G2G = G2G_TARGET.max
 const DOCK = DOCK_TARGET.max
 const FREE_H = DETENTION.freeMin / 60
-const WAIT = STAGE_TARGETS.find((s) => s.key === 'dockAssign')
+// The impact pages compare the whole wait for a dock (waiting for the order + dock assignment).
+const ORDER = STAGE_TARGETS.find((s) => s.key === 'orderWait')
+const ASSIGN = STAGE_TARGETS.find((s) => s.key === 'dockAssign')
+const WAIT = { min: ORDER.min + ASSIGN.min, max: ORDER.max + ASSIGN.max }
 
 // Charts on the main Overview page, by the name the page gives them.
 export const OVERVIEW_PLAIN = {
@@ -15,7 +18,8 @@ export const OVERVIEW_PLAIN = {
   impactDetention: 'The same days of the week, counting the money carriers could charge us. Shorter red bars mean less money paid.',
   stagesByDay: `Each day is a tower of blocks, one block for each step of the visit. A taller tower is a slower day, and the biggest block is the step to look at. The red line is the ${G2G}-minute limit.`,
   stageTargets: 'Each step has a green "just right" zone. A bar that goes past its zone is slow, so the reddest bar is the step to fix first.',
-  typesPerDay: 'How many trucks came each day, and what they came for. A taller bar means a busier day.',
+  typesPerDay: 'How many trucks came each day, and what they came for: a pickup or a dropped trailer. A taller bar means a busier day.',
+  dockWait: 'Each day, how long the average truck waited before it got a dock, in two parts: grey is waiting for its order to be ready, blue is waiting for a dock after that. A tall grey block means the product was not ready; a tall blue block means the docks were full or nobody assigned one.',
   arrivalDonut: `A pie of all the trucks: early, on time (within ${ON_TIME_WINDOW} minutes of the booking) or late. The bigger the dark slice, the better.`,
   apptHour: `How many trucks were booked for each hour. A red bar means those trucks took too long, which usually means too many were booked at once.`,
   lateScatter: `One dot per truck. Dots further right came later, and dots higher up stayed longer. If the late dots sit high above the red line, late arrivals are slowing us down.`,
@@ -28,7 +32,7 @@ export const KPI_PLAIN = {
     panels: {
       stages: `Each day's average truck as a tower of blocks, one block per step. Look for the tallest tower, then its biggest block. Towers above the red line went over ${G2G} minutes.`,
       split: `A pie of every truck: green finished in ${G2G} minutes or less, red took longer. You want the green slice as big as possible.`,
-      type: 'Deliveries, pickups and drop trailers side by side. The longest bar is the kind of visit that takes the most time.',
+      type: 'Pickups and drop trailers side by side. The longer bar is the kind of visit that takes the most time.',
       carrier: 'Every trucking company, slowest at the top. Red bars are companies whose trucks usually stay too long.',
     },
     table: 'Every truck counted above, slowest first, so you can find the visits that pulled the number up.',
@@ -57,7 +61,7 @@ export const KPI_PLAIN = {
     intro: 'This page shows how busy the gate was: how many trucks came, what for, at what time and from which companies.',
     panels: {
       days: 'Trucks each day, colored by what they came for. A taller bar is a busier day.',
-      mix: 'A pie of what the trucks came for: delivering, picking up, or dropping off a trailer. The middle shows the total.',
+      mix: 'A pie of what the trucks came for: a pickup (the driver waits) or a dropped trailer to load. The middle shows the total.',
       hours: 'Trucks booked for each hour of the day. The tallest bars are the rush hours, when the gate and docks need the most people.',
       carrier: 'The companies that sent us the most trucks, biggest first.',
     },
@@ -67,7 +71,7 @@ export const KPI_PLAIN = {
     intro: `This page counts how many single trucks finished in ${G2G} minutes or less, because a good average can hide a few very slow trucks.`,
     panels: {
       days: `Each day's trucks: green finished in time, red went over ${G2G} minutes. Days with a lot of red are worth a closer look.`,
-      type: 'For deliveries, pickups and drop trailers, the share that finished in time. A shorter bar is the kind of visit that goes over most.',
+      type: 'For pickups and drop trailers, the share that finished in time. A shorter bar is the kind of visit that goes over most.',
       late: 'One dot per truck. Dots further right came later, and red dots went over the limit. If most red dots are on the right, late arrivals are the problem.',
       carrier: 'Each trucking company, best first: the share of its trucks that finished in time.',
     },
@@ -92,7 +96,7 @@ export const IMPACT_PLAIN = {
     panels: {
       waterfall: 'Start with the paper-week visit on the left, take away the minutes saved at each step, and you end with today\'s visit on the right. The biggest step down is the biggest win.',
       spread: 'How many trucks took each amount of time, paper week against today. Today\'s bars should sit further to the left, which means quicker.',
-      type: 'Deliveries, pickups and drop trailers: a dot for the paper week and a dot for today. A longer line means a bigger saving.',
+      type: 'Pickups and drop trailers: a dot for the paper week and a dot for today. A longer line means a bigger saving.',
       hour: 'Visit time for trucks arriving at each hour, paper week against today. The shaded gap between the two lines is the time saved.',
     },
   },
@@ -119,7 +123,7 @@ export const IMPACT_PLAIN = {
     panels: {
       daily: 'The share of trucks done in time on each day, paper week against today. The shaded gap is the improvement.',
       stages: 'For each step of the visit, the share of trucks that did it in time: a dot for the paper week and a dot for today.',
-      type: 'Deliveries, pickups and drop trailers: the share done in time, paper week against today.',
+      type: 'Pickups and drop trailers: the share done in time, paper week against today.',
       over: `The trucks that still went over, grouped by how far over ${G2G} minutes. Fewer bars on the right means fewer very long visits.`,
     },
   },

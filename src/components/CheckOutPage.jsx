@@ -3,7 +3,10 @@ import * as ui from '../ui'
 import { Icon } from '../icons'
 import { GATE, isRequired } from '../formConfig'
 import { arrivalMs, clockTime, departureMs, duration } from '../time'
-import { checkOutBlock, expectedSeal, isReleased } from '../handoff'
+import { checkOutBlock, expectedSeal, inYard, isReleased } from '../handoff'
+
+// Where the truck or trailer is: its dock, or the yard (with its spot for a loaded drop trailer).
+const placeOf = (e) => (inYard(e) ? `In the yard${e.release.spot ? ` · spot ${e.release.spot}` : ''}` : e.dockDoor ? `Dock ${e.dockDoor}` : 'In the yard')
 import { DETENTION_ICON, DETENTION_TAG, detentionState } from '../detention'
 import { FIELD_LABELS, checkOutStart, dayLabel, isPhone, timeLabel, validate, withPhones } from '../gateForm'
 import ErrorSummary from './ErrorSummary'
@@ -13,7 +16,7 @@ import { BottomBar, FieldBox, GateStep, GateTopLine, LinkButton, More, Note, Rec
 // with what's already known — (2) the driver going out, (3) the seal and reefer fuel, then a short recap
 // and Check Out → "Confirm Check Out?" in the bar at the bottom. Without `initial` only the truck list
 // shows; picking a truck calls `onPick`, which opens this page for it. A truck that already left opens
-// for editing its departure. `switcher` (Check In / Check Out) sits in the top line.
+// for editing its departure. `switcher` (the column's Check Out title) sits in the top line.
 
 const FUEL = [
   { value: 'Empty', danger: true },
@@ -23,8 +26,8 @@ const FUEL = [
   { value: 'Full' },
 ]
 const FUEL_LABEL = { '1/4': '¼', '1/2': '½', '3/4': '¾' }
-const STRIPE = { Delivery: 'bg-delivery', Pickup: 'bg-pickup', 'Drop Trailer': 'bg-drop' }
-const PURPOSE_TAG = { Delivery: 'bg-delivery-soft text-delivery', Pickup: 'bg-pickup-soft text-pickup', 'Drop Trailer': 'bg-drop-soft text-drop' }
+const STRIPE = { Pickup: 'bg-pickup', 'Drop Trailer': 'bg-drop' }
+const PURPOSE_TAG = { Pickup: 'bg-pickup-soft text-pickup', 'Drop Trailer': 'bg-drop-soft text-drop' }
 const filled = (v) => String(v ?? '').trim() !== ''
 // Short names for "Still needed".
 const SHORT = {
@@ -91,7 +94,7 @@ function TruckRow({ e, now, onPick }) {
             {e.trailerNumber} · {e.truckName}
           </b>
           <span className="text-[15px] text-muted">
-            {[e.dockDoor ? `Dock ${e.dockDoor}` : 'In the yard', e.truckerNameIn, `here ${duration(now - arrivalMs(e))}`].filter(Boolean).join(' · ')}
+            {[placeOf(e), inYard(e) ? 'loaded, waiting for a driver' : e.truckerNameIn, `here ${duration(now - arrivalMs(e))}`].filter(Boolean).join(' · ')}
           </span>
           <Pills e={e} now={now} />
         </span>
@@ -290,7 +293,7 @@ function CheckOutForm({ entry, guard, switcher, now, onSave, onCancel }) {
   const det = editing ? null : detentionState(entry, now)
   const facts = [
     (entry.visitPurpose ?? []).join(' + '),
-    entry.dockDoor ? `Dock ${entry.dockDoor}` : 'In the yard',
+    placeOf(entry),
     `${editing ? 'stayed' : 'here'} ${duration((editing ? departureMs(entry) : now) - arrivalMs(entry))}`,
     entry.pickupNumber && `order ${entry.pickupNumber}`,
     entry.release?.releasedAt && `released ${clockTime(entry.release.releasedAt)} by ${entry.release.releasedBy}`,

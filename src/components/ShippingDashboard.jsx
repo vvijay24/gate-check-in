@@ -6,7 +6,7 @@ import { exportToExcel } from '../logColumns'
 import { DETENTION_ICON, DETENTION_TAG, detentionState } from '../detention'
 import { Icon } from '../icons'
 import CardHead from './CardHead'
-import { awaitingRelease, isReleased } from '../handoff'
+import { awaitingRelease, inYard, isReleased } from '../handoff'
 import AssignDock, { occupiedDocks } from './AssignDock'
 import ShippingBoard from './ShippingBoard'
 import { LiveYard } from './Dashboard'
@@ -16,10 +16,12 @@ import { LiveYard } from './Dashboard'
 // shipments table, the Entry Log and the yard map. After the inspection passes, the inspector releases the
 // truck to the gate on Loading & Inspection; Shipping sees the status but can't release.
 const STATUS_TAG = {
-  Waiting: 'bg-warn text-warn-ink',
+  'Waiting for order': 'bg-warn text-warn-ink',
+  'Ready for a dock': 'bg-warn text-warn-ink',
   Loading: 'bg-ink text-panel',
   'Awaiting release': 'bg-ok text-panel',
   'Released to gate': 'bg-delivery-soft text-delivery',
+  'Released to yard': 'bg-drop-soft text-drop',
   Shipped: 'bg-ok-soft text-ok',
 }
 const STATUSES = Object.keys(STATUS_TAG)
@@ -27,7 +29,19 @@ const MAX_ROWS = 7
 const HOUR = 3600000
 
 const statusOf = (e) =>
-  e.timeOut ? 'Shipped' : isReleased(e) ? 'Released to gate' : awaitingRelease(e) ? 'Awaiting release' : e.dockDoor ? 'Loading' : 'Waiting'
+  e.timeOut
+    ? 'Shipped'
+    : inYard(e)
+      ? 'Released to yard'
+      : isReleased(e)
+        ? 'Released to gate'
+        : awaitingRelease(e)
+          ? 'Awaiting release'
+          : e.dockDoor
+            ? 'Loading'
+            : e.orderReadyAt
+              ? 'Ready for a dock'
+              : 'Waiting for order'
 const onSiteMs = (e, now) => (e.timeOut ? departureMs(e) : now) - arrivalMs(e)
 const isLate = (e) => (minutesLate(e) ?? 0) > LATE_GRACE_MIN
 const sortedUnique = (values) => [...new Set(values.filter(Boolean))].sort()
@@ -108,7 +122,7 @@ const MORE_TABS = [
 ]
 
 // `top` is the Entry Log (its tab); `children` render below everything.
-export default function ShippingDashboard({ entries, onAssignDock, onEdit, onUpdateEntry, onCheckOut, top, children }) {
+export default function ShippingDashboard({ entries, onAssignDock, onOrderReady, onEdit, onUpdateEntry, onCheckOut, top, children }) {
   const [now, setNow] = useState(Date.now)
   // Which table (or the map) shows under the board.
   const [more, setMore] = useState('out')
@@ -162,7 +176,7 @@ export default function ShippingDashboard({ entries, onAssignDock, onEdit, onUpd
 
   return (
     <div className="grid gap-6">
-      <ShippingBoard entries={entries} onAssignDock={onAssignDock} onUpdateEntry={onUpdateEntry} />
+      <ShippingBoard entries={entries} onAssignDock={onAssignDock} onOrderReady={onOrderReady} onUpdateEntry={onUpdateEntry} />
 
       {/* Tables and map, one at a time */}
       <div role="tablist" aria-label="Tables and map" className="no-print flex flex-wrap gap-1 rounded-2xl border border-hair bg-panel p-1.5 shadow-card">
@@ -251,12 +265,14 @@ export default function ShippingDashboard({ entries, onAssignDock, onEdit, onUpd
                       <tr key={e.id} className="align-top transition-colors duration-150 hover:bg-signal-tint">
                         <td className="px-3.5 py-3 font-semibold">{e.pickupNumber || <Dash />}</td>
                         <td className="px-3.5 py-3">{e.customerPickupFor || <Dash />}</td>
-                        {/* Assign dock only for pickups still on site without a dock. */}
+                        {/* Assign dock only for pickups still on site without a dock, once their order is ready. */}
                         <td className="whitespace-nowrap px-3.5 py-3 font-semibold">
                           {e.dockDoor ? (
                             e.dockDoor
                           ) : e.timeOut ? (
                             <Dash />
+                          ) : !e.orderReadyAt ? (
+                            <span className="text-[13px] font-normal text-muted">Order not ready</span>
                           ) : (
                             <span className="no-print font-normal">
                               <AssignDock entry={e} occupied={occupied} onAssignDock={onAssignDock} compact />

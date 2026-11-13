@@ -9,23 +9,24 @@ const V = (n) => `var(--dive-${n})`
 const BAD = 'var(--p-red)'
 const OK = V('teal')
 const MUTED = 'var(--chart-muted)'
-// The six stages in the order a truck moves; loading, inspection and checkout match the Live yard.
+// The seven stages in the order a truck moves; loading, inspection and checkout match the Live yard.
+// Waiting for the order is grey, like the Live yard's "Waiting for order".
 const STAGES = [
   ['avg_gate_in', 'Gate check-in', V('s1')],
+  ['avg_order_wait', 'Waiting for order', V('s0')],
   ['avg_assign', 'Dock assignment', V('s2')],
   ['avg_preload', 'Pre-loading', V('s3')],
-  ['avg_load', 'Loading / unloading', V('s4')],
+  ['avg_load', 'Loading', V('s4')],
   ['avg_inspection', 'Inspection', V('s5')],
   ['avg_checkout', 'Gate checkout', V('s6')],
 ]
-export const TYPE_COLOR = { Delivery: V('blue'), Pickup: V('gold'), 'Drop trailer': V('purple') }
+export const TYPE_COLOR = { Pickup: V('gold'), 'Drop trailer': V('purple') }
 const ARRIVAL = [
   { field: 'early', name: 'Early', color: V('purple') },
   { field: 'on_time', name: 'On time', color: OK },
   { field: 'late', name: 'Late', color: BAD },
 ]
 const TYPES = [
-  { field: 'delivery', name: 'Delivery', color: TYPE_COLOR.Delivery },
   { field: 'pickup', name: 'Pickup', color: TYPE_COLOR.Pickup },
   { field: 'drop', name: 'Drop trailer', color: TYPE_COLOR['Drop trailer'] },
 ]

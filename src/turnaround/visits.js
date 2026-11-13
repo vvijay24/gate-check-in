@@ -11,8 +11,9 @@ const hhmm = (ms) => {
 }
 
 // The kit has one visit type per truck; a visit with several purposes ticked counts as the first one.
-const TYPE = { Delivery: 'Delivery', Pickup: 'Pickup', 'Drop Trailer': 'Drop trailer' }
-export const visitType = (e) => TYPE[(e.visitPurpose ?? [])[0]] ?? 'Delivery'
+// The plant only has pickups and drop trailers (old Delivery entries are turned into pickups on load).
+const TYPE = { Pickup: 'Pickup', 'Drop Trailer': 'Drop trailer' }
+export const visitType = (e) => TYPE[(e.visitPurpose ?? [])[0]] ?? 'Pickup'
 
 // When the truck left: the saved check-out time, or the typed Time Out for older entries.
 const checkedOutAt = (e) => e.checkedOutAt ?? (e.timeOut ? departureMs(e) : NaN)
@@ -22,6 +23,8 @@ function stamps(e) {
   return {
     arrived: arrivalMs(e),
     checkedIn: checkedInAt(e),
+    // Older visits without an "Order ready" time count it as ready at check-in (no wait for the order).
+    orderReady: e.orderReadyAt ?? checkedInAt(e),
     dockAssigned: e.dockAssignedAt ?? NaN,
     loadStart: e.loadStartedAt ?? NaN,
     loadEnd: e.loadFinishedAt ?? NaN,
@@ -49,14 +52,15 @@ function base(e) {
   }
 }
 
-// A fully timed visit as a kit row, or null when it's a dropped trailer (no dock stages in this app) or
-// any of the seven timestamps is missing.
+// A fully timed visit as a kit row, or null when it's a dropped trailer (no driver waits through its stages)
+// or any of its timestamps is missing.
 export function toTimedRow(e) {
   if (visitType(e) === 'Drop trailer' || !e.timeOut) return null
   const s = stamps(e)
   const mins = {
     gate_in_min: gap(s.arrived, s.checkedIn),
-    dock_assign_min: gap(s.checkedIn, s.dockAssigned),
+    order_wait_min: gap(s.checkedIn, Math.max(s.checkedIn, s.orderReady)),
+    dock_assign_min: gap(Math.max(s.checkedIn, s.orderReady), s.dockAssigned),
     preload_min: gap(s.dockAssigned, s.loadStart),
     load_min: gap(s.loadStart, s.loadEnd),
     inspection_min: gap(s.loadEnd, s.inspectionDone),
@@ -68,7 +72,7 @@ export function toTimedRow(e) {
 
 // Every visit as a kit row for counting (trucks handled, visit types, arrivals). Stage minutes are 0,
 // so only the counts from these rows are used, never their times.
-export const toCountRow = (e) => ({ ...base(e), gate_in_min: 0, dock_assign_min: 0, preload_min: 0, load_min: 0, inspection_min: 0, checkout_min: 0 })
+export const toCountRow = (e) => ({ ...base(e), gate_in_min: 0, order_wait_min: 0, dock_assign_min: 0, preload_min: 0, load_min: 0, inspection_min: 0, checkout_min: 0 })
 
 // Visits checked in from `from` to `to` ("YYYY-MM-DD", inclusive): all of them for counts, and the fully
 // timed ones for times.

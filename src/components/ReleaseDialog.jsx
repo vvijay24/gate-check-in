@@ -2,11 +2,17 @@ import { useEffect, useRef, useState } from 'react'
 import * as ui from '../ui'
 import { duration } from '../time'
 import { Icon, IconChip } from '../icons'
+import { isDrop } from '../metrics'
+import { inYard } from '../handoff'
 
 // The inspector's sign-off before a truck that passed its inspection may leave: confirm the order and
 // seal and tick the paperwork. Opened from Loading & Inspection only; `inspector` (the inspector on duty)
 // signs the release. Opens as a pop-up while `entry` is set.
+// A dropped trailer has no driver waiting: it's released to the yard instead, to a parking spot (spots
+// taken by other loaded trailers in `entries` can't be picked), and waits there for a driver to hook it.
 const BY_KEY = 'release-by'
+// Parking spots in the yard lane for loaded trailers waiting for a hook.
+export const YARD_SPOTS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10']
 
 const lastReleasedBy = () => {
   try {
@@ -16,7 +22,7 @@ const lastReleasedBy = () => {
   }
 }
 
-export default function ReleaseDialog({ entry, inspector, onRelease, onClose }) {
+export default function ReleaseDialog({ entry, entries = [], inspector, onRelease, onClose }) {
   const dialog = useRef(null)
   const [form, setForm] = useState(null)
   const [errors, setErrors] = useState({})
@@ -30,6 +36,7 @@ export default function ReleaseDialog({ entry, inspector, onRelease, onClose }) 
         paperwork: false,
         releasedBy: inspector || lastReleasedBy(),
         note: '',
+        spot: '',
       })
       setErrors({})
       if (!dialog.current?.open) dialog.current?.showModal()
@@ -47,7 +54,8 @@ export default function ReleaseDialog({ entry, inspector, onRelease, onClose }) 
   const submit = (ev) => {
     ev.preventDefault()
     const errs = {}
-    if (!form.paperwork) errs.paperwork = 'Confirm the paperwork was handed to the driver'
+    if (!form.paperwork) errs.paperwork = toYard ? 'Confirm the paperwork is with the trailer' : 'Confirm the paperwork was handed to the driver'
+    if (toYard && !form.spot) errs.spot = 'Pick the spot the trailer is parked in'
     if (!form.releasedBy.trim()) errs.releasedBy = 'Required'
     setErrors(errs)
     if (Object.keys(errs).length) {
@@ -59,9 +67,12 @@ export default function ReleaseDialog({ entry, inspector, onRelease, onClose }) 
     } catch {
       // Remembering the name is only a convenience.
     }
-    onRelease(entry.id, { ...form, releasedBy: form.releasedBy.trim(), note: form.note.trim() })
+    onRelease(entry.id, { ...form, releasedBy: form.releasedBy.trim(), note: form.note.trim(), toYard, spot: toYard ? form.spot : undefined })
   }
 
+  const toYard = Boolean(entry && isDrop(entry))
+  const taken = new Set(entries.filter((e) => e.id !== entry?.id && !e.timeOut && inYard(e)).map((e) => e.release.spot))
+  const title = toYard ? 'Release to yard' : 'Release to gate'
   const passedAgo = entry?.loadingInspection?.inspectedAt ? duration(Date.now() - entry.loadingInspection.inspectedAt) : null
 
   return (
@@ -79,7 +90,7 @@ export default function ReleaseDialog({ entry, inspector, onRelease, onClose }) 
             <IconChip name="inspected" />
             <div className="min-w-0 flex-1">
               <h2 id="release-title" className="font-display text-[22px] leading-tight font-bold">
-                Release to gate
+                {title}
               </h2>
               <p className="text-[15px] text-muted">
                 Dock {entry.dockDoor} · Trailer {entry.trailerNumber} · {entry.truckName}
@@ -117,7 +128,7 @@ export default function ReleaseDialog({ entry, inspector, onRelease, onClose }) 
                   aria-describedby={errors.paperwork ? 'release-paperwork-error' : undefined}
                   className="h-6 w-6 shrink-0 cursor-pointer"
                 />
-                BOL / shipping papers handed to the driver
+                {toYard ? 'BOL / shipping papers left with the trailer' : 'BOL / shipping papers handed to the driver'}
                 <span className={ui.required}>*</span>
               </label>
               {errors.paperwork && (
@@ -126,6 +137,33 @@ export default function ReleaseDialog({ entry, inspector, onRelease, onClose }) 
                 </p>
               )}
             </div>
+
+            {toYard && (
+              <div>
+                <span id="release-spot-label" className={ui.label}>
+                  Parked in the yard · spot<span className={ui.required}>*</span>
+                </span>
+                <div role="group" aria-labelledby="release-spot-label" className="mt-1.5 grid grid-cols-5 gap-2">
+                  {YARD_SPOTS.map((s, i) => (
+                    <button
+                      key={s}
+                      id={i === 0 ? 'release-spot' : undefined}
+                      type="button"
+                      aria-pressed={form.spot === s}
+                      disabled={taken.has(s)}
+                      onClick={() => set('spot', s)}
+                      title={taken.has(s) ? 'Another loaded trailer is parked here' : undefined}
+                      className={ui.seg(form.spot === s, Boolean(errors.spot)) + ' font-display text-[16px] font-bold disabled:cursor-not-allowed disabled:opacity-40'}
+                    >
+                      {s}
+                    </button>
+                  ))}
+                </div>
+                <p className={'mt-1 text-[13px] ' + (errors.spot ? ui.errorText : 'text-muted')}>
+                  {errors.spot ?? 'The dock is free again. The trailer shows on the Gate as ready to leave, for a driver to hook it.'}
+                </p>
+              </div>
+            )}
 
             {inspector ? (
               <p className="flex items-center gap-2 rounded-xl bg-signal-tint px-4 py-3 text-[15px]">
@@ -156,7 +194,7 @@ export default function ReleaseDialog({ entry, inspector, onRelease, onClose }) 
                 rows={2}
                 value={form.note}
                 onChange={(e) => set('note', e.target.value)}
-                placeholder="e.g. Driver to collect a copy of the BOL at the window"
+                placeholder={toYard ? 'e.g. Reefer running at 34 °F, fuel ¾' : 'e.g. Driver to collect a copy of the BOL at the window'}
                 className={ui.input + ' min-h-[64px] resize-y'}
               />
             </label>
@@ -167,8 +205,8 @@ export default function ReleaseDialog({ entry, inspector, onRelease, onClose }) 
               Cancel
             </button>
             <button type="submit" className={ui.btnPrimary}>
-              <Icon name="checkOut" size={24} />
-              Release to gate
+              <Icon name={toYard ? 'yard' : 'checkOut'} size={24} />
+              {title}
             </button>
           </div>
         </form>

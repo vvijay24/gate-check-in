@@ -2,6 +2,14 @@
 // on Loading & Inspection) → Gate (check-out). A release is stored on the visit as `release`:
 // { releasedAt, releasedBy, paperwork, orderNo, seal, note }.
 
+// A dropped trailer that passed its inspection is released to the yard instead of the gate: it leaves the
+// dock (which is free again) and parks in the yard lane until a driver hooks it at the Gate. Stored on the
+// release as { toYard: true, spot }.
+export const inYard = (e) => Boolean(e.release?.toYard)
+
+// At its dock right now: on site with a dock, and not released to the yard.
+export const atDockNow = (e) => !e.timeOut && !!e.dockDoor && !inYard(e)
+
 // Passed inspection, still on site, not yet released by the inspector.
 export const awaitingRelease = (e) => !e.timeOut && e.loadingInspection?.result === 'Pass' && !e.release?.releasedAt
 

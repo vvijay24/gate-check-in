@@ -97,7 +97,9 @@ export const FIELD_NAMES = {
   fuelOut: 'Fuel Going Out',
 }
 
-export const VISIT_PURPOSES = ['Delivery', 'Pickup', 'Drop Trailer']
+// The plant only loads outbound: trucks pick up (the driver waits) or drop an empty trailer to be loaded
+// and hooked later. There are no deliveries.
+export const VISIT_PURPOSES = ['Pickup', 'Drop Trailer']
 
 // Trucks come in and go out through the one gate; the forms record it without asking.
 export const GATE = 'Gate'

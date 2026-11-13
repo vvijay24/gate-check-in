@@ -14,7 +14,7 @@ const Yard3D = lazy(() => import('./yard3d/Yard3D'))
 // and the rig itself (tractor + trailer, or a trailer on landing gear) carry the status too.
 export const STATUS = {
   // The pale yellow fill gets an amber outline (`line`) so waiting trucks stand out from the bays.
-  waiting: { fill: 'var(--color-warn)', line: 'var(--color-warn-line)', dot: 'bg-warn ring-1 ring-warn-line', label: 'Waiting for a dock' },
+  waiting: { fill: 'var(--color-warn)', line: 'var(--color-warn-line)', dot: 'bg-warn ring-1 ring-warn-line', label: 'Waiting for order or a dock' },
   dock: { fill: 'var(--color-delivery)', dot: 'bg-delivery', label: 'At dock' },
   ready: { fill: 'var(--color-ok)', dot: 'bg-ok', label: 'Loaded, ready to leave' },
   drop: { fill: 'var(--color-drop)', dot: 'bg-drop', label: 'Dropped trailer' },
@@ -351,8 +351,8 @@ function GateChips({ gateCounts }) {
 
 export function Legend() {
   const items = [
-    ['waiting', false, 'Waiting for a dock', 'In the yard'],
-    ['dock', false, 'At dock', 'Loading or unloading'],
+    ['waiting', false, 'Waiting for order or a dock', 'In the yard'],
+    ['dock', false, 'At dock', 'Loading'],
     ['ready', false, 'Loaded, ready to leave', 'Loading inspection passed'],
     ['drop', true, 'Dropped trailer', 'No tractor, on its landing gear'],
   ]
@@ -406,7 +406,13 @@ function Detail({ e, place, at, clock, live, onEdit, onCheckOut, onInspect }) {
         <svg width="18" height="18" viewBox="-13 -13 26 26" aria-hidden="true">
           <StatusPin status={status} />
         </svg>
-        {STATUS[status].label}
+        {status === 'waiting'
+          ? e.orderReadyAt != null && e.orderReadyAt <= at
+            ? 'Order ready, waiting for a dock'
+            : 'Waiting for its order'
+          : status === 'drop' && e.release?.toYard
+            ? `Loaded, waiting for a driver${e.release.spot ? ` · spot ${e.release.spot}` : ''}`
+            : STATUS[status].label}
       </div>
       <p className="mt-1 text-sm text-muted">
         {[place, (e.visitPurpose ?? []).join(' + '), `on site ${duration(clock - arrivalMs(e))} (in ${e.timeIn || '—'})`]
@@ -569,7 +575,7 @@ export default function YardMap({
   const parked = items.filter((u) => !u.driving)
 
   const selected = parked.find((u) => u.e.id === selectedId) ??
-    [...overflow, ...yard.otherDocks].map((e) => ({ e, place: e.dockDoor ? `Dock ${e.dockDoor}` : 'In the yard' })).find((u) => u.e.id === selectedId)
+    [...overflow, ...yard.otherDocks].map((e) => ({ e, place: e.dockDoor && !e.release?.toYard ? `Dock ${e.dockDoor}` : 'In the yard' })).find((u) => u.e.id === selectedId)
   const occupied = new Set(DOCKS.filter((d) => yard.atDock.has(d)))
   const sky = daylight(clock)
 
@@ -867,7 +873,7 @@ export default function YardMap({
           {selected ? 'Tap another truck, or ✕ to close its card.' : 'Tap a truck to see its details.'}
         </p>
         <p className="mt-2 text-[12px] text-muted">
-          {live ? `Updated ${clockTime(clock)}.` : `Yard as it was at ${clockTime(clock)}.`} Trucks waiting for a dock park first, then dropped trailers, in arrival order.
+          {live ? `Updated ${clockTime(clock)}.` : `Yard as it was at ${clockTime(clock)}.`} Trucks waiting for their order or a dock park first, then dropped trailers, in arrival order.
         </p>
       </aside>
     </div>

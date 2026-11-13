@@ -12,10 +12,9 @@ import { Badge, BottomBar, Chips, FieldBox, GateStep, GateTopLine, LinkButton, M
 // Gate Check In on one page, kept simple for the guard: (1) purpose and appointment at the window,
 // (2) vehicle details from the driver, (3) the trailer — seal, reefer, and optional extras — then a short
 // recap and Check In in the bar at the bottom. Used for new check-ins and for editing one. The guard on
-// duty comes from the page header; `switcher` (Check In / Check Out) sits in the top line.
+// duty comes from the page header; `switcher` (the column's Check In title) sits in the top line.
 
 const PURPOSE = {
-  Delivery: { icon: 'load', on: 'border-delivery bg-delivery-soft text-delivery' },
   Pickup: { icon: 'truck', on: 'border-pickup bg-pickup-soft text-pickup' },
   'Drop Trailer': { icon: 'drop', on: 'border-drop bg-drop-soft text-drop' },
 }
@@ -253,7 +252,7 @@ export default function CheckInForm({ initial, entries, guard, switcher, onSave,
       {/* 1 · Purpose */}
       <GateStep n={1} of={3} id="in-purpose" icon="purpose" title="Purpose" hint="What it's here for and when it was booked" ok={sectionOk[0]} started={sectionStarted[0]}>
         <FieldBox name="visitPurpose" label="What's it here for?" required group error={err('visitPurpose')}>
-          <div role="group" aria-labelledby="field-visitPurpose-label" className="grid grid-cols-3 gap-2.5">
+          <div role="group" aria-labelledby="field-visitPurpose-label" className="grid grid-cols-2 gap-2.5">
             {VISIT_PURPOSES.map((p, i) => {
               const on = purposes.includes(p)
               return (
@@ -270,7 +269,7 @@ export default function CheckInForm({ initial, entries, guard, switcher, onSave,
                   }
                 >
                   <Icon name={PURPOSE[p].icon} size={26} />
-                  {p === 'Drop Trailer' ? 'Drop' : p}
+                  {p === 'Drop Trailer' ? 'Drop trailer' : p}
                 </button>
               )
             })}

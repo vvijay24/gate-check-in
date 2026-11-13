@@ -3,6 +3,7 @@ import { EARLY_GRACE_MIN, LATE_GRACE_MIN, arrivalMs, departureMs, minutesLate } 
 import { dockKey } from './components/AssignDock'
 import { DETENTION_FREE_MIN, DOCKS } from './yard'
 import { GATES } from './formConfig'
+import { inYard } from './handoff'
 
 const MIN = 60000
 
@@ -16,10 +17,14 @@ const happened = (ms, at) => !(ms > at)
 const isLoaded = (e, at) =>
   (e.visitPurpose ?? []).includes('Pickup') && e.loadingInspection?.result === 'Pass' && happened(e.loadingInspection.inspectedAt, at)
 
-// Where a visit stands: waiting | drop | dock | ready | departed.
+// Where a visit stands: waiting | drop | dock | ready | departed. A dropped trailer released to the yard
+// after loading is parked again ('drop'), off its dock.
 export function yardStatus(e, at = Infinity) {
   if (e.timeOut && happened(departureMs(e), at)) return 'departed'
-  if (e.dockDoor && happened(e.dockAssignedAt, at)) return isLoaded(e, at) ? 'ready' : 'dock'
+  if (e.dockDoor && happened(e.dockAssignedAt, at)) {
+    if (inYard(e) && happened(e.release.releasedAt, at)) return 'drop'
+    return isLoaded(e, at) ? 'ready' : 'dock'
+  }
   return isDrop(e) ? 'drop' : 'waiting'
 }
 
@@ -116,7 +121,8 @@ export function dayMetrics(entries, date, now) {
   for (const e of entries) {
     const door = e.dockAssignedAt && doors.find((d) => d.door === dockKey(e.dockDoor))
     if (!door) continue
-    const released = e.timeOut ? departureMs(e) : now
+    // The dock is busy until the truck leaves, or until a dropped trailer is released to the yard.
+    const released = inYard(e) ? e.release.releasedAt : e.timeOut ? departureMs(e) : now
     if (!Number.isFinite(released)) continue
     const overlap = Math.min(released, windowEnd) - Math.max(e.dockAssignedAt, start)
     if (overlap > 0) door.busyMs += overlap

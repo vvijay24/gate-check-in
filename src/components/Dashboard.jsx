@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import * as ui from '../ui'
-import { clockTime, dayKey } from '../time'
+import { clockTime, dayKey, duration } from '../time'
 import { dockKey } from './AssignDock'
 import { InspectionSummary, LoadCheckSheet, TrailerCheckSheet, hasDraft } from './LoadingInspection'
 import LiveYardCard from './LiveYardCard'
 import YardMap from './YardMap'
-import { dayMetrics, yardMetrics } from '../metrics'
+import YardPlayer from './YardPlayer'
+import { dayMetrics, isDrop, yardMetrics } from '../metrics'
 import { needsInspection } from '../detention'
-import { awaitingRelease, isReleased } from '../handoff'
+import { atDockNow, awaitingRelease, isReleased } from '../handoff'
 import { STAGES, currentStage } from '../stages'
 import { YARD_STAGES } from '../liveYard'
 import { Icon } from '../icons'
@@ -195,6 +196,7 @@ function TruckCard({ e, now, open, fresh, onOpen, onLoading, onRelease }) {
     passed: (
       <div className="grid gap-1">
         {/* Only the inspector releases a passed truck to the gate; then the Gate checks it out. */}
+        {/* A dropped trailer has no driver: it's released to the yard, where a driver hooks it later. */}
         {isReleased(e) ? (
           <p className="flex min-h-[52px] items-center justify-center gap-2 rounded-[10px] border border-dashed border-line text-[14px] text-muted">
             <Icon name="handoff" size={16} />
@@ -202,8 +204,8 @@ function TruckCard({ e, now, open, fresh, onOpen, onLoading, onRelease }) {
           </p>
         ) : (
           <button type="button" onClick={() => onRelease(e)} className={go}>
-            <Icon name="checkOut" />
-            Release to gate
+            <Icon name={isDrop(e) ? 'yard' : 'checkOut'} />
+            {isDrop(e) ? 'Release to yard' : 'Release to gate'}
           </button>
         )}
         <button type="button" onClick={() => onOpen(e.id, 'view')} className={ui.btnGhost + ' justify-center'}>
@@ -246,6 +248,7 @@ function TruckCard({ e, now, open, fresh, onOpen, onLoading, onRelease }) {
         <div className="truncate text-[14px] text-muted" title={[e.truckName, e.customerPickupFor, e.pickupNumber].filter(Boolean).join(' · ')}>
           {[e.truckName, e.customerPickupFor, e.pickupNumber && `Order ${e.pickupNumber}`].filter(Boolean).join(' · ') || '—'}
         </div>
+        {isDrop(e) && <div className="mt-1 text-[13px] font-semibold text-drop">Drop trailer · no driver waiting</div>}
       </div>
       <Progress steps={steps} />
       {problem?.length > 0 && <p className="rounded-[10px] bg-danger-soft px-3 py-2 text-[13px] font-semibold text-danger">{problem.join(' · ')}</p>}
@@ -285,6 +288,52 @@ function Section({ id, icon, color, title, count, sub, target, children }) {
         </span>
       </div>
       <div className="p-5">{children}</div>
+    </section>
+  )
+}
+
+// Trucks whose order is ready but that have no dock yet: Shipping is about to send them to a dock. View
+// only, so the dock crew can get set (the set point says fresh or frozen).
+function ComingToDocks({ entries, now }) {
+  const noDock = entries.filter((e) => !e.timeOut && !e.dockDoor)
+  const coming = noDock.filter((e) => e.orderReadyAt).sort((a, b) => a.orderReadyAt - b.orderReadyAt)
+  const notReady = noDock.length - coming.length
+  return (
+    <section aria-labelledby="coming-title" className={ui.card}>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-hair px-5 py-4">
+        <span className="grid size-10 shrink-0 place-items-center rounded-xl" style={{ background: `color-mix(in srgb, ${STAGE_COLOR.wait} 18%, transparent)`, color: STAGE_COLOR.wait }}>
+          <Icon name="dock" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <h2 id="coming-title" className="font-display text-[20px] leading-tight font-bold">
+            Coming to the docks <span className="font-body text-[17px] font-semibold text-muted">({coming.length})</span>
+          </h2>
+          <p className="text-[14px] text-muted">Orders are ready; Shipping is about to assign each a dock. View only, so the crew can get set.</p>
+        </div>
+        <span className={ui.tag + ' min-h-7 bg-signal-tint px-3 text-muted'}>
+          <Icon name="waiting" size={14} />
+          {notReady} still waiting for their order
+        </span>
+      </div>
+      <div className="p-5">
+        {coming.length ? (
+          <ul className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,240px),1fr))] gap-3">
+            {coming.map((e) => (
+              <li key={e.id} className="relative grid gap-0.5 rounded-xl border border-hair bg-field py-2.5 pr-3 pl-4">
+                <span className="absolute inset-y-2.5 left-0 w-1 rounded-r" style={{ background: STAGE_COLOR.wait }} aria-hidden="true" />
+                <b className="truncate text-[17px] leading-tight">{e.trailerNumber || 'No trailer #'}</b>
+                <span className="truncate text-[14px] text-muted">{[e.truckName, e.customerPickupFor].filter(Boolean).join(' · ') || '—'}</span>
+                <span className="text-[13px] text-muted">
+                  {isDrop(e) ? 'Drop trailer' : 'Pickup'} · order ready {duration(now - e.orderReadyAt)} ago
+                  {e.tempSet ? ` · set point ${e.tempSet} °F` : ''}
+                </span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <Empty>No ready orders waiting for a dock right now.</Empty>
+        )}
+      </div>
     </section>
   )
 }
@@ -334,7 +383,7 @@ export function DockBoard({ entries, onEdit, onCheckOut, onSaveInspection, onSav
   }, [freshId])
 
   const atDock = useMemo(
-    () => entries.filter((e) => !e.timeOut && e.dockDoor).sort((a, b) => dockKey(a.dockDoor).localeCompare(dockKey(b.dockDoor), undefined, { numeric: true })),
+    () => entries.filter(atDockNow).sort((a, b) => dockKey(a.dockDoor).localeCompare(dockKey(b.dockDoor), undefined, { numeric: true })),
     [entries],
   )
   const loading = atDock.filter((e) => IN_LOADING.includes(phaseOf(e)))
@@ -393,6 +442,7 @@ export function DockBoard({ entries, onEdit, onCheckOut, onSaveInspection, onSav
     <div className="space-y-6">
       <ReleaseDialog
         entry={entries.find((x) => x.id === releasingId && awaitingRelease(x)) ?? null}
+        entries={entries}
         inspector={inspector}
         onClose={() => setReleasingId(null)}
         onRelease={(id, data) => {
@@ -412,6 +462,8 @@ export function DockBoard({ entries, onEdit, onCheckOut, onSaveInspection, onSav
       </div>
 
       <LiveYardCard entries={entries} now={now} />
+
+      <ComingToDocks entries={entries} now={now} />
 
       <Section
         id="loading"
@@ -551,19 +603,16 @@ export function LiveYard({ entries, onEdit, onCheckOut, onInspect, stretch }) {
           <div className="flex items-center justify-between gap-3">
             <h2 className="flex items-center gap-3 font-display text-[22px] leading-tight font-bold">
               <Icon name="yard" size={24} className="text-signal" />
-              {inspecting ? 'Inspection Map' : 'Live Yard Map'}
+              {inspecting ? 'Inspection Map' : 'Yard Map'}
             </h2>
             <button type="button" onClick={close} className={ui.btnSmall}>
               <Icon name="close" />
               Close
             </button>
           </div>
-          <YardMap
-            yard={yard}
-            gateCounts={gateCounts}
-            at={Infinity}
-            clock={now}
-            live
+          {/* Live by default, with Pause and Replay of any of the last 30 days. */}
+          <YardPlayer
+            entries={entries}
             onEdit={closeThen(onEdit)}
             onCheckOut={closeThen(onCheckOut)}
             focus={inspecting ? needsInspection : undefined}
