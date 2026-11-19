@@ -5,7 +5,8 @@ import GuardOnDuty, { GuardStart, recentGuards } from './components/GuardOnDuty'
 import { dayKey } from './time'
 import EntryLog from './components/EntryLog'
 import ShippingPage from './components/ShippingPage'
-import { DockBoard, phaseOf } from './components/Dashboard'
+import { phaseOf } from './components/Dashboard'
+import { DockWork } from './components/dock/DockWork'
 import Messages from './components/Messages'
 import Overview from './components/Overview'
 import Analytics from './components/Analytics'
@@ -473,7 +474,7 @@ export default function App() {
           </div>
         ) : tab === 'docks' ? (
           <div role="tabpanel" id="panel-docks" aria-labelledby="tab-docks">
-            <DockBoard
+            <DockWork
               entries={entries}
               onEdit={handleEdit}
               onCheckOut={handleCheckOut}

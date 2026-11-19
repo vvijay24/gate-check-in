@@ -107,7 +107,7 @@ export default function ReleaseDialog({ entry, entries = [], inspector, onReleas
                 <input id="release-orderNo" value={form.orderNo} onChange={(e) => set('orderNo', e.target.value)} className={ui.input} />
               </label>
               <label className="flex flex-col gap-1">
-                <span className={ui.label}>Seal # on the trailer</span>
+                <span className={ui.label}>Seal no. on the trailer</span>
                 <input id="release-seal" value={form.seal} onChange={(e) => set('seal', e.target.value)} className={ui.input} />
               </label>
             </div>
