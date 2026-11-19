@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import CheckInForm from './components/CheckInForm'
 import CheckOutPage from './components/CheckOutPage'
-import { GateHeader } from './components/gate/parts'
-import { GuardStart, recentGuards } from './components/GuardOnDuty'
+import GuardOnDuty, { GuardStart, recentGuards } from './components/GuardOnDuty'
 import { dayKey } from './time'
 import EntryLog from './components/EntryLog'
 import ShippingPage from './components/ShippingPage'
@@ -281,20 +280,19 @@ export default function App() {
     if (leaving?.id === id) setLeaving(null)
   }
 
-  // Each Gate column's name, where the Check In / Check Out switch used to be in the top line.
-  const gateTitle = (icon, label) => (
-    <h2 className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-signal px-4 font-display text-[17px] font-bold text-signal-ink shadow-card">
-      <Icon name={icon} size={22} />
-      {label}
-    </h2>
-  )
-
   return (
     <>
       <header ref={headerRef} className="sticky top-0 z-10 bg-chrome text-white shadow-raised">
         <div className="mx-auto flex max-w-[1400px] flex-wrap items-center gap-4 px-5 py-3">
-          {/* ml-auto keeps the clock on the right. */}
-          <span className="ml-auto font-display text-xl font-semibold text-signal-bright">{clock}</span>
+          {/* ml-auto keeps the clock on the right; on the Gate the guard on duty sits under it. */}
+          <div className="on-chrome ml-auto flex flex-col items-end gap-1.5">
+            <span className="font-display text-xl font-semibold text-signal-bright">{clock}</span>
+            {tab === 'gate' && (
+              <div className="text-ink">
+                <GuardOnDuty guard={guard} recent={recentGuards(entries)} onChange={changeGuard} />
+              </div>
+            )}
+          </div>
         </div>
         <nav role="tablist" className="no-print mx-auto flex max-w-[1400px] gap-1 overflow-x-auto px-5">
           {TABS.map((t) => (
@@ -350,7 +348,6 @@ export default function App() {
 
         {tab === 'gate' ? (
           <div role="tabpanel" id="panel-gate" aria-labelledby="tab-gate" className="grid gap-6">
-            <GateHeader entries={entries} guard={guard} onGuardChange={changeGuard} onReady={() => openGate('out', null)} />
             {!guard && <GuardStart recent={recentGuards(entries)} onChange={changeGuard} />}
             {/* Check In and Check Out on one page: side by side on wide screens, Check Out (who is ready to
                 leave) first on narrower ones. Hidden (not removed) while no guard is on duty, so anything
@@ -362,7 +359,6 @@ export default function App() {
                   entries={entries}
                   initial={leaving}
                   guard={guard}
-                  switcher={gateTitle('checkOut', 'Check Out')}
                   onPick={handleCheckOut}
                   onSave={(form) => handleSave(form, 'out')}
                   onCancel={() => setLeaving(null)}
@@ -374,7 +370,6 @@ export default function App() {
                   initial={editing}
                   entries={entries}
                   guard={guard}
-                  switcher={gateTitle('checkIn', 'Check In')}
                   onSave={(form) => handleSave(form, 'in')}
                   onCancel={editing ? () => setEditing(null) : undefined}
                 />

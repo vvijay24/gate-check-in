@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import * as ui from '../ui'
 import { Icon, IconChip } from '../icons'
 import { VISIT_PURPOSES, isRequired } from '../formConfig'
-import { FIELD_LABELS, cleanForSave, dayLabel, timeLabel, validate } from '../gateForm'
+import { FIELD_LABELS, PHONE_PROPS, cleanForSave, dayLabel, phoneInput, timeLabel, validate } from '../gateForm'
 import { EARLY_GRACE_MIN, LATE_GRACE_MIN, clockTime, minutesLate } from '../time'
 import { visitMemory } from '../visitMemory'
 import { Chips, FieldBox, PRESS, Seg, Stepper } from './gate/parts'
@@ -251,7 +251,7 @@ function EditForm({ entry, entries, form, set, errors }) {
       </FieldBox>
       <div className="grid gap-4 sm:grid-cols-2">
         <FieldBox name="driverPhone" label="Driver phone" required error={err('driverPhone')} hint="10 digits">
-          <input type="tel" inputMode="tel" autoComplete="off" {...text('driverPhone')} />
+          <input {...text('driverPhone')} {...PHONE_PROPS} onChange={(e) => set({ driverPhone: phoneInput(e.target.value) })} />
         </FieldBox>
         <FieldBox name="truckerNameIn" label="Driver name" required error={err('truckerNameIn')}>
           <input {...text('truckerNameIn')} />

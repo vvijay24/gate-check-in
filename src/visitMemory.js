@@ -27,15 +27,22 @@ export function visitMemory(entries, excludeId) {
   const list = entries.filter((e) => e.id !== excludeId).sort((a, b) => time(b) - time(a))
   const byTrailer = new Map()
   const byPhone = new Map()
+  const visitByPhone = new Map()
   for (const e of list) {
     const t = trailerKey(e.trailerNumber)
     if (t && !byTrailer.has(t)) byTrailer.set(t, e)
     const p = phoneKey(e.driverPhone)
     if (p.length >= 7 && e.truckerNameIn && !byPhone.has(p)) byPhone.set(p, e.truckerNameIn)
+    if (p.length >= 7 && !visitByPhone.has(p)) visitByPhone.set(p, e)
   }
   return {
     // The last visit of this trailer, or undefined. Needs at least 3 characters to match.
     lastVisit: (trailer) => (trailerKey(trailer).length >= 3 ? byTrailer.get(trailerKey(trailer)) : undefined),
+    // The last visit of the driver with this phone number (all 10 digits), or undefined.
+    lastVisitByPhone: (phone) => (phoneKey(phone).length === 10 ? visitByPhone.get(phoneKey(phone)) : undefined),
+    // Every carrier and customer seen, most recent first: the Check In boxes suggest from these.
+    allCarriers: recent(list, 'truckName', Infinity),
+    allCustomers: recent(list, 'customerPickupFor', Infinity),
     // The driver's name last seen with this phone number, or undefined.
     nameForPhone: (phone) => byPhone.get(phoneKey(phone)),
     carriers: recent(list, 'truckName', 6),
