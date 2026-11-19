@@ -1,7 +1,8 @@
 import { cloneElement, useEffect, useRef, useState } from 'react'
 import { Icon } from '../icons'
 import { DOCKS } from '../yard'
-import { dayKey } from '../time'
+import { dayKey, shiftDate } from '../time'
+import { bookingsFromEntries } from '../schedule'
 import { atDockNow } from '../handoff'
 import { phaseOf } from './Dashboard'
 import { dockKey, occupiedDocks } from './AssignDock'
@@ -12,6 +13,7 @@ import { DocksSection, DropsSection, InspectionSection, LoadingSection, OrdersTi
 import { NowSection, carrierOf, needsYou } from './shipping/now'
 import { ScheduleSection, scheduleSummary } from './shipping/schedule'
 import { LoadSheetsSection } from './shipping/loads'
+import { FindOrder, OrderHistory } from './shipping/history'
 
 // The Shipping tab, for the clerk at the desk. Two groups in the sidebar: Today (Now, Today's schedule,
 // Docks & loads) and Past days (Records). Each section's title is its sidebar name, with one status line
@@ -124,6 +126,49 @@ function Sidebar({ section, onSelect, counts }) {
 }
 
 const plural = (n, one, many = one + 's') => `${n} ${n === 1 ? one : many}`
+const WEEKDAY = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+// "Thu Nov 12".
+const dayName = (key) => {
+  const d = new Date(`${key}T00:00`)
+  return `${WEEKDAY[d.getDay()]} ${d.toLocaleDateString([], { month: 'short', day: 'numeric' })}`
+}
+
+// Today's schedule for another day: ◀ Yesterday | Today | Tomorrow ▶, and a date box.
+function DayPicker({ day, today, onChange }) {
+  const seg = (on) =>
+    'inline-flex min-h-11 cursor-pointer items-center justify-center rounded-lg px-3 text-[14px] font-semibold transition-colors duration-150 ' +
+    (on ? 'bg-signal text-signal-ink shadow-card' : 'text-ink hover:bg-signal-tint')
+  return (
+    <div className="no-print flex flex-wrap items-center gap-3">
+      <div role="group" aria-label="Day to show" className="flex gap-1 rounded-xl border border-hair bg-panel p-1 shadow-card">
+        <button type="button" aria-label="Previous day" onClick={() => onChange(shiftDate(day, -1))} className={seg(false) + ' px-2.5'}>
+          <Icon name="chevron" size={18} className="rotate-180" />
+        </button>
+        {[
+          ['Yesterday', shiftDate(today, -1)],
+          ['Today', today],
+          ['Tomorrow', shiftDate(today, 1)],
+        ].map(([label, key]) => (
+          <button key={label} type="button" aria-pressed={day === key} onClick={() => onChange(key)} className={seg(day === key)}>
+            {label}
+          </button>
+        ))}
+        <button type="button" aria-label="Next day" onClick={() => onChange(shiftDate(day, 1))} className={seg(false) + ' px-2.5'}>
+          <Icon name="chevron" size={18} />
+        </button>
+      </div>
+      <label className="flex items-center gap-2 text-[14px] font-semibold text-muted">
+        Date
+        <input
+          type="date"
+          value={day}
+          onChange={(e) => e.target.value && onChange(e.target.value)}
+          className="min-h-11 cursor-pointer rounded-[10px] border-[1.5px] border-line bg-panel px-2.5 text-[14px] font-semibold text-ink hover:border-signal-bright"
+        />
+      </label>
+    </div>
+  )
+}
 
 // `log` is the Entry log (built in App with its handlers). `schedule`: today's bookings (App builds it
 // once, so the Gate sees the same list). `onDelayReason(id, reasonId)` saves why a truck stayed long;
@@ -140,8 +185,11 @@ export default function ShippingPage({ entries, schedule = [], onAssignDock, onO
   })
   const [dockTab, setDockTab] = useState('use')
   const [recordTab, setRecordTab] = useState('log')
-  // The entry open in the View entry pop-up.
+  // The entry open in the View entry pop-up, and the order open in the order history pop-up.
   const [viewingId, setViewingId] = useState(null)
+  const [historyId, setHistoryId] = useState(null)
+  // The day Today's schedule shows (today unless the clerk picks another).
+  const [schedDay, setSchedDay] = useState(() => dayKey(new Date()))
   const [staged, setStaged] = useDayStore('shipping-staged')
   const [calls, setCalls] = useDayStore('shipping-calls')
   const top = useRef(null)
@@ -189,20 +237,33 @@ export default function ShippingPage({ entries, schedule = [], onAssignDock, onO
   const loading = atDock.filter((e) => ['trailer', 'trailerFail', 'ready', 'loading'].includes(phaseOf(e))).length
   const toInspect = atDock.filter((e) => ['inspect', 'failed'].includes(phaseOf(e))).length
   const counts = {
-    now: todo.length ? { n: todo.length, bad: anyLate, warn: !anyLate, words: `${plural(todo.length, 'thing')} need you` } : null,
+    now: todo.length ? { n: todo.length, bad: anyLate, warn: !anyLate, words: `${plural(todo.length, 'thing')} ${todo.length === 1 ? 'needs' : 'need'} action` } : null,
     schedule: sched.late ? { n: sched.late, bad: true, words: `${plural(sched.late, 'truck')} late or not here` } : null,
     docks: { n: `${free} free`, words: `${free} of ${DOCKS.length} docks free` },
   }
 
   const view = (id) => setViewingId(id)
+  // "Find an order" sits in the title row of every section.
+  const find = <FindOrder entries={entries} onOpen={setHistoryId} />
+  const today = dayKey(new Date(now))
+  const isToday = schedDay === today
+  const shownDay = isToday ? day : bookingsFromEntries(entries, schedDay)
+  const byId = Object.fromEntries(entries.map((e) => [e.id, e]))
+  const schedLine = isToday
+    ? sched.line
+    : schedDay > today
+      ? `No bookings for ${dayName(schedDay)} yet.`
+      : scheduleSummary(shownDay, byId, now, dayName(schedDay)).line
   const body = {
     now: (
       <>
         <PageTitle
           title="Now"
           now={now}
-          line={todo.length ? `${plural(todo.length, 'thing')} ${todo.length === 1 ? 'needs' : 'need'} you. The most urgent is first.` : 'Nothing needs you right now.'}
-        />
+          line={todo.length ? `${plural(todo.length, 'thing')} ${todo.length === 1 ? 'needs' : 'need'} action. The most urgent is first.` : 'No action required right now.'}
+        >
+          {find}
+        </PageTitle>
         <NowSection
           entries={entries}
           schedule={day}
@@ -221,8 +282,11 @@ export default function ShippingPage({ entries, schedule = [], onAssignDock, onO
     ),
     schedule: (
       <>
-        <PageTitle title="Today's schedule" now={now} line={sched.line} />
-        <ScheduleSection schedule={day} entries={entries} now={now} onStage={markStaged} onView={view} />
+        <PageTitle title={isToday ? "Today's schedule" : `Schedule for ${dayName(schedDay)}`} now={now} line={schedLine}>
+          {find}
+        </PageTitle>
+        <DayPicker day={schedDay} today={today} onChange={setSchedDay} />
+        <ScheduleSection key={schedDay} schedule={shownDay} entries={entries} now={now} onStage={markStaged} onView={view} isToday={isToday} />
       </>
     ),
     docks: (
@@ -231,7 +295,9 @@ export default function ShippingPage({ entries, schedule = [], onAssignDock, onO
           title="Docks & loads"
           now={now}
           line={`${DOCKS.length - free} of ${DOCKS.length} docks busy. ${plural(loading, 'truck')} loading, ${toInspect} waiting for inspection. ${DOCK_TABS.find((t) => t.id === dockTab).line}`}
-        />
+        >
+          {find}
+        </PageTitle>
         <SubTabs label="Docks & loads views" tabs={DOCK_TABS} value={dockTab} onChange={setDockTab} />
         {dockTab === 'use' && <DocksSection entries={entries} now={now} head={false} />}
         {dockTab === 'loading' && <LoadingSection entries={entries} now={now} head={false} />}
@@ -249,7 +315,9 @@ export default function ShippingPage({ entries, schedule = [], onAssignDock, onO
     ),
     records: (
       <>
-        <PageTitle title="Records" now={now} line="Every truck that came through the gate, and the daily report." />
+        <PageTitle title="Records" now={now} line="Every truck that came through the gate, and the daily report.">
+          {find}
+        </PageTitle>
         <SubTabs label="Records views" tabs={RECORD_TABS} value={recordTab} onChange={setRecordTab} />
         {recordTab === 'log' ? (
           <>
@@ -274,6 +342,7 @@ export default function ShippingPage({ entries, schedule = [], onAssignDock, onO
           setViewingId(null)
         }}
       />
+      <OrderHistory entry={entries.find((x) => x.id === historyId) ?? null} onClose={() => setHistoryId(null)} />
       <Sidebar section={section} onSelect={select} counts={counts} />
       <div key={section} className="grid min-w-0 animate-fade content-start gap-5">
         {body}

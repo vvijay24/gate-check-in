@@ -51,11 +51,35 @@ const usd = (v) => (v == null ? '—' : `$${Math.round(v).toLocaleString()}`)
 const dur = (m) => (m == null ? '—' : duration(m * MIN))
 const C = () => TT.C
 const NAVY = 'var(--p-navy)'
-const RED = 'var(--p-red)'
+// Over target: a lighter navy with diagonal navy stripes (the pattern is defined once on the page, in
+// OverPattern). It reads 2.1:1 on white, so the stripes and the words in each note carry the meaning too.
+const OVER = 'url(#mg-over)'
+const OVER_CSS = 'repeating-linear-gradient(135deg, var(--color-signal-bright) 0 3px, var(--color-signal-soft) 3px 6px)'
+// Red is kept for money and the top issue; anything else off target is amber.
+const MONEY = ['charges', 'perTruck', 'dispute']
 const PAPER = 'var(--dive-s1)'
 const DIGITAL = 'var(--dive-teal)'
 
 // ---------------------------------------------------------------- Small parts
+// The striped fill for over-target bars, referenced by every chart on the page as url(#mg-over).
+const OverPattern = () => (
+  <svg width="0" height="0" className="absolute" aria-hidden="true" focusable="false">
+    <defs>
+      <pattern id="mg-over" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+        <rect width="6" height="6" fill="var(--color-signal-soft)" />
+        <rect width="2.5" height="6" fill="var(--color-signal-bright)" />
+      </pattern>
+    </defs>
+  </svg>
+)
+// The kit draws target lines and their labels in red; here they are a dark dashed line.
+const calm = (el) => {
+  el.querySelectorAll('line[stroke-dasharray]').forEach((l) => (l.style.stroke = 'var(--color-ink)'))
+  el.querySelectorAll('svg > text').forEach((t) => {
+    if (t.style.fill) t.style.fill = 'var(--color-ink)'
+  })
+}
+
 // Draws a kit chart into a div, again when its width or `deps` change.
 function Chart({ draw, deps, label, height = 220 }) {
   const ref = useRef(null)
@@ -64,10 +88,12 @@ function Chart({ draw, deps, label, height = 220 }) {
     if (!el) return
     let w = el.clientWidth
     draw(el)
+    calm(el)
     const ro = new ResizeObserver(() => {
       if (el.clientWidth !== w) {
         w = el.clientWidth
         draw(el)
+        calm(el)
       }
     })
     ro.observe(el)
@@ -82,7 +108,7 @@ function Legend({ items }) {
     <div className="flex flex-wrap gap-x-4 gap-y-1 text-[13px] text-muted">
       {items.map(([name, color]) => (
         <span key={name} className="inline-flex items-center gap-1.5">
-          <i className="inline-block size-3 rounded-[4px]" style={{ background: color }} aria-hidden="true" />
+          <i className="inline-block size-3 rounded-[4px] border border-hair" style={{ background: color }} aria-hidden="true" />
           {name}
         </span>
       ))}
@@ -92,12 +118,13 @@ function Legend({ items }) {
 
 // A chart panel: title, note (what each bar is, what the colour means, what's at the top), the chart,
 // a legend for two or more series, and a table copy.
-function Panel({ title, note, legend, table, wide, children }) {
+// `over`: the legend words for the striped over-target bars, e.g. "Over 2 hours".
+function Panel({ title, note, legend, over, table, wide, children }) {
   return (
     <section className={'grid min-w-0 content-start gap-3 rounded-2xl border border-hair bg-panel p-5 shadow-card ' + (wide ? 'lg:col-span-2' : '')}>
       <h3 className="font-body text-[16.5px] font-bold">{title}</h3>
       {note && <p className="-mt-2 text-[13.5px] text-muted">{note}</p>}
-      {legend && <Legend items={legend} />}
+      {(legend || over) && <Legend items={[...(legend ?? []), ...(over ? [['On target', NAVY], [over, OVER_CSS]] : [])]} />}
       {children}
       {table && <ShowTable head={table.head} rows={table.rows} />}
     </section>
@@ -121,12 +148,15 @@ const InfoButton = ({ on, onClick, label }) => (
 )
 
 // ---------------------------------------------------------------- Cards
+// Each card's icon sits on a soft square in its topic's colour (index.css .mg-*): time is blue, money gold,
+// arrivals and orders teal, quality purple. Red, amber and green stay for on and off target.
 // Each card: what it reads, its target (`low`: lower is better), and its deep dive.
 const CARDS = [
   {
     id: 'over',
     row: 1,
-    icon: 'waiting',
+    icon: 'hourglass',
+    topic: 'time',
     label: 'Trucks over 2 hours',
     value: (s) => s.over2h,
     fmt: pct,
@@ -143,7 +173,8 @@ const CARDS = [
   {
     id: 'charges',
     row: 1,
-    icon: 'money',
+    icon: 'receipt',
+    topic: 'money',
     label: 'Waiting charges',
     value: (s) => s.charges,
     fmt: usd,
@@ -161,6 +192,7 @@ const CARDS = [
     id: 'turn',
     row: 1,
     icon: 'time',
+    topic: 'time',
     label: 'Average time on site',
     value: (s) => s.avgTurn,
     fmt: dur,
@@ -177,7 +209,8 @@ const CARDS = [
   {
     id: 'ontime',
     row: 1,
-    icon: 'calendar',
+    icon: 'calendarCheck',
+    topic: 'arrive',
     label: 'On-time arrivals',
     value: (s) => s.onTime,
     fmt: pct,
@@ -195,6 +228,7 @@ const CARDS = [
     id: 'pass',
     row: 1,
     icon: 'inspected',
+    topic: 'quality',
     label: 'Passed first time',
     value: (s) => s.firstPass,
     fmt: pct,
@@ -212,6 +246,7 @@ const CARDS = [
     id: 'wait',
     row: 2,
     icon: 'dock',
+    topic: 'time',
     label: 'Wait for a dock',
     value: (s) => s.waitDock,
     fmt: dur,
@@ -228,7 +263,8 @@ const CARDS = [
   {
     id: 'staged',
     row: 2,
-    icon: 'orders',
+    icon: 'packageCheck',
+    topic: 'arrive',
     label: 'Orders staged before the slot',
     value: (s) => s.staged,
     fmt: pct,
@@ -245,7 +281,8 @@ const CARDS = [
   {
     id: 'perTruck',
     row: 2,
-    icon: 'money',
+    icon: 'coins',
+    topic: 'money',
     label: 'Waiting charges per truck',
     value: (s) => s.chargePerTruck,
     fmt: usd,
@@ -262,7 +299,8 @@ const CARDS = [
   {
     id: 'dispute',
     row: 2,
-    icon: 'report',
+    icon: 'scale',
+    topic: 'money',
     label: 'Charges we can dispute',
     value: (s) => s.disputable,
     fmt: usd,
@@ -286,7 +324,7 @@ const onTarget = (c, v) => {
 }
 
 // "▲ 5 points against Nov 5 - Nov 11": green when better, red when worse, plain when equal.
-function Change({ c, v, cv, against }) {
+function Change({ c, v, cv, against, hot }) {
   if (v == null || cv == null) return <span className="text-[13px] text-muted">No figure to compare with</span>
   const diff = v - cv
   const points = Math.abs(Math.round(diff * 100))
@@ -295,14 +333,16 @@ function Change({ c, v, cv, against }) {
   if (same) return <span className="text-[13px] text-muted">Same as {against}</span>
   const better = c.low ? diff < 0 : diff > 0
   return (
-    <span className={'text-[13px] font-semibold ' + (better ? 'text-ok' : 'text-danger')}>
-      {diff > 0 ? '▲' : '▼'} {unitDiff} against {against}
-      <span className="sr-only"> ({better ? 'better' : 'worse'})</span>
+    <span className="text-[13px] text-ink">
+      {diff > 0 ? '▲' : '▼'} {unitDiff} against {against},{' '}
+      <b className={better ? 'text-ok' : hot ? 'text-danger' : 'text-warn-ink'}>{better ? 'better' : 'worse'}</b>
     </span>
   )
 }
 
-function Card({ c, s, cmp, against, days, onOpen }) {
+// `top`: this card's deep dive is the top issue. Red is used only on money cards and the top issue.
+function Card({ c, s, cmp, against, days, top, onOpen }) {
+  const hot = MONEY.includes(c.id) || top
   const [how, setHow] = useState(false)
   const v = c.value(s)
   const ok = onTarget(c, v)
@@ -312,30 +352,35 @@ function Card({ c, s, cmp, against, days, onOpen }) {
   return (
     <article className="grid min-w-0 content-start gap-2.5 rounded-2xl border border-hair bg-panel p-4 shadow-card">
       <div className="flex items-start gap-2.5">
-        <span className="grid size-9 shrink-0 place-items-center rounded-[10px] bg-signal-tint text-signal">
-          <Icon name={c.icon} size={18} />
+        <span className={'mg-chip grid size-10 shrink-0 place-items-center rounded-xl mg-' + c.topic}>
+          <Icon name={c.icon} size={20} />
         </span>
         <h3 className="min-w-0 flex-1 pt-1.5 font-body text-[15px] leading-snug font-semibold">{c.label}</h3>
         <InfoButton on={how} onClick={() => setHow((x) => !x)} label={`How ${c.label.toLowerCase()} is worked out`} />
       </div>
       <p className="min-h-[3.6em] text-[13px] text-muted">{how ? <><b className="text-ink">How it's worked out: </b>{c.how}</> : c.desc}</p>
       <p className="flex flex-wrap items-baseline gap-x-1.5">
-        <b className={'font-body text-[30px] leading-none tabular-nums ' + (ok === false ? 'text-danger' : '')}>{c.fmt(v)}</b>
+        <b className="font-body text-[30px] leading-none tabular-nums">{c.fmt(v)}</b>
         <span className="text-[13px] text-muted">{c.unit}</span>
       </p>
       <p className="-mt-1 min-h-[1.4em] text-[13px] text-muted">{c.sub(s)}</p>
       <div className="grid gap-1.5">
         <span className="relative h-2 rounded-full bg-field" aria-hidden="true">
-          <span className="absolute inset-y-0 left-0 rounded-full" style={{ width: `${fill * 100}%`, background: ok === false ? RED : NAVY }} />
+          <span className="absolute inset-y-0 left-0 rounded-full" style={{ width: `${fill * 100}%`, background: NAVY }} />
           {tick != null && <span className="absolute -inset-y-1 w-0.5 rounded bg-ink" style={{ left: `calc(${tick * 100}% - 1px)` }} />}
         </span>
         <span className="flex flex-wrap items-center justify-between gap-2 text-[12.5px]">
           <span className="text-muted">Target: {c.targetText}</span>
-          {ok != null && <span className={ui.tag + ' ' + (ok ? 'bg-ok-soft text-ok' : 'bg-danger-soft text-danger')}>{ok ? 'On target' : 'Off target'}</span>}
+          {ok != null && (
+            <span className={ui.tag + ' ' + (ok ? 'bg-ok-soft text-ok' : hot ? 'bg-danger-soft text-danger' : 'bg-warn text-warn-ink')}>
+              <Icon name={ok ? 'done' : 'warning'} size={14} />
+              {ok ? 'On target' : top ? 'Off target, top issue' : 'Off target'}
+            </span>
+          )}
           {ok == null && c.id === 'dispute' && <span className={ui.tag + ' bg-signal-tint text-signal'}>{pct(s.charges ? (s.disputable ?? 0) / s.charges : null)} of charges</span>}
         </span>
       </div>
-      <Change c={c} v={v} cv={cmp ? c.value(cmp) : null} against={against} />
+      <Change c={c} v={v} cv={cmp ? c.value(cmp) : null} against={against} hot={hot} />
       <MiniBars c={c} days={days} />
       <button type="button" onClick={onOpen} className={ui.btnGhost + ' -ml-3 w-fit'}>
         See why →
@@ -357,12 +402,12 @@ function MiniBars({ c, days }) {
             key={d.day}
             title={`${dayLabel(d.day)}: ${c.fmt(vals[i])}`}
             className="min-w-0 flex-1 rounded-t-[3px]"
-            style={{ height: vals[i] == null ? 2 : `${Math.max(6, (vals[i] / top) * 100)}%`, background: vals[i] == null ? 'var(--color-field)' : onTarget(c, vals[i]) === false ? RED : 'var(--color-signal-soft)' }}
+            style={{ height: vals[i] == null ? 2 : `${Math.max(6, (vals[i] / top) * 100)}%`, background: vals[i] == null ? 'var(--color-field)' : onTarget(c, vals[i]) === false ? OVER_CSS : NAVY }}
           />
         ))}
       </div>
       <span className="text-[12px] text-muted">
-        Last 14 days{c.target != null ? `, ${bad} off target` : ''}
+        Last 14 days{c.target != null ? `, ${bad} off target (striped)` : ''}
       </span>
     </div>
   )
@@ -462,12 +507,14 @@ function NameTable({ title, nameLabel, rows, onPick }) {
                   const v = c.value(r)
                   const isWorst = worst[c.id] != null && v === worst[c.id] && firstWorst[c.id] === r.name
                   return (
-                    <td key={c.id} className={'num ' + (isWorst ? 'bad' : '')}>
+                    <td key={c.id} className={'num ' + (isWorst ? 'font-bold' : '')}>
+                      {isWorst && c.id !== 'charges' && <Icon name="warning" size={14} className="mr-1 inline align-[-2px] text-warn-edge" />}
                       {c.id === 'charges' ? (
                         <span className="flex items-center justify-end gap-2">
                           <span className="hidden h-2 w-16 overflow-hidden rounded-full bg-field sm:block" aria-hidden="true">
                             <span className="block h-full rounded-full" style={{ width: `${(v / maxCharge) * 100}%`, background: NAVY, opacity: 0.35 }} />
                           </span>
+                          {isWorst && <Icon name="warning" size={14} className="text-warn-edge" />}
                           {c.fmt(v)}
                         </span>
                       ) : (
@@ -585,7 +632,7 @@ const DIVES = [
   { id: 'dispute', label: 'Charges we can dispute' },
 ]
 
-// Bar chart helpers over the kit's TT functions. `bad(v)`: that bar is off target (red).
+// Bar chart helpers over the kit's TT functions. `bad(v)`: that bar is off target (striped light navy).
 const dayBars = (days, value, fmt, bad, ref) => (el) =>
   TT.vbars(el, {
     rows: days,
@@ -593,7 +640,7 @@ const dayBars = (days, value, fmt, bad, ref) => (el) =>
     label: dayLabel,
     value: (d) => value(d) ?? 0,
     fmt,
-    color: (d) => (bad && value(d) != null && bad(value(d)) ? RED : NAVY),
+    color: (d) => (bad && value(d) != null && bad(value(d)) ? OVER : NAVY),
     ref,
     refLabel: ref != null ? 'Target' : undefined,
     tip: (d) => [dayLabel(d.day), [[null, null, value(d) == null ? 'No trucks' : fmt(value(d))]]],
@@ -606,8 +653,7 @@ const nameBars = (rows, value, fmt, bad) => (el) =>
     label: (r) => r.name,
     value: (r) => value(r) ?? 0,
     fmt,
-    color: (r) => (bad && bad(value(r)) ? RED : NAVY),
-    isBad: (r) => !!bad?.(value(r)),
+    color: (r) => (bad && bad(value(r)) ? OVER : NAVY),
     tip: (r) => [r.name, [[null, null, fmt(value(r) ?? 0)]]],
   })
 
@@ -654,7 +700,7 @@ function diveOf(id, { rows, s, days }) {
         ],
         action: worstStep(s) ? `The step furthest past its target is ${worstStep(s).label.toLowerCase()}. Work on that first.` : 'Every step is within its target.',
         charts: [
-          { title: 'Average time on site by day', note: `Each bar is one day. It shows the average time a pickup spent here. Red means over our ${TURN_TARGET / 60}-hour target.`, draw: dayBars(days, (d) => d.avgTurn, dur, (v) => v > TURN_TARGET, TURN_TARGET), deps: [days], table: dayTable(dur, (d) => d.avgTurn, 'Average on site') },
+          { title: 'Average time on site by day', note: `Each bar is one day. It shows the average time a pickup spent here. Striped bars are over our ${TURN_TARGET / 60}-hour target.`, over: `Over ${TURN_TARGET / 60} hours`, draw: dayBars(days, (d) => d.avgTurn, dur, (v) => v > TURN_TARGET, TURN_TARGET), deps: [days], table: dayTable(dur, (d) => d.avgTurn, 'Average on site') },
           {
             title: 'Where the time went, by day',
             note: 'Each bar is one day, split into the four parts of a visit. The tallest part is where most time went.',
@@ -672,7 +718,7 @@ function diveOf(id, { rows, s, days }) {
             deps: [days],
             table: { head: ['Day', ...['For the order', 'For a dock', 'At the dock', 'To leave'].map((label) => ({ label, right: true }))], rows: days.map((d) => [dayLabel(d.day), ...STEPS.map((st) => dur(d.steps[st.key]))]) },
           },
-          { title: 'By carrier', note: `Each bar is one carrier. It shows how long their pickups stayed on average. Red means over ${TURN_TARGET / 60} hours. The longest is at the top.`, draw: nameBars(byCarrier, (r) => r.avgTurn, dur, (v) => v > TURN_TARGET), deps: [byCarrier], table: nameTable(byCarrier, dur, (r) => r.avgTurn, 'Average on site') },
+          { title: 'By carrier', note: `Each bar is one carrier. It shows how long their pickups stayed on average. Striped bars are over ${TURN_TARGET / 60} hours. The longest is at the top.`, over: `Over ${TURN_TARGET / 60} hours`, draw: nameBars(byCarrier, (r) => r.avgTurn, dur, (v) => v > TURN_TARGET), deps: [byCarrier], table: nameTable(byCarrier, dur, (r) => r.avgTurn, 'Average on site') },
         ],
         rows: list,
         cols: [...base, 'arrived', 'yardWait', 'leave', 'turn'],
@@ -717,7 +763,8 @@ function diveOf(id, { rows, s, days }) {
           },
           {
             title: 'By hour of arrival',
-            note: `Each bar is one hour of the day. It shows how long trucks arriving then waited for a dock. Red means over ${WAIT_TARGET} minutes.`,
+            note: `Each bar is one hour of the day. It shows how long trucks arriving then waited for a dock. Striped bars are over ${WAIT_TARGET} minutes.`,
+            over: `Over ${WAIT_TARGET} minutes`,
             draw: (el) =>
               TT.vbars(el, {
                 rows: hours,
@@ -725,7 +772,7 @@ function diveOf(id, { rows, s, days }) {
                 label: (k) => hours.find((x) => x.day === k).name.replace(' ', ''),
                 value: (r) => r.wait ?? 0,
                 fmt: (v) => `${Math.round(v)} min`,
-                color: (r) => (r.wait > WAIT_TARGET ? RED : NAVY),
+                color: (r) => (r.wait > WAIT_TARGET ? OVER : NAVY),
                 tip: (r) => [r.name, [[null, null, r.wait == null ? 'No trucks' : dur(r.wait)]]],
                 height: 220,
               }),
@@ -751,7 +798,7 @@ function diveOf(id, { rows, s, days }) {
         ],
         action: byCarrier[0] && byCarrier[0].onTime < ON_TIME_TARGET ? `Talk to ${byCarrier[0].name}: ${pct(byCarrier[0].onTime)} of their trucks were on time.` : 'Every carrier is on target.',
         charts: [
-          { title: 'On time by carrier', note: `Out of each carrier's booked trucks, how many arrived on time. Red means fewer than ${Math.round(ON_TIME_TARGET * 10)} in 10. The worst is at the top.`, draw: nameBars(byCarrier, (r) => r.onTime, pct, (v) => v < ON_TIME_TARGET), deps: [byCarrier], table: nameTable(byCarrier, pct, (r) => r.onTime, 'On time') },
+          { title: 'On time by carrier', note: `Out of each carrier's booked trucks, how many arrived on time. Striped bars mean fewer than ${Math.round(ON_TIME_TARGET * 10)} in 10. The worst is at the top.`, over: `Fewer than ${Math.round(ON_TIME_TARGET * 10)} in 10 on time`, draw: nameBars(byCarrier, (r) => r.onTime, pct, (v) => v < ON_TIME_TARGET), deps: [byCarrier], table: nameTable(byCarrier, pct, (r) => r.onTime, 'On time') },
           { title: 'Late trucks by day', note: 'Each bar is one day. It shows how many booked trucks came more than 15 minutes late.', draw: dayBars(days, (d) => d.lateCount, (v) => `${Math.round(v)}`), deps: [days], table: dayTable((v) => `${v} trucks`, (d) => d.lateCount, 'Late trucks') },
         ],
         rows: list,
@@ -776,7 +823,7 @@ function diveOf(id, { rows, s, days }) {
         ],
         action: fixRows[0] ? `The most common fix was "${fixRows[0].name}". Check that step with the dock crew before loading.` : 'No loads were re-checked.',
         charts: [
-          { title: 'Passed first time, by day', note: `Each bar is one day. It shows the share of loads that passed without a re-check. Red means under ${pct(PASS_TARGET)}.`, draw: dayBars(days, (d) => d.firstPass, pct, (v) => v < PASS_TARGET), deps: [days], table: dayTable(pct, (d) => d.firstPass, 'Passed first time') },
+          { title: 'Passed first time, by day', note: `Each bar is one day. It shows the share of loads that passed without a re-check. Striped bars are under ${pct(PASS_TARGET)}.`, over: `Under ${pct(PASS_TARGET)}`, draw: dayBars(days, (d) => d.firstPass, pct, (v) => v < PASS_TARGET), deps: [days], table: dayTable(pct, (d) => d.firstPass, 'Passed first time') },
           { title: 'What was done about it', note: 'Each bar is one fix the dock made after a failed inspection. It shows how many loads needed it. The most common is at the top.', draw: nameBars(fixRows, (r) => r.n, (v) => `${v}`), deps: [fixRows], table: nameTable(fixRows, (v) => `${v} loads`, (r) => r.n, 'Loads', 'Fix') },
         ],
         rows: list,
@@ -796,8 +843,8 @@ function diveOf(id, { rows, s, days }) {
         ],
         action: 'Release passed loads straight away, and have the paperwork ready before inspection ends.',
         charts: [
-          { title: 'Waiting to leave, by day', note: `How long a loaded truck waited to leave after passing inspection. Red means longer than our ${LEAVE_TARGET}-minute target.`, draw: dayBars(days, (d) => d.leave, dur, (v) => v > LEAVE_TARGET, LEAVE_TARGET), deps: [days], table: dayTable(dur, (d) => d.leave, 'Waiting to leave') },
-          { title: 'By carrier', note: `Each bar is one carrier. It shows how long their loaded trucks waited to leave. Red means over ${LEAVE_TARGET} minutes. The longest is at the top.`, draw: nameBars(byCarrier, (r) => r.leave, dur, (v) => v > LEAVE_TARGET), deps: [byCarrier], table: nameTable(byCarrier, dur, (r) => r.leave, 'Waiting to leave') },
+          { title: 'Waiting to leave, by day', note: `How long a loaded truck waited to leave after passing inspection. Striped bars are longer than our ${LEAVE_TARGET}-minute target.`, over: `Over ${LEAVE_TARGET} minutes`, draw: dayBars(days, (d) => d.leave, dur, (v) => v > LEAVE_TARGET, LEAVE_TARGET), deps: [days], table: dayTable(dur, (d) => d.leave, 'Waiting to leave') },
+          { title: 'By carrier', note: `Each bar is one carrier. It shows how long their loaded trucks waited to leave. Striped bars are over ${LEAVE_TARGET} minutes. The longest is at the top.`, over: `Over ${LEAVE_TARGET} minutes`, draw: nameBars(byCarrier, (r) => r.leave, dur, (v) => v > LEAVE_TARGET), deps: [byCarrier], table: nameTable(byCarrier, dur, (r) => r.leave, 'Waiting to leave') },
         ],
         rows: list,
         cols: [...base, 'turn', 'leave'],
@@ -816,8 +863,8 @@ function diveOf(id, { rows, s, days }) {
         ],
         action: customers[0] ? `Start with ${customers[0].name}'s orders: ${pct(customers[0].staged)} were staged in time.` : 'Stage each order an hour before its slot.',
         charts: [
-          { title: 'Staged before the slot, by day', note: `Each bar is one day. It shows the share of booked orders ready before the truck's slot. Red means under ${pct(STAGED_TARGET)}.`, draw: dayBars(days, (d) => d.staged, pct, (v) => v < STAGED_TARGET), deps: [days], table: dayTable(pct, (d) => d.staged, 'Staged') },
-          { title: 'By customer', note: `Each bar is one customer. It shows the share of their orders staged in time. Red means under ${pct(STAGED_TARGET)}. The worst is at the top.`, draw: nameBars(customers, (r) => r.staged, pct, (v) => v < STAGED_TARGET), deps: [customers], table: nameTable(customers, pct, (r) => r.staged, 'Staged', 'Customer') },
+          { title: 'Staged before the slot, by day', note: `Each bar is one day. It shows the share of booked orders ready before the truck's slot. Striped bars are under ${pct(STAGED_TARGET)}.`, over: `Under ${pct(STAGED_TARGET)}`, draw: dayBars(days, (d) => d.staged, pct, (v) => v < STAGED_TARGET), deps: [days], table: dayTable(pct, (d) => d.staged, 'Staged') },
+          { title: 'By customer', note: `Each bar is one customer. It shows the share of their orders staged in time. Striped bars are under ${pct(STAGED_TARGET)}. The worst is at the top.`, over: `Under ${pct(STAGED_TARGET)}`, draw: nameBars(customers, (r) => r.staged, pct, (v) => v < STAGED_TARGET), deps: [customers], table: nameTable(customers, pct, (r) => r.staged, 'Staged', 'Customer') },
         ],
         rows: list,
         cols: [...base, 'customer', 'booked', 'ready'],
@@ -938,7 +985,7 @@ function Dive({ id, ctx, onOpen, onBack }) {
       </p>
       <div className="grid gap-5 lg:grid-cols-2">
         {d.charts.map((c, i) => (
-          <Panel key={c.title} title={c.title} note={c.note} legend={c.legend} table={c.table} wide={d.charts.length === 3 && i === 0}>
+          <Panel key={c.title} title={c.title} note={c.note} legend={c.legend} over={c.over} table={c.table} wide={d.charts.length === 3 && i === 0}>
             <Chart draw={c.draw} deps={[...c.deps, id]} label={c.title} />
           </Panel>
         ))}
@@ -1156,6 +1203,7 @@ export default function MgmtOverview({ entries, sampleCount, onLoadSample, onRem
   if (dive)
     return (
       <div className="tt tt-mgmt">
+        <OverPattern />
         {strip}
         {filterBar}
         <Dive key={dive} id={dive} ctx={{ rows, s, days: daySeries }} onOpen={openDive} onBack={() => setDive(null)} />
@@ -1169,10 +1217,12 @@ export default function MgmtOverview({ entries, sampleCount, onLoadSample, onRem
     ['working at the dock', s.steps.work ?? 0],
     ['waiting to leave', s.steps.leave ?? 0],
   ].sort((a, b) => b[1] - a[1])[0]
+  // The card for the top issue: the first card that opens its deep dive.
+  const topCard = issues[0] && CARDS.find((c) => c.dive === issues[0].dive)?.id
   const cards = (row) => (
     <div className={'grid gap-4 sm:grid-cols-2 ' + (row === 1 ? 'lg:grid-cols-3 xl:grid-cols-5' : 'lg:grid-cols-4')}>
       {CARDS.filter((c) => c.row === row).map((c) => (
-        <Card key={c.id} c={c} s={s} cmp={cmp} against={against} days={last14} onOpen={() => openDive(c.dive)} />
+        <Card key={c.id} c={c} s={s} cmp={cmp} against={against} days={last14} top={c.id === topCard} onOpen={() => openDive(c.dive)} />
       ))}
     </div>
   )
@@ -1189,6 +1239,7 @@ export default function MgmtOverview({ entries, sampleCount, onLoadSample, onRem
 
   return (
     <div className="tt tt-mgmt">
+      <OverPattern />
       {strip}
       {filterBar}
 
@@ -1237,7 +1288,11 @@ export default function MgmtOverview({ entries, sampleCount, onLoadSample, onRem
 
       {/* Cards */}
       <section aria-labelledby="mg-cards" className="grid gap-4">
-        <SectionTitle id="mg-cards" title="How we did" sub={`Against our targets, and against ${against}. Tap ⓘ for how a number is worked out, or See why for the trucks behind it.`} />
+        <SectionTitle
+          id="mg-cards"
+          title="How we did"
+          sub={`Against our targets, and against ${against}. A red pill marks money off target and the top issue. An amber pill marks anything else off target. Tap ⓘ for how a number is worked out.`}
+        />
         {cards(1)}
         {cards(2)}
       </section>
@@ -1248,7 +1303,8 @@ export default function MgmtOverview({ entries, sampleCount, onLoadSample, onRem
         <div className="grid gap-5 lg:grid-cols-3">
           <Panel
             title="Average time on site"
-            note={`Each bar is one day. It shows the average time a pickup spent here. Red means over our ${TURN_TARGET / 60}-hour target.`}
+            note={`Each bar is one day. It shows the average time a pickup spent here. Striped bars are over our ${TURN_TARGET / 60}-hour target, shown by the dashed line.`}
+            over={`Over ${TURN_TARGET / 60} hours`}
             table={{ head: ['Day', { label: 'Average on site', right: true }], rows: daySeries.map((d) => [dayLabel(d.day), dur(d.avgTurn)]) }}
           >
             <Chart draw={dayBars(daySeries, (d) => d.avgTurn, dur, (v) => v > TURN_TARGET, TURN_TARGET)} deps={[daySeries]} label="Average time on site by day" />
@@ -1285,9 +1341,12 @@ export default function MgmtOverview({ entries, sampleCount, onLoadSample, onRem
             {issues.map((x, i) => (
               <li key={x.dive + x.title}>
                 <button type="button" onClick={() => openDive(x.dive)} className="grid min-h-14 w-full cursor-pointer grid-cols-[36px_minmax(0,1fr)_auto] items-center gap-3 rounded-xl border border-hair bg-field px-3.5 py-2.5 text-left transition-colors duration-150 hover:border-signal-bright hover:bg-signal-tint">
-                  <span className="grid size-9 place-items-center rounded-full bg-chrome font-body text-[15px] font-bold text-white">{i + 1}</span>
+                  <span className={'grid size-9 place-items-center rounded-full font-body text-[15px] font-bold text-white ' + (i === 0 ? 'bg-danger' : 'bg-chrome')}>{i + 1}</span>
                   <span className="min-w-0">
-                    <b className="block text-[15.5px]">{x.title}</b>
+                    <b className="block text-[15.5px]">
+                      {x.title}
+                      {i === 0 && <span className={ui.tag + ' ml-2 bg-danger-soft align-middle text-danger'}>Top issue</span>}
+                    </b>
                     <span className="text-[14px] text-muted">{x.line}</span>
                   </span>
                   <span className="text-[14px] font-semibold text-signal">See why →</span>
@@ -1302,7 +1361,7 @@ export default function MgmtOverview({ entries, sampleCount, onLoadSample, onRem
 
       {/* Carriers and customers */}
       <section aria-labelledby="mg-names" className="grid gap-4">
-        <SectionTitle id="mg-names" title="Carriers and customers" sub="Tap a column name to sort the table. Tap a name to show only that one on the whole page. Red marks the worst value in a column when it misses the target." />
+        <SectionTitle id="mg-names" title="Carriers and customers" sub="Tap a column name to sort the table. Tap a name to show only that one on the whole page. A warning mark and bold type show the worst value in a column when it misses the target." />
         <div className="grid gap-5">
           <NameTable title="Carriers" nameLabel="Carrier" rows={carriers} onPick={(n) => { setCarrier(n); window.scrollTo({ top: 0, behavior: 'smooth' }) }} />
           <NameTable title="Customers" nameLabel="Customer" rows={customers} onPick={(n) => { setCustomer(n); window.scrollTo({ top: 0, behavior: 'smooth' }) }} />

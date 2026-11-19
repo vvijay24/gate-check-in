@@ -4,6 +4,7 @@ import { duration } from '../time'
 import { Icon, IconChip } from '../icons'
 import { isDrop } from '../metrics'
 import { inYard } from '../handoff'
+import { loadLine } from '../loadSheet'
 
 // The inspector's sign-off before a truck that passed its inspection may leave: confirm the order and
 // seal and tick the paperwork. Opened from Loading & Inspection only; `inspector` (the inspector on duty)
@@ -97,6 +98,7 @@ export default function ReleaseDialog({ entry, entries = [], inspector, onReleas
                 {entry.customerPickupFor && ` · For ${entry.customerPickupFor}`}
                 {passedAgo && ` · Inspection passed ${passedAgo} ago`}
               </p>
+              {loadLine(entry) && <p className="text-[15px] font-semibold">Loaded: {loadLine(entry)}</p>}
             </div>
           </div>
 

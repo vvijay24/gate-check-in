@@ -150,7 +150,7 @@ export function makeSampleEntries(now = Date.now()) {
         const dockAt = Math.max(orderReadyAt + between(3, 14) * slowWait * MIN, doorFree[door])
         const dwell = between(50, 125) * slowDock * MIN
         // A pickup leaves through the gate; a dropped trailer is released to the yard a few minutes after
-        // it passes, which frees the dock, and is hooked by a driver hours later (now and then a day or two).
+        // it passes, which frees the dock, and is hooked by a driver a few hours later (now and then overnight).
         const pickupDepart = Math.round(dockAt + trailerDelay + dwell + recheckDelay + between(4, 12) * MIN)
         if (dockAt <= now) {
           e.dockDoor = DOCKS[door]
@@ -160,7 +160,9 @@ export function makeSampleEntries(now = Date.now()) {
         const firstInspectAt = Math.round(dockAt + trailerDelay + dwell * 0.75)
         const inspectedAt = Math.round(firstInspectAt + recheckDelay)
         const yardAt = Math.round(inspectedAt + between(4, 10) * MIN)
-        depart = drop ? yardAt + Math.round((random() < 0.06 ? between(26, 52) : between(1, 8)) * 60) * MIN : pickupDepart
+        // A driver hooks a loaded drop trailer 1-5 h after it's parked; now and then it waits overnight (8-14 h).
+        // Same number of random draws as before, so the rest of the sample doesn't change.
+        depart = drop ? yardAt + Math.round((random() < 0.06 ? between(8, 14) : between(1, 5)) * 60) * MIN : pickupDepart
         doorFree[door] = drop ? yardAt : pickupDepart
         // Loading & Inspection's "Loading started / finished": a short pre-load, then loading, then the
         // inspection (each now and then running long).

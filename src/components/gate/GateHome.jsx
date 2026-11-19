@@ -76,7 +76,7 @@ function Picker({ icon, title, note, id, search, children, foot }) {
 
 // A search box with its own 44px clear button. Plain text with inputMode search, so the browser doesn't
 // add a second clear button of its own.
-function SearchBox({ id, label, placeholder, value, onChange }) {
+export function SearchBox({ id, label, placeholder, value, onChange }) {
   return (
     <div className="relative">
       <label htmlFor={id} className="sr-only">

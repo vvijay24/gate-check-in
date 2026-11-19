@@ -15,6 +15,16 @@ export const PRODUCTS = {
   Frozen: ['IQF breast fillets', 'Frozen wings', 'Frozen tenders', 'Leg quarters', 'Breaded nuggets'],
 }
 
+// What's going on the trailer, in a few words, the same on every screen: "Frozen, 22 pallets: Wings,
+// Thighs". Kind and pallets come first so they stay in view when a long product list is cut short. Without
+// a load sheet, the customer the order is for; '' when neither is known.
+export function loadLine(e) {
+  const s = e.loadSheet
+  const pallets = e.loadingInspection?.palletsLoaded || s?.pallets
+  if (s?.products?.length) return `${s.kind}${pallets ? `, ${pallets} pallets` : ''}: ${s.products.map((p) => p.name).join(', ')}`
+  return e.customerPickupFor ? `For ${e.customerPickupFor}${pallets ? `, ${pallets} pallets` : ''}` : ''
+}
+
 // Box temperature minus the set point (°F), or null when the box hasn't been read yet.
 export function tempGap(e) {
   const s = e.loadSheet

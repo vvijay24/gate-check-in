@@ -28,6 +28,13 @@ import {
   Maximize2,
   MessageSquare,
   Phone,
+  CircleAlert,
+  Hourglass,
+  Receipt,
+  CalendarCheck,
+  PackageCheck,
+  Coins,
+  Scale,
   Bell,
   ListChecks,
   Package,
@@ -103,6 +110,14 @@ export const ICONS = {
   external: ExternalLink,
   phone: Phone,
   now: Bell,
+  alert: CircleAlert,
+  // Overview cards
+  hourglass: Hourglass,
+  receipt: Receipt,
+  calendarCheck: CalendarCheck,
+  packageCheck: PackageCheck,
+  coins: Coins,
+  scale: Scale,
 }
 
 export function Icon({ name, size = 20, className = '' }) {

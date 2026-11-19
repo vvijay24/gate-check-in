@@ -11,6 +11,7 @@ import { LiveYard, phaseOf } from '../Dashboard'
 import LiveYardCard from '../LiveYardCard'
 import ReleaseDialog from '../ReleaseDialog'
 import { LoadCheckSheet, TrailerCheckSheet, hasDraft, recentTechnicians } from '../LoadingInspection'
+import { loadLine } from '../../loadSheet'
 
 // The Loading & Inspection tab, for the loading crew and the QA inspector, each on their own tablet.
 // First "Who is using this tablet?" (role and name, kept on the device); then the docks as a wall, and
@@ -203,12 +204,17 @@ function DockWall({ entries, jobs, onRun }) {
                 <button
                   type="button"
                   onClick={() => onRun(j)}
-                  aria-label={`Dock ${d}, trailer ${e.trailerNumber}: ${j.label}${j.time ? `, ${j.time}` : ''}`}
+                  aria-label={`Dock ${d}, trailer ${e.trailerNumber}${loadLine(e) ? `, loading ${loadLine(e)}` : ''}: ${j.label}${j.time ? `, ${j.time}` : ''}`}
                   className="grid min-h-[132px] cursor-pointer content-start gap-1 overflow-hidden rounded-xl bg-panel px-3 pt-0 pb-2.5 text-left text-ink shadow-card transition-transform duration-150 hover:-translate-y-0.5"
                 >
                   <span className="-mx-3 mb-1.5 block h-1.5" style={{ background: COLOR[j.section] }} aria-hidden="true" />
                   <b className="truncate font-display text-[17px] leading-tight">{e.trailerNumber}</b>
                   <span className="truncate text-[13px] text-muted">{carrierOf(e)}</span>
+                  {loadLine(e) && (
+                    <span className="line-clamp-2 text-[12.5px] leading-snug text-ink" title={loadLine(e)}>
+                      {loadLine(e)}
+                    </span>
+                  )}
                   <span className="mt-1 text-[14px] font-bold text-signal">{j.label}</span>
                   {j.time && <span className={'text-[13px] font-semibold tabular-nums ' + TONE_TEXT[j.tone]}>{j.time}</span>}
                 </button>
@@ -216,6 +222,11 @@ function DockWall({ entries, jobs, onRun }) {
                 <div className="grid min-h-[132px] content-start gap-1 rounded-xl bg-panel/90 px-3 py-2.5 text-ink">
                   <b className="truncate font-display text-[17px] leading-tight">{e.trailerNumber}</b>
                   <span className="truncate text-[13px] text-muted">{carrierOf(e)}</span>
+                  {loadLine(e) && (
+                    <span className="line-clamp-2 text-[12.5px] leading-snug text-ink" title={loadLine(e)}>
+                      {loadLine(e)}
+                    </span>
+                  )}
                   <span className="mt-1 text-[13px] font-semibold text-ok">Released, waiting for the gate</span>
                   <span className="sr-only">Dock {d}</span>
                 </div>
@@ -255,6 +266,7 @@ function JobRow({ j, dark, onRun }) {
         <b className="block truncate text-[16px] leading-snug">
           {e.trailerNumber} <span className="font-normal text-muted">{carrierOf(e)}</span>
         </b>
+        {loadLine(e) && <span className="block truncate text-[14px] text-ink" title={loadLine(e)}>{loadLine(e)}</span>}
         {j.problem ? (
           <span className="block text-[14px] font-semibold text-danger">
             {j.problem}

@@ -32,6 +32,27 @@ function seeded(seed) {
 // A stable number from a string, for things picked without random draws.
 const hash = (s) => [...String(s)].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7)
 
+// Not sample: the bookings a day's check-ins carried (every truck that arrived with a booked time), as
+// booking rows matched to their entry. Past days in Today's schedule show these.
+export function bookingsFromEntries(entries, day) {
+  return entries
+    .filter((e) => e.dateIn === day && e.appointmentTime)
+    .map((e) => ({
+      id: `bk-${e.id}`,
+      ms: new Date(`${day}T${e.appointmentTime}`).getTime(),
+      time: e.appointmentTime,
+      orderNo: e.pickupNumber || '—',
+      carrier: e.truckName || '—',
+      customer: e.customerPickupFor || '—',
+      type: (e.visitPurpose ?? []).includes('Drop Trailer') ? 'Drop Trailer' : 'Pickup',
+      kind: e.loadSheet?.kind ?? (hash(e.id) % 5 < 3 ? 'Fresh' : 'Frozen'),
+      pallets: e.loadSheet?.pallets ?? 18 + (hash(e.id) % 8),
+      staged: !!e.orderReadyAt,
+      entryId: e.id,
+    }))
+    .sort((a, b) => a.ms - b.ms)
+}
+
 // SAMPLE
 export function makeSampleSchedule(entries, now = Date.now()) {
   if (!entries.some((e) => e.sample)) return []
@@ -43,21 +64,7 @@ export function makeSampleSchedule(entries, now = Date.now()) {
 
   // Today's arrivals that had an appointment, matched by order no. No random draws here, so a new
   // check-in never reshuffles the other bookings.
-  const arrived = todays
-    .filter((e) => e.appointmentTime)
-    .map((e) => ({
-      id: `bk-${e.id}`,
-      ms: new Date(`${today}T${e.appointmentTime}`).getTime(),
-      time: e.appointmentTime,
-      orderNo: e.pickupNumber || '—',
-      carrier: e.truckName || '—',
-      customer: e.customerPickupFor || '—',
-      type: (e.visitPurpose ?? []).includes('Drop Trailer') ? 'Drop Trailer' : 'Pickup',
-      kind: e.loadSheet?.kind ?? (hash(e.id) % 5 < 3 ? 'Fresh' : 'Frozen'),
-      pallets: e.loadSheet?.pallets ?? 18 + (hash(e.id) % 8),
-      staged: !!e.orderReadyAt,
-      entryId: e.id,
-    }))
+  const arrived = bookingsFromEntries(todays, today)
 
   // A made-up booking for slot minute `m` of today, drawn from its own seed.
   const make = (m, orderNo, random) => {

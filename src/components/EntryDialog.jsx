@@ -6,6 +6,7 @@ import { FIELD_LABELS, PHONE_PROPS, cleanForSave, dayLabel, phoneInput, timeLabe
 import { EARLY_GRACE_MIN, LATE_GRACE_MIN, clockTime, duration, minutesLate } from '../time'
 import { visitMemory } from '../visitMemory'
 import { Chips, FieldBox, PRESS, Seg, Stepper } from './gate/parts'
+import { tempGap, tempStatus } from '../loadSheet'
 
 // One visit at a glance, opened from the Shipping board's "View entry": what the guard entered at check-in
 // and what has happened at the dock so far, read-only. "Edit entry" turns the check-in details into fields
@@ -82,6 +83,50 @@ function Group({ icon, title, rows }) {
         ))}
       </dl>
     </section>
+  )
+}
+
+// The load sheet (SAMPLE until it's on a form): kind, each product with its cases, pallets, box temperature.
+function LoadGroup({ e }) {
+  const s = e.loadSheet
+  const pallets = e.loadingInspection?.palletsLoaded || s?.pallets
+  if (!s && !pallets) return null
+  const total = s ? s.products.reduce((n, p) => n + p.cases, 0) : 0
+  const box = s && tempStatus(e) !== 'none'
+  return (
+    <Group
+      icon="load"
+      title="What's being loaded"
+      rows={[
+        s && ['Fresh or frozen', s.kind],
+        s && [
+          'Products',
+          <ul key="p" className="grid gap-0.5">
+            {s.products.map((p) => (
+              <li key={p.name}>
+                {p.name} <span className="text-muted">({p.cases.toLocaleString()} cases)</span>
+              </li>
+            ))}
+          </ul>,
+        ],
+        s && ['Cases in all', `${total.toLocaleString()} cases`],
+        pallets && ['Pallets', `${pallets} pallets`],
+        s && [
+          'Box temperature',
+          box ? (
+            <span className="flex flex-wrap items-center gap-2">
+              {s.boxTemp}°F
+              <Pill tone={tempStatus(e) === 'out' ? 'bad' : 'ok'}>{tempStatus(e) === 'out' ? 'Out of range' : 'In range'}</Pill>
+              <span className="text-muted">
+                {Math.abs(tempGap(e))}° {tempGap(e) >= 0 ? 'over' : 'under'} the {s.setPoint}°F set point
+              </span>
+            </span>
+          ) : (
+            `Not checked yet, set to ${s.setPoint}°F`
+          ),
+        ],
+      ]}
+    />
   )
 }
 
@@ -198,6 +243,7 @@ function Details({ e }) {
           ['Release', e.release?.releasedAt ? `Released ${clockTime(e.release.releasedAt)} by ${e.release.releasedBy}` : 'Not yet'],
         ]}
       />
+      <LoadGroup e={e} />
     </div>
   )
 }

@@ -10,11 +10,12 @@ import { detentionClockStart, detentionState } from '../../detention'
 import { ASK_AFTER_MIN, REASONS, suggestReason } from '../../delayReasons'
 import { contactFor, needsStaging, NO_SHOW_MIN } from '../../schedule'
 import { HANDOFFS } from '../../impactSettings'
+import { loadLine } from '../../loadSheet'
 import { DETENTION } from '../../turnaround/targets'
 import { dockKey, occupiedDocks } from '../AssignDock'
 import { bookingState } from '../gate/GateHome'
 
-// Shipping → Now: the dock wall (what each bay is doing), "Needs you" (one list of what to do, most
+// Shipping → Now: the dock wall (what each bay is doing), "Action required" (one list of what to do, most
 // urgent first), "Coming up" (the next bookings) and "Everyone on site" (folded at the bottom).
 
 const MIN = 60000
@@ -87,11 +88,16 @@ export function DockWall({ entries, now, onView, onAssignDock }) {
                 <button
                   type="button"
                   onClick={() => onView(e.id)}
-                  aria-label={`Dock ${d}: trailer ${e.trailerNumber}, ${entryCarrier(e)}${p ? `, ${p.name}, ${p.time}` : ''}. Open the entry.`}
+                  aria-label={`Dock ${d}: trailer ${e.trailerNumber}, ${entryCarrier(e)}${loadLine(e) ? `, loading ${loadLine(e)}` : ''}${p ? `, ${p.name}, ${p.time}` : ''}. Open the entry.`}
                   className="grid min-h-[150px] cursor-pointer content-start gap-1.5 rounded-xl bg-panel px-3 py-2.5 text-left text-ink shadow-card transition-transform duration-150 hover:-translate-y-0.5"
                 >
                   <b className="truncate font-display text-[17px] leading-tight">{e.trailerNumber}</b>
-                  <span className="truncate text-[13px] text-muted">{[entryCarrier(e), e.loadSheet?.kind].filter(Boolean).join(', ')}</span>
+                  <span className="truncate text-[13px] text-muted">{entryCarrier(e)}</span>
+                  {loadLine(e) && (
+                    <span className="line-clamp-2 text-[12.5px] leading-snug text-ink" title={loadLine(e)}>
+                      {loadLine(e)}
+                    </span>
+                  )}
                   {p && (
                     <>
                       <span className="mt-1 grid grid-cols-3 gap-1" aria-hidden="true">
@@ -109,7 +115,7 @@ export function DockWall({ entries, now, onView, onAssignDock }) {
               ) : (
                 <div className="grid min-h-[150px] content-center justify-items-center gap-2 rounded-xl border-2 border-dashed border-white/35 px-2 py-3 text-center">
                   <span className="font-display text-[16px] font-bold">Open</span>
-                  {next ? (
+                  {next && (
                     <button
                       type="button"
                       onClick={() => onAssignDock(next.id, d)}
@@ -117,8 +123,6 @@ export function DockWall({ entries, now, onView, onAssignDock }) {
                     >
                       Assign {next.trailerNumber}
                     </button>
-                  ) : (
-                    <span className="text-[13px] text-rail-text">No truck ready for it</span>
                   )}
                 </div>
               )}
@@ -131,7 +135,7 @@ export function DockWall({ entries, now, onView, onAssignDock }) {
   )
 }
 
-// ---------------------------------------------------------------- Needs you
+// ---------------------------------------------------------------- Action required
 // Everything waiting on Shipping, most urgent first. `calls`: { [bookingId]: ms } (when the carrier was
 // called). Each row: { key, kind, tone, rank, sort, ... }. `info` rows are shown but not counted.
 export function needsYou({ entries, schedule, now, calls = {} }) {
@@ -279,13 +283,35 @@ function NeedRow({ r, first, now, onCall, onOrderReady, onAssignDock, onDelayRea
   )
 }
 
+// The card's urgency, matching the sidebar badge on Now: red when a booked truck is late, amber when
+// other things need action, green when nothing does (information-only rows don't count).
+const URGENCY = {
+  bad: { icon: 'alert', chip: 'bg-danger text-white', pill: 'bg-danger text-white', line: 'bg-danger' },
+  warn: { icon: 'alert', chip: 'bg-warn-edge text-white', pill: 'bg-warn text-warn-ink', line: 'bg-warn-edge' },
+  ok: { icon: 'done', chip: 'bg-ok-soft text-ok', pill: '', line: '' },
+}
+
 export function NeedsYou({ rows, ...handlers }) {
   const [all, setAll] = useState(false)
   const shown = all ? rows : rows.slice(0, 6)
+  const todo = rows.filter((r) => !r.info).length
+  const level = !todo ? 'ok' : rows.some((r) => r.kind === 'late') ? 'bad' : 'warn'
+  const u = URGENCY[level]
   return (
-    <section aria-labelledby="needs-you-title" className={ui.card + ' min-w-0 px-5 pt-4 pb-2'}>
-      <h3 id="needs-you-title" className="font-display text-[19px] font-bold">
-        Needs you
+    <section aria-labelledby="action-title" className={ui.card + ' min-w-0 overflow-hidden'}>
+      {u.line && <span className={'block h-1 ' + u.line} aria-hidden="true" />}
+      <div className="px-5 pt-4 pb-2">
+      <h3 id="action-title" className="flex items-center gap-2.5 font-display text-[19px] font-bold">
+        <span className={'grid size-9 shrink-0 place-items-center rounded-[10px] ' + u.chip} aria-hidden="true">
+          <Icon name={u.icon} size={20} />
+        </span>
+        Action required
+        {todo > 0 && (
+          <span className={'inline-flex min-w-7 items-center justify-center rounded-full px-2 py-0.5 font-body text-[14px] font-bold tabular-nums ' + u.pill}>
+            {todo}
+            <span className="sr-only"> {todo === 1 ? 'thing needs' : 'things need'} action{level === 'bad' ? ', a booked truck is late' : ''}</span>
+          </span>
+        )}
       </h3>
       {rows.length ? (
         <>
@@ -303,9 +329,10 @@ export function NeedsYou({ rows, ...handlers }) {
       ) : (
         <p className="flex items-center gap-2 py-4 text-[15px] text-muted">
           <Icon name="done" size={18} className="text-ok" />
-          Nothing needs you right now.
+          No action required right now.
         </p>
       )}
+      </div>
     </section>
   )
 }

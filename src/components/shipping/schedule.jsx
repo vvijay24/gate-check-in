@@ -15,10 +15,20 @@ const hourName = (h) => (h === 12 ? 'Noon' : `${h % 12 || 12} ${h < 12 ? 'AM' : 
 const hourOf = (ms) => new Date(ms).getHours()
 
 // "32 trucks booked today. 16 are here, 2 are late. Next is Penske at 2:40 PM for Green Valley."
-export function scheduleSummary(schedule, byId, now) {
+// `dayName` (another day, e.g. "Thu Nov 12"): "24 trucks were booked on Thu Nov 12. 24 arrived, 3 of them late."
+export function scheduleSummary(schedule, byId, now, dayName) {
   const here = schedule.filter((a) => a.entryId).length
   const late = schedule.filter((a) => !a.entryId && apptStatus(a, null, now).key === 'overdue').length
   const next = schedule.find((a) => !a.entryId && a.ms >= now - 15 * MIN)
+  if (dayName) {
+    const lateIn = schedule.filter((a) => a.entryId && byId?.[a.entryId] && apptStatus(a, byId[a.entryId], now).key === 'late').length
+    return {
+      late: 0,
+      line: schedule.length
+        ? `${schedule.length} truck${schedule.length === 1 ? ' was' : 's were'} booked on ${dayName}. ${here} arrived, ${lateIn} of them late.`
+        : `No bookings found for ${dayName}. Past days show the trucks that arrived with a booked time.`,
+    }
+  }
   if (!schedule.length) return { line: 'No bookings for today yet.', late: 0 }
   return {
     late,
@@ -37,17 +47,17 @@ function whereNow(e) {
 }
 
 // ---------------------------------------------------------------- Hour by hour
-function HourColumns({ schedule, now }) {
+// `current`: the hour to highlight (today only), or null.
+function HourColumns({ schedule, now, current }) {
   if (!schedule.length) return <Empty>No bookings for today yet.</Empty>
   const first = Math.min(...schedule.map((a) => hourOf(a.ms)))
-  const last = Math.max(...schedule.map((a) => hourOf(a.ms)), hourOf(now))
+  const last = Math.max(...schedule.map((a) => hourOf(a.ms)), current ?? 0)
   const hours = Array.from({ length: last - first + 1 }, (_, i) => first + i).map((h) => {
     const inHour = schedule.filter((a) => hourOf(a.ms) === h)
     return { h, booked: inHour.length, arrived: inHour.filter((a) => a.entryId).length }
   })
   const top = Math.max(1, ...hours.map((x) => x.booked))
   const busiest = hours.reduce((b, x) => (x.booked > b.booked ? x : b), hours[0]).h
-  const current = hourOf(now)
   return (
     <div className="grid gap-3 px-5 pt-4 pb-4">
       <div className="flex h-[150px] items-end gap-1.5 border-b border-line" role="img" aria-label="Bookings and arrivals by hour today. The table below has the numbers.">
@@ -79,7 +89,7 @@ function HourColumns({ schedule, now }) {
         ))}
       </div>
       <p className="text-[13px] text-muted">
-        Each column is one hour. The pale part is the trucks booked in it and the dark part the ones that have arrived. Numbers show for this hour and the busiest one.
+        Each column is one hour. The pale part is the trucks booked in it and the dark part the ones that have arrived. Numbers show for {current != null ? 'this hour and ' : ''}the busiest one.
       </p>
       <ShowTable head={['Hour', { label: 'Booked', right: true }, { label: 'Arrived', right: true }]} rows={hours.map((x) => [hourName(x.h), `${x.booked} trucks`, `${x.arrived} trucks`])} />
     </div>
@@ -131,7 +141,7 @@ const FILTERS = [
 ]
 const STATUS_TAG = { late: 'bg-danger-soft text-danger', overdue: 'bg-danger-soft text-danger', due: 'bg-signal-soft text-signal', onTime: 'bg-ok-soft text-ok', early: 'bg-ok-soft text-ok' }
 
-function Appointments({ schedule, byId, now, onStage, onView }) {
+function Appointments({ schedule, byId, now, onStage, onView, isToday }) {
   const [filter, setFilter] = useState('all')
   const [all, setAll] = useState(false)
   const rows = schedule.map((a) => ({ a, e: a.entryId ? byId[a.entryId] : null, s: apptStatus(a, a.entryId ? byId[a.entryId] : null, now) }))
@@ -189,8 +199,10 @@ function Appointments({ schedule, byId, now, onStage, onView }) {
                         )
                       ) : a.staged ? (
                         <StagedMark />
-                      ) : (
+                      ) : isToday ? (
                         <StageButton a={a} onStage={onStage} />
+                      ) : (
+                        <span className="text-[14px] text-muted">Not staged</span>
                       )}
                     </td>
                     <td className={ui.tdTight}>
@@ -232,17 +244,18 @@ function Appointments({ schedule, byId, now, onStage, onView }) {
   )
 }
 
-export function ScheduleSection({ schedule, entries, now, onStage, onView }) {
+// `isToday`: the day shown is today, so it has orders to stage and a current hour.
+export function ScheduleSection({ schedule, entries, now, onStage, onView, isToday = true }) {
   const byId = Object.fromEntries(entries.map((e) => [e.id, e]))
   return (
     <div className="grid grid-cols-[minmax(0,1fr)] gap-5">
-      <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
+      <div className={'grid items-start gap-5 ' + (isToday ? 'xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]' : '')}>
         <Card icon="chart" title="The day, hour by hour" sub="Trucks booked and arrived in each hour">
-          <HourColumns schedule={schedule} now={now} />
+          <HourColumns schedule={schedule} now={now} current={isToday ? hourOf(now) : null} />
         </Card>
-        <OrdersToStage schedule={schedule} now={now} onStage={onStage} />
+        {isToday && <OrdersToStage schedule={schedule} now={now} onStage={onStage} />}
       </div>
-      <Appointments schedule={schedule} byId={byId} now={now} onStage={onStage} onView={onView} />
+      <Appointments schedule={schedule} byId={byId} now={now} onStage={onStage} onView={onView} isToday={isToday} />
     </div>
   )
 }

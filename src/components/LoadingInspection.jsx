@@ -4,6 +4,7 @@ import { Icon } from '../icons'
 import { clockTime, dayKey } from '../time'
 import { LOAD_CHECKS, TRAILER_CHECKS } from '../inspectionChecks'
 import { Chips, More, Note, Stepper, goButton } from './gate/parts'
+import { loadLine } from '../loadSheet'
 
 // The poultry loading inspection, in two short checklists at the moment each is done:
 // - Before loading (Loading section): the empty trailer, reefer and pre-cool. Saved on `entry.trailerCheck`;
@@ -195,6 +196,7 @@ function Sheet({ title, entry, onClose, children }) {
               .filter(Boolean)
               .join(', ')}
           </p>
+          {loadLine(entry) && <p className="text-[14px] font-semibold text-white">Loading {loadLine(entry)}</p>}
         </div>
         <button type="button" onClick={onClose} className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-[10px] border border-white/20 bg-white/10 px-3.5 font-semibold text-white transition-colors duration-150 hover:bg-white/20">
           <Icon name="close" size={18} />

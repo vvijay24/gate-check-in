@@ -310,3 +310,32 @@ dialog[open]::backdrop { animation: var(--animate-fade); }
 @media print {
   .tt-mgmt section, .tt-mgmt article { break-inside: avoid; }
 }
+
+/* Overview card icons, by topic: the Insights topic colours (validated for colour-blind readers), on a
+   soft square, with the icon in a deeper shade so it reaches 3:1 on the square. Dark mode uses the
+   lighter dark-mode topic colours as they are. */
+:root {
+  --mg-time-ink: color-mix(in srgb, var(--dive-blue) 75%, #000);
+  --mg-money-ink: color-mix(in srgb, var(--dive-gold) 70%, #000);
+  --mg-arrive-ink: color-mix(in srgb, var(--dive-teal) 94%, #000);
+  --mg-quality-ink: color-mix(in srgb, var(--dive-purple) 75%, #000);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --mg-time-ink: var(--dive-blue); --mg-money-ink: var(--dive-gold); --mg-arrive-ink: var(--dive-teal); --mg-quality-ink: var(--dive-purple); }
+}
+:root[data-theme="dark"] { --mg-time-ink: var(--dive-blue); --mg-money-ink: var(--dive-gold); --mg-arrive-ink: var(--dive-teal); --mg-quality-ink: var(--dive-purple); }
+.mg-chip { box-shadow: inset 0 0 0 1px color-mix(in srgb, currentColor 18%, transparent); }
+.mg-time { color: var(--mg-time-ink); background: color-mix(in srgb, var(--dive-blue) 13%, var(--color-panel)); }
+.mg-money { color: var(--mg-money-ink); background: color-mix(in srgb, var(--dive-gold) 15%, var(--color-panel)); }
+.mg-arrive { color: var(--mg-arrive-ink); background: color-mix(in srgb, var(--dive-teal) 13%, var(--color-panel)); }
+.mg-quality { color: var(--mg-quality-ink); background: color-mix(in srgb, var(--dive-purple) 13%, var(--color-panel)); }
+
+/* Shipping → order history "Print / save as PDF": only the order's history, at full length. */
+@media print {
+  body[data-print="order-proof"] * { visibility: hidden; }
+  body[data-print="order-proof"] #order-proof,
+  body[data-print="order-proof"] #order-proof * { visibility: visible; }
+  body[data-print="order-proof"] #order-proof { position: absolute; inset: 0 auto auto 0; width: 100%; max-width: none; border: 0; }
+  body[data-print="order-proof"] #order-proof::backdrop { background: none; }
+  body[data-print="order-proof"] .order-proof-body { max-height: none; overflow: visible; }
+}
