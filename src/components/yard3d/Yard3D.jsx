@@ -648,7 +648,7 @@ export default function Yard3D({ units, occupied, sky, clock, selectedId, hoverI
           ['Zoom out', Minus, () => view.current?.zoom(1.28)],
           ['Reset view', RotateCcw, () => view.current?.fit()],
         ].map(([label, Icon, run]) => (
-          <button key={label} type="button" aria-label={label} title={label} onClick={run} className="flex h-10 w-10 cursor-pointer items-center justify-center text-ink hover:bg-field">
+          <button key={label} type="button" aria-label={label} title={label} onClick={run} className="flex size-11 cursor-pointer items-center justify-center text-ink hover:bg-field">
             <Icon size={17} strokeWidth={2} aria-hidden="true" />
           </button>
         ))}

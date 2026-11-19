@@ -103,7 +103,7 @@ export default function ReleaseDialog({ entry, entries = [], inspector, onReleas
           <div className="space-y-4 p-5">
             <div className="grid gap-3.5 sm:grid-cols-2">
               <label className="flex flex-col gap-1">
-                <span className={ui.label}>Order No</span>
+                <span className={ui.label}>Order no.</span>
                 <input id="release-orderNo" value={form.orderNo} onChange={(e) => set('orderNo', e.target.value)} className={ui.input} />
               </label>
               <label className="flex flex-col gap-1">

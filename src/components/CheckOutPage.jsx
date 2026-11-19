@@ -123,7 +123,7 @@ function TruckList({ entries, now, onPick, onSite, ready }) {
           type="search"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Trailer #, carrier or driver"
+          placeholder="Trailer, carrier or driver"
           autoComplete="off"
           className={ui.input.replace('min-h-[52px]', 'min-h-12').replace('text-[17px]', 'text-[16px]')}
         />

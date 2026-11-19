@@ -3,7 +3,7 @@ import { flushSync } from 'react-dom'
 import * as ui from '../ui'
 import { LOG_COLUMNS, exportToExcel } from '../logColumns'
 import AssignDock, { occupiedDocks } from './AssignDock'
-import { LATE_GRACE_MIN, arrivalMs, clockTime, dayKey, departureMs, duration, minutesLate } from '../time'
+import { LATE_GRACE_MIN, arrivalMs, clock12, clockTime, dayKey, departureMs, duration, minutesLate } from '../time'
 import { DETENTION_ICON, DETENTION_TAG, detentionState } from '../detention'
 import { Icon } from '../icons'
 import CardHead from './CardHead'
@@ -70,8 +70,8 @@ function friendlyDate(key) {
 const COLUMNS = [
   {
     id: 'order',
-    label: 'Order No',
-    minWidth: 170,
+    label: 'Order no.',
+    minWidth: 140,
     options: () => [
       { value: 'with', label: 'With order no' },
       { value: 'none', label: 'No order no' },
@@ -86,7 +86,7 @@ const COLUMNS = [
   },
   {
     id: 'date',
-    label: 'Date In',
+    label: 'Date in',
     minWidth: 110,
     options: (rows) => sortedUnique(rows.map((e) => e.dateIn)).reverse().map((d) => ({ value: d, label: friendlyDate(d) })),
     match: (e, v) => e.dateIn === v,
@@ -109,7 +109,7 @@ const COLUMNS = [
   },
   {
     id: 'onsite',
-    label: 'Time on Site',
+    label: 'Time on site',
     options: () => [
       { value: '0-1', label: 'Under 1 h' },
       { value: '1-2', label: '1–2 h' },
@@ -240,7 +240,7 @@ export default function EntryLog({ entries, onEdit, onCheckOut, onDelete, onAssi
               aria-selected={tab === t.id}
               onClick={() => setTab(t.id)}
               className={
-                'min-h-10 cursor-pointer rounded-lg px-3.5 font-display text-[15px] font-bold transition-colors duration-150 ' +
+                'min-h-11 cursor-pointer rounded-lg px-3.5 font-display text-[15px] font-bold transition-colors duration-150 ' +
                 (tab === t.id ? 'bg-signal text-signal-ink shadow-card' : 'text-ink hover:bg-signal-tint')
               }
             >
@@ -272,7 +272,7 @@ export default function EntryLog({ entries, onEdit, onCheckOut, onDelete, onAssi
           <span className="text-muted"> · {narrowing.join(' · ')}</span>
         </span>
         {(q || active.length > 0) && (
-          <button type="button" onClick={clearAll} className={ui.btnGhost + ' min-h-9'}>
+          <button type="button" onClick={clearAll} className={ui.btnGhost}>
             <Icon name="close" size={16} />
             Clear all
           </button>
@@ -284,7 +284,7 @@ export default function EntryLog({ entries, onEdit, onCheckOut, onDelete, onAssi
           <thead className="bg-field text-[13px] font-semibold text-muted">
             <tr className="border-y border-hair">
               {COLUMNS.map((c) => (
-                <th key={c.id} className="px-3.5 py-3 align-top" style={c.minWidth ? { minWidth: c.minWidth } : undefined}>
+                <th key={c.id} className="px-3 py-2.5 align-top" style={c.minWidth ? { minWidth: c.minWidth } : undefined}>
                   <span className="block">{c.label}</span>
                   <select
                     aria-label={`Filter by ${c.label}`}
@@ -304,8 +304,8 @@ export default function EntryLog({ entries, onEdit, onCheckOut, onDelete, onAssi
                   </select>
                 </th>
               ))}
-              <th className="no-print px-3.5 py-3 align-top">Dock</th>
-              <th className="no-print px-3.5 py-3 align-top">Options</th>
+              <th className="no-print px-3 py-2.5 align-top">Dock</th>
+              <th className="no-print px-3 py-2.5 align-top">Options</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-hair">
@@ -326,7 +326,7 @@ export default function EntryLog({ entries, onEdit, onCheckOut, onDelete, onAssi
                     'align-top transition-colors duration-150 hover:bg-signal-tint' + (Date.now() - (e.createdAt ?? 0) < 60000 ? ' animate-fresh' : '')
                   }
                 >
-                  <td className="px-3.5 py-3">
+                  <td className="px-3 py-3">
                     <span className="font-semibold">{e.pickupNumber || <Dash />}</span>
                     {/* Which truck this is, even for deliveries and drops that have no order no. */}
                     <span className="block text-[13px] text-muted">
@@ -334,12 +334,12 @@ export default function EntryLog({ entries, onEdit, onCheckOut, onDelete, onAssi
                       {e.truckName && ` · ${e.truckName}`}
                     </span>
                   </td>
-                  <td className="px-3.5 py-3">{e.customerPickupFor || <Dash />}</td>
-                  <td className="whitespace-nowrap px-3.5 py-3" title={e.dateIn}>
+                  <td className="px-3 py-3">{e.customerPickupFor || <Dash />}</td>
+                  <td className="whitespace-nowrap px-3 py-3" title={e.dateIn}>
                     {friendlyDate(e.dateIn) || <Dash />}
                   </td>
-                  <td className="whitespace-nowrap px-3.5 py-3">
-                    {e.appointmentTime ? `Appt ${e.appointmentTime}` : 'No appt'}
+                  <td className="whitespace-nowrap px-3 py-3">
+                    {e.appointmentTime ? `Appointment ${clock12(e.appointmentTime)}` : 'No appointment'}
                     <span className="block text-[13px] text-muted">In {e.timeIn || '—'}</span>
                     {isLate(e) && (
                       <span className="flex items-center gap-1 text-[13px] font-semibold text-danger">
@@ -348,7 +348,7 @@ export default function EntryLog({ entries, onEdit, onCheckOut, onDelete, onAssi
                       </span>
                     )}
                   </td>
-                  <td className="whitespace-nowrap px-3.5 py-3">
+                  <td className="whitespace-nowrap px-3 py-3">
                     {Number.isFinite(onSiteMs(e, now)) ? duration(onSiteMs(e, now)) : <Dash />}
                     {det && (
                       <span className={ui.tag + ' mt-1 flex w-fit ' + DETENTION_TAG[det.level]}>
@@ -356,10 +356,10 @@ export default function EntryLog({ entries, onEdit, onCheckOut, onDelete, onAssi
                         {det.text}
                       </span>
                     )}
-                    {e.timeOut && <span className="block text-[13px] text-muted">Left {e.timeOut}</span>}
+                    {e.timeOut && <span className="block text-[13px] text-muted">Left {clock12(e.timeOut)}</span>}
                     {e.dockAssignedAt && <span className="block text-[13px] text-muted">Docked {clockTime(e.dockAssignedAt)}</span>}
                   </td>
-                  <td className="px-3.5 py-3">
+                  <td className="px-3 py-3">
                     <StatusTag e={e} />
                     {/* The order: when it was ready and how long the truck waited for it. */}
                     {e.orderReadyAt ? (
@@ -377,7 +377,7 @@ export default function EntryLog({ entries, onEdit, onCheckOut, onDelete, onAssi
                     )}
                   </td>
                   {/* Assign dock only for trucks still on site without a dock, once their order is ready. */}
-                  <td className="no-print whitespace-nowrap px-3.5 py-3">
+                  <td className="no-print whitespace-nowrap px-3 py-3">
                     {e.dockDoor ? (
                       <span className="font-semibold">Dock {e.dockDoor}</span>
                     ) : e.timeOut ? (
@@ -395,7 +395,7 @@ export default function EntryLog({ entries, onEdit, onCheckOut, onDelete, onAssi
                       <AssignDock entry={e} occupied={occupied} onAssignDock={onAssignDock} compact />
                     )}
                   </td>
-                  <td className="no-print whitespace-nowrap px-3.5 py-3">
+                  <td className="no-print whitespace-nowrap px-3 py-3">
                     {/* Always shows "Options"; picking a choice runs it and the select snaps back. */}
                     <select
                       aria-label={`Options for ${e.truckName} ${e.trailerNumber}`}

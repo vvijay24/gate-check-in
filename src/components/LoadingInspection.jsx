@@ -203,7 +203,7 @@ function Sheet({ title, entry, onClose, children }) {
             {title} · Dock {entry.dockDoor}
           </h3>
           <p className="text-[14px] text-rail-text">
-            {[entry.trailerNumber && `Trailer ${entry.trailerNumber}`, entry.truckName, entry.pickupNumber && `Order No ${entry.pickupNumber}`, entry.customerPickupFor && `for ${entry.customerPickupFor}`]
+            {[entry.trailerNumber && `Trailer ${entry.trailerNumber}`, entry.truckName, entry.pickupNumber && `Order no. ${entry.pickupNumber}`, entry.customerPickupFor && `for ${entry.customerPickupFor}`]
               .filter(Boolean)
               .join(' · ')}
           </p>

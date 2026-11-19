@@ -10,10 +10,13 @@ import { EMPTY_FORM, GATE } from './formConfig'
 import { dayKey } from './time'
 import { DOCKS } from './yard'
 import { CHECK_NAMES, LOAD_CHECKS, TRAILER_CHECKS } from './inspectionChecks'
+import { addSampleLoadSheets } from './loadSheet'
+import { addSampleReasons } from './delayReasons'
 
 const DAYS = 30
-const CARRIERS = ['KLLM', 'Brannon Golden', 'Penske', 'Syfan', 'U S Citylink', 'Pickup']
-const CUSTOMERS = ['US Foods', 'Vertical Cold', 'Decatur West', 'Green Valley', 'Gold Creek', 'Brakebush Bros','Pacific-Agri']
+// Also used by the sample booking schedule (schedule.js).
+export const CARRIERS = ['KLLM', 'Brannon Golden', 'Penske', 'Syfan', 'U S Citylink', 'Pickup']
+export const CUSTOMERS =['US Foods', 'Vertical Cold', 'Decatur West', 'Green Valley', 'Gold Creek', 'Brakebush Bros','Pacific-Agri']
 const DRIVERS = ['D. Brooks', 'L. Nguyen', 'C. Ramirez', 'T. Walker', 'A. Patel', 'K. Johnson', 'S. Miller', 'J. Lopez', 'M. Davis', 'R. Wilson']
 const FUEL = ['1/4', '1/2', '3/4', 'Full']
 // Check-ins by hour from 5 AM to 7 PM, busiest mid-morning.
@@ -268,6 +271,10 @@ export function makeSampleEntries(now = Date.now()) {
     e.release.spot = String(spot)
     used.add(e.release.spot)
   }
+  // A load sheet on every visit (SAMPLE), and a delay reason on past visits over 2 hours. Both draw from
+  // their own seeds, so the visits above stay the same.
+  addSampleLoadSheets(entries)
+  addSampleReasons(entries)
   // Newest first, like the log.
   return entries.reverse()
 }

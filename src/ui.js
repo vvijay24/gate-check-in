@@ -31,10 +31,15 @@ export const card = 'rounded-2xl border border-hair bg-panel shadow-card'
 export const cardHead = 'flex items-center gap-3 bg-signal-tint px-5 py-4'
 export const tile = 'rounded-2xl border border-hair bg-panel shadow-card transition-[transform,box-shadow] duration-200 ease-out hover:-translate-y-0.5 hover:shadow-raised'
 
-// Tables: tinted header, roomy rows with a faint divider and a hover tint.
+// Tables, one style for the whole app: 14px text (`table`), a light grey header band with 13px muted
+// labels (`th`), roomy cells (`td`; `tdTight` where a table must fit), hairline row dividers with a hover
+// tint (`tr`), and numbers right-aligned with tabular figures (`num`, on both th and td).
+export const table = 'w-full border-collapse text-left text-[14px]'
 export const th = 'bg-field px-3.5 py-2.5 text-left text-[13px] font-semibold text-muted'
 export const tr = 'border-t border-hair transition-colors duration-150 hover:bg-signal-tint'
 export const td = 'px-3.5 py-3'
+export const tdTight = 'px-3 py-3'
+export const num = ' text-right tabular-nums'
 
 // Segmented choice (fuel level, etc.): a track with the picked option raised as a white chip.
 // `bad`: the question is unanswered after a submit; `danger`: this choice is a problem answer (e.g. a

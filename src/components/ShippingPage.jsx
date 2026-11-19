@@ -182,8 +182,10 @@ function PartnersHub({ entries, now, tab, onTab, onOpenInsights, over }) {
 }
 
 // `log` is the Entry Log (built in App with its handlers). `onOpenInsights(section)` opens Insights.
+// `onDelayReason(id, reasonId)` saves why a truck stayed long; `onNotice(text | { text, undo })` shows a
+// notice at the bottom of the screen (for actions kept on this page, such as marking an order staged).
 const SUBKEY = 'shipping-subtabs'
-export default function ShippingPage({ entries, onAssignDock, onOrderReady, onEdit, onUpdateEntry, onCheckOut, onOpenInsights, log }) {
+export default function ShippingPage({ entries, onAssignDock, onOrderReady, onDelayReason, onNotice, onEdit, onUpdateEntry, onCheckOut, onOpenInsights, log }) {
   const [now, setNow] = useState(Date.now)
   const [section, setSection] = useState(() => {
     try {

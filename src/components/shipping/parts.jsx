@@ -159,7 +159,7 @@ export function RangeSwitch({ value, onChange }) {
           aria-pressed={value === r.id}
           onClick={() => onChange(r.id)}
           className={
-            'min-h-9 cursor-pointer rounded-lg px-3 text-[14px] font-semibold transition-colors duration-150 ' +
+            'min-h-11 cursor-pointer rounded-lg px-3 text-[14px] font-semibold transition-colors duration-150 ' +
             (value === r.id ? 'bg-signal text-signal-ink shadow-card' : 'text-ink hover:bg-signal-tint')
           }
         >

@@ -83,11 +83,11 @@ export const cleanForSave = (form) => withPhones(form.reefer === 'Yes' ? form : 
 // Names for the error list, by field name.
 export const FIELD_LABELS = {
   ...FIELD_NAMES,
-  dateIn: 'Date In',
-  timeIn: 'Time In',
+  dateIn: 'Date in',
+  timeIn: 'Time in',
   gateIn: 'Gate In',
-  dateOut: 'Date Out',
-  timeOut: 'Time Out',
+  dateOut: 'Date out',
+  timeOut: 'Time out',
   gateOut: 'Gate Out',
   visitPurpose: 'Purpose of Visit',
   odometerPhoto: 'Odometer photo',

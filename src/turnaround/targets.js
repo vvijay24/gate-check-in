@@ -9,7 +9,7 @@ export const STAGE_TARGETS = [
   { key: 'orderWait', field: 'order_wait_min', label: 'Waiting for order', min: 0, max: 15 },
   // Order ready to dock assigned.
   { key: 'dockAssign', field: 'dock_assign_min', label: 'Dock assignment', min: 5, max: 15 },
-  { key: 'preload', field: 'preload_min', label: 'Pre-loading', min: 5, max: 10 },
+  { key: 'preload', field: 'preload_min', label: 'Getting ready', min: 5, max: 10 },
   { key: 'load', field: 'load_min', label: 'Loading', min: 30, max: 60 },
   { key: 'inspection', field: 'inspection_min', label: 'Inspection', min: 10, max: 15 },
   { key: 'checkout', field: 'checkout_min', label: 'Gate checkout', min: 3, max: 5 },

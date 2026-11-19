@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import * as ui from '../ui'
 import { Icon } from '../icons'
 import { VISIT_PURPOSES, isRequired } from '../formConfig'
-import { EARLY_GRACE_MIN, LATE_GRACE_MIN, minutesLate } from '../time'
+import { EARLY_GRACE_MIN, LATE_GRACE_MIN, duration, minutesLate } from '../time'
 import { PHONE_PROPS, cleanForSave, dayLabel, freshCheckIn, phoneInput, timeLabel, validate } from '../gateForm'
 import { visitMemory } from '../visitMemory'
 import OdometerPhoto from './OdometerPhoto'
@@ -56,8 +56,8 @@ function apptChoices(timeIn) {
 function ApptBadge({ form }) {
   const late = minutesLate(form)
   if (late == null) return null
-  if (late > LATE_GRACE_MIN) return <Badge tone="danger">{late} min late</Badge>
-  if (late < -EARLY_GRACE_MIN) return <Badge tone="warn">{-late} min early</Badge>
+  if (late > LATE_GRACE_MIN) return <Badge tone="danger">{duration(late * 60000)} late</Badge>
+  if (late < -EARLY_GRACE_MIN) return <Badge tone="warn">{duration(-late * 60000)} early</Badge>
   return <Badge tone="ok">On time</Badge>
 }
 
@@ -363,13 +363,13 @@ export default function CheckInForm({ initial, entries, guard, onSave, onCancel 
             </>
           )}
 
-          {/* 2 · Vehicle: Order No | Customer (pickups only), then Trailer # | Carrier. Customer and Carrier
+          {/* 2 · Vehicle: Order no. | Customer (pickups only), then Trailer | Carrier. Customer and Carrier
               suggest names seen before once 2 letters are typed. */}
           {step === 1 && (
             <>
               {hasPickup && (
                 <>
-                  <FieldBox name="pickupNumber" label="Order No" required error={err('pickupNumber')}>
+                  <FieldBox name="pickupNumber" label="Order no." required error={err('pickupNumber')}>
                     <input {...text('pickupNumber')} autoComplete="off" enterKeyHint="next" onKeyDown={enterNext('customerPickupFor')} className={inputCls('pickupNumber', bigInput)} />
                   </FieldBox>
                   <FieldBox name="customerPickupFor" label="Customer" required error={err('customerPickupFor')}>
@@ -386,7 +386,7 @@ export default function CheckInForm({ initial, entries, guard, onSave, onCancel 
                   </FieldBox>
                 </>
               )}
-              <FieldBox name="trailerNumber" label="Trailer #" required error={err('trailerNumber')}>
+              <FieldBox name="trailerNumber" label="Trailer" required error={err('trailerNumber')}>
                 <input {...text('trailerNumber')} autoComplete="off" enterKeyHint="next" onKeyDown={enterNext('truckName')} className={inputCls('trailerNumber', bigInput)} />
               </FieldBox>
               <FieldBox name="truckName" label="Carrier" required error={err('truckName')}>

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import * as ui from '../../ui'
 import { Icon } from '../../icons'
-import { LATE_GRACE_MIN, arrivalMs, clockTime, dayKey, duration, minutesLate, shiftDate, shortDate } from '../../time'
+import { LATE_GRACE_MIN, arrivalMs, clock12, clockTime, dayKey, duration, minutesLate, shiftDate, shortDate } from '../../time'
 import { DOCKS, STALE_HIGH_H, STALE_WARN_H } from '../../yard'
 import { dayMetrics, isDrop } from '../../metrics'
 import { atDockNow, awaitingRelease, inYard } from '../../handoff'
@@ -41,7 +41,8 @@ import { Card, Empty, HBars, InsightsLink, Keys, LivePill, RangeSwitch, SectionH
 
 const MIN = 60000
 const STAGE_COLOR = Object.fromEntries(YARD_STAGES.map((s) => [s.key, s.color]))
-const mins = (ms) => (ms == null ? '—' : `${Math.round(ms / MIN)}m`)
+// Durations read "2h 24m" / "45m" everywhere.
+const mins = (ms) => (ms == null ? '—' : duration(ms))
 const dur = (ms) => (ms == null || !Number.isFinite(ms) ? '—' : duration(ms))
 const pct = (v) => (v == null ? '—' : `${Math.round(v * 100)}%`)
 const usd = (v) => `$${Math.round(v ?? 0).toLocaleString()}`
@@ -247,7 +248,7 @@ export function LoadingSection({ entries, now, head = true }) {
       <Tiles>
         <Tile icon="load" label="At the docks, loading" value={loading.length} note={`${loading.filter((e) => phaseOf(e) === 'loading').length} loading · ${loading.filter((e) => phaseOf(e) !== 'loading').length} checking the trailer`} />
         <Tile icon="time" label="Avg loading time" value={mins(avgLoad)} note={`today · target ${STAGES.load.min}–${STAGES.load.max} min`} tone={avgLoad == null ? undefined : avgLoad > STAGES.load.max * MIN ? 'bad' : 'good'} />
-        <Tile icon="time" label="Avg pre-loading" value={mins(avgPre)} note={`dock to loading started · target ${STAGES.preload.min}–${STAGES.preload.max}`} tone={avgPre != null && avgPre > STAGES.preload.max * MIN ? 'bad' : undefined} />
+        <Tile icon="time" label="Average getting ready" value={mins(avgPre)} note={`dock to loading started · target ${STAGES.preload.min}–${STAGES.preload.max}`} tone={avgPre != null && avgPre > STAGES.preload.max * MIN ? 'bad' : undefined} />
         <Tile icon="search" label="Trailer checks failed" value={trailerFails.length} note={trailerFails.length ? trailerFails[0].trailerCheck.correctiveAction || 're-check needed' : 'none today'} tone={trailerFails.length ? 'warn' : 'good'} />
       </Tiles>
       <Card icon="load" title="At the docks, loading" sub="Each truck's two steps and its timer · view only">
@@ -275,7 +276,7 @@ export function LoadingSection({ entries, now, head = true }) {
                   label: e.trailerNumber,
                   value: loadMs(e) / MIN,
                   color: loadMs(e) > STAGES.load.max * MIN ? 'var(--color-danger)' : undefined,
-                  title: `${e.trailerNumber} · ${Math.round(loadMs(e) / MIN)} min at Dock ${e.dockDoor}`,
+                  title: `${e.trailerNumber} · ${duration(loadMs(e))} at Dock ${e.dockDoor}`,
                 }))}
               />
             ) : (
@@ -407,7 +408,7 @@ export function DropsSection({ entries, now, onView, compact = false }) {
             return (
               <tr key={e.id} className={ui.tr}>
                 <Td strong>
-                  <button type="button" onClick={() => onView(e.id)} className="cursor-pointer underline decoration-line underline-offset-2 hover:decoration-signal">
+                  <button type="button" onClick={() => onView(e.id)} className="-my-3 min-h-11 cursor-pointer underline decoration-line underline-offset-2 hover:decoration-signal">
                     {e.trailerNumber}
                   </button>
                 </Td>
@@ -418,7 +419,7 @@ export function DropsSection({ entries, now, onView, compact = false }) {
                 </Td>
                 <Td>{e.release?.spot || <Dash />}</Td>
                 <Td className="whitespace-nowrap">
-                  {e.dateIn === dayKey(new Date(now)) ? 'Today' : shortDate(e.dateIn)} {e.timeIn}
+                  {e.dateIn === dayKey(new Date(now)) ? 'Today' : shortDate(e.dateIn)}, {clock12(e.timeIn)}
                 </Td>
                 <Td right className={age > STALE_HIGH_H * 3600000 ? 'font-semibold text-danger' : age > STALE_WARN_H * 3600000 ? 'font-semibold text-warn-ink' : ''}>
                   {duration(age)}
@@ -667,7 +668,7 @@ export function ReportSection({ entries, now }) {
   const lead = r.visits.length
     ? [
         `${r.shipped.length} truck${r.shipped.length === 1 ? '' : 's'} left (${r.pickups} pickup${r.pickups === 1 ? '' : 's'}, ${r.drops} drop trailer${r.drops === 1 ? '' : 's'}); ${r.visits.length} checked in.`,
-        r.avgOrderWaitMs != null ? `Orders took ${Math.round(r.avgOrderWaitMs / MIN)} min on average to be ready; ${r.lateOrders} took over ${ORDER_WAIT_MAX} min.` : '',
+        r.avgOrderWaitMs != null ? `Orders took ${duration(r.avgOrderWaitMs)} on average to be ready. ${r.lateOrders} took over ${ORDER_WAIT_MAX} minutes.` : '',
         r.inspected ? `${r.firstTime} of ${r.inspected} loads passed inspection the first time.` : '',
         r.fee ? `Estimated detention ${usd(r.fee)}.` : 'No detention.',
       ]
@@ -724,26 +725,26 @@ export function ReportSection({ entries, now }) {
         <p className="text-[14.5px] leading-relaxed">{lead}</p>
         <h4 className="mt-6 mb-1.5 font-display text-[16px] font-bold">Stages against target</h4>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[480px] border-collapse text-[14px]">
-            <thead className="text-[12.5px] text-muted">
-              <tr className="border-b border-line">
-                <th className="py-1.5 text-left font-semibold">Stage</th>
-                <th className="py-1.5 text-right font-semibold">Average</th>
-                <th className="py-1.5 text-right font-semibold">Target</th>
-                <th className="py-1.5 text-right font-semibold">Within target</th>
-                <th className="py-1.5 text-right font-semibold">Trucks</th>
+          <table className={ui.table + ' min-w-[480px]'}>
+            <thead>
+              <tr>
+                <th className={ui.th}>Stage</th>
+                <th className={ui.th + ui.num}>Average</th>
+                <th className={ui.th + ui.num}>Target</th>
+                <th className={ui.th + ui.num}>Within target</th>
+                <th className={ui.th + ui.num}>Trucks</th>
               </tr>
             </thead>
             <tbody>
               {r.stages.map((s) => (
-                <tr key={s.key} className="border-b border-hair">
-                  <td className="py-1.5">{s.label}</td>
-                  <td className={'py-1.5 text-right tabular-nums ' + (s.avg != null && s.avg > s.max * MIN ? 'font-semibold text-danger' : '')}>{mins(s.avg)}</td>
-                  <td className="py-1.5 text-right tabular-nums">
+                <tr key={s.key} className={ui.tr}>
+                  <td className={ui.td}>{s.label}</td>
+                  <td className={ui.td + ui.num + (s.avg != null && s.avg > s.max * MIN ? ' font-semibold text-danger' : '')}>{mins(s.avg)}</td>
+                  <td className={ui.td + ui.num}>
                     {s.min}–{s.max} min
                   </td>
-                  <td className="py-1.5 text-right tabular-nums">{pct(s.within)}</td>
-                  <td className="py-1.5 text-right tabular-nums">{s.n}</td>
+                  <td className={ui.td + ui.num}>{pct(s.within)}</td>
+                  <td className={ui.td + ui.num}>{s.n}</td>
                 </tr>
               ))}
             </tbody>
@@ -766,15 +767,20 @@ export function ReportSection({ entries, now }) {
         {r.customers.length > 0 && (
           <>
             <h4 className="mt-6 mb-1.5 font-display text-[16px] font-bold">Top customers</h4>
-            <table className="w-full border-collapse text-[14px]">
+            <table className={ui.table}>
+              <thead>
+                <tr>
+                  <th className={ui.th}>Customer</th>
+                  <th className={ui.th + ui.num}>Orders</th>
+                  <th className={ui.th + ui.num}>Wait for order</th>
+                </tr>
+              </thead>
               <tbody>
                 {r.customers.map((c) => (
-                  <tr key={c.name} className="border-b border-hair">
-                    <td className="py-1.5">{c.name}</td>
-                    <td className="py-1.5 text-right tabular-nums">
-                      {c.orders} order{c.orders === 1 ? '' : 's'}
-                    </td>
-                    <td className="py-1.5 text-right tabular-nums text-muted">wait for order {mins(c.avgOrderWaitMs)}</td>
+                  <tr key={c.name} className={ui.tr}>
+                    <td className={ui.td}>{c.name}</td>
+                    <td className={ui.td + ui.num}>{c.orders}</td>
+                    <td className={ui.td + ui.num}>{mins(c.avgOrderWaitMs)}</td>
                   </tr>
                 ))}
               </tbody>

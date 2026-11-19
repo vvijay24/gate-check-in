@@ -472,7 +472,7 @@ export function DockBoard({ entries, onEdit, onCheckOut, onSaveInspection, onSav
         title="Loading"
         count={loading.length}
         sub="Check the empty trailer, then time the loading"
-        target={`Pre-loading ${STAGES.preload.min}–${STAGES.preload.max} · Loading ${STAGES.load.min}–${STAGES.load.max} min`}
+        target={`Getting ready ${STAGES.preload.min}–${STAGES.preload.max} · Loading ${STAGES.load.min}–${STAGES.load.max} min`}
       >
         {loading.length ? <div className={cards}>{loading.map(card)}</div> : <Empty>No trucks loading. Shipping assigns docks on the Shipping tab.</Empty>}
         <div id="loading-sheet" className="scroll-mt-[calc(var(--header-h,114px)+16px)]">

@@ -228,7 +228,7 @@ export default function LiveYardCard({ entries, now, compact, onStage }) {
           <span className="flex gap-1.5">{docks.map((x) => dockChip(x, 'h-7 w-8'))}</span>
         </div>
         {table ? tableView : <YardBars points={points} focus={focus} height={230} />}
-        <button type="button" onClick={() => setTable((v) => !v)} aria-pressed={table} className="w-fit cursor-pointer text-[14px] font-semibold text-signal">
+        <button type="button" onClick={() => setTable((v) => !v)} aria-pressed={table} className="min-h-11 w-fit cursor-pointer text-[14px] font-semibold text-signal">
           {table ? 'Show as chart' : 'Show as table'}
         </button>
       </section>

@@ -288,3 +288,15 @@ dialog[open]::backdrop { animation: var(--animate-fade); }
   body[data-print="ship-report"] #ship-report { position: absolute; inset: 0 0 auto 0; max-width: none; border: 0; padding: 0; }
   body[data-print="ship-report"] #ship-report .overflow-x-auto { overflow: visible; }
 }
+
+/* One table style for the whole app: the Overview's kit tables (turnaround/theme.css) look like the
+   app's own (ui.th / ui.td): a light grey header band with muted 13px labels, roomy cells, hairline rows,
+   the slate tint on hover, and a hairline box with 12px corners. */
+.tt table { font-size: 14px; }
+.tt th { background: var(--color-field); color: var(--color-muted); font-size: 13px; font-weight: 600; padding: 10px 14px; border-bottom: 1px solid var(--color-hair); }
+.tt td { padding: 12px 14px; border-bottom: 1px solid var(--color-hair); }
+.tt tbody tr:hover td { background: var(--color-signal-tint); }
+.tt .tt-tablebox { border: 1px solid var(--color-hair); border-radius: 12px; }
+.tt .tt-tablebox tbody tr:last-child td { border-bottom: 0; }
+/* The kit's pill buttons (range, detail tabs, Back) are 44px tall like every other tap target. */
+.tt-back, .tt-tab { min-height: 44px; }

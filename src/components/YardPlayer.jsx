@@ -93,9 +93,9 @@ export default function YardPlayer({ entries, onEdit, onCheckOut, focus, onInspe
   const sliderValue = mode === 'replay' ? Math.round(minute) : Math.floor((Math.min(clock, now) - startOf(today)) / 60000)
 
   const seg = (on) =>
-    'min-h-9 cursor-pointer rounded-md px-3 text-[13px] font-semibold transition-colors duration-150 ' + (on ? 'bg-signal text-signal-ink' : 'text-ink hover:bg-field')
-  const btn = 'min-h-9 cursor-pointer rounded-md border border-line bg-panel px-3 text-[13px] font-semibold text-ink hover:bg-field'
-  const main = 'min-h-9 min-w-24 cursor-pointer rounded-md bg-signal px-3 text-[13px] font-semibold text-signal-ink hover:brightness-110'
+    'min-h-11 cursor-pointer rounded-md px-3 text-[13px] font-semibold transition-colors duration-150 ' + (on ? 'bg-signal text-signal-ink' : 'text-ink hover:bg-field')
+  const btn = 'min-h-11 cursor-pointer rounded-md border border-line bg-panel px-3 text-[13px] font-semibold text-ink hover:bg-field'
+  const main = 'min-h-11 min-w-24 cursor-pointer rounded-md bg-signal px-3 text-[13px] font-semibold text-signal-ink hover:brightness-110'
 
   const status = live ? (
     <span className="inline-flex items-center gap-1.5 rounded-full bg-ok-soft px-2.5 py-0.5 text-[12px] font-bold text-ok">

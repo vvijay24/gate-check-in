@@ -3,7 +3,7 @@ import * as ui from '../ui'
 import { Icon, IconChip } from '../icons'
 import { VISIT_PURPOSES, isRequired } from '../formConfig'
 import { FIELD_LABELS, PHONE_PROPS, cleanForSave, dayLabel, phoneInput, timeLabel, validate } from '../gateForm'
-import { EARLY_GRACE_MIN, LATE_GRACE_MIN, clockTime, minutesLate } from '../time'
+import { EARLY_GRACE_MIN, LATE_GRACE_MIN, clockTime, duration, minutesLate } from '../time'
 import { visitMemory } from '../visitMemory'
 import { Chips, FieldBox, PRESS, Seg, Stepper } from './gate/parts'
 
@@ -59,8 +59,8 @@ function Pill({ tone, icon, children }) {
 function apptPill(e) {
   const late = minutesLate(e)
   if (late == null) return null
-  if (late > LATE_GRACE_MIN) return <Pill tone="bad">{late} min late</Pill>
-  if (late < -EARLY_GRACE_MIN) return <Pill tone="warn">{-late} min early</Pill>
+  if (late > LATE_GRACE_MIN) return <Pill tone="bad">{duration(late * 60000)} late</Pill>
+  if (late < -EARLY_GRACE_MIN) return <Pill tone="warn">{duration(-late * 60000)} early</Pill>
   return <Pill tone="ok">On time</Pill>
 }
 
@@ -116,11 +116,11 @@ function Details({ e }) {
         icon="truck"
         title="Vehicle"
         rows={[
-          ['Trailer #', <b key="t">{e.trailerNumber || '—'}</b>],
+          ['Trailer', <b key="t">{e.trailerNumber || '—'}</b>],
           ['Carrier', e.truckName],
           ['Driver', e.truckerNameIn],
           ['Driver phone', e.driverPhone],
-          pickup && ['Order No', e.pickupNumber],
+          pickup && ['Order no.', e.pickupNumber],
           pickup && ['Customer', e.customerPickupFor],
         ]}
       />
@@ -242,7 +242,7 @@ function EditForm({ entry, entries, form, set, errors }) {
         <input type="time" {...text('appointmentTime')} className={text('appointmentTime').className + ' max-w-[220px]'} />
       </FieldBox>
 
-      <FieldBox name="trailerNumber" label="Trailer #" required error={err('trailerNumber')}>
+      <FieldBox name="trailerNumber" label="Trailer" required error={err('trailerNumber')}>
         <input {...text('trailerNumber')} autoComplete="off" />
       </FieldBox>
       <FieldBox name="truckName" label="Carrier" required error={err('truckName')}>
@@ -259,7 +259,7 @@ function EditForm({ entry, entries, form, set, errors }) {
       </div>
       {hasPickup && (
         <div className="grid gap-4 sm:grid-cols-2">
-          <FieldBox name="pickupNumber" label="Order No" required error={err('pickupNumber')}>
+          <FieldBox name="pickupNumber" label="Order no." required error={err('pickupNumber')}>
             <input {...text('pickupNumber')} />
           </FieldBox>
           <FieldBox name="customerPickupFor" label="Customer" required error={err('customerPickupFor')}>

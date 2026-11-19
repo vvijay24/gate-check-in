@@ -25,10 +25,10 @@ export function detentionState(e, now) {
   if (!Number.isFinite(ms)) return null
   if (ms > DETENTION.freeMin * MIN) {
     const fee = ((ms - DETENTION.freeMin * MIN) / (60 * MIN)) * DETENTION.ratePerHour
-    return { level: 'over', fee, text: `Over ${DETENTION.freeMin / 60} h · est. $${Math.round(fee)}` }
+    return { level: 'over', fee, text: `Over ${DETENTION.freeMin / 60} hours, about $${Math.round(fee)}` }
   }
   if (ms > DETENTION_WARN_MIN * MIN) {
-    return { level: 'near', fee: 0, text: `Near free time · ${duration(DETENTION.freeMin * MIN - ms)} left` }
+    return { level: 'near', fee: 0, text: `${duration(DETENTION.freeMin * MIN - ms)} until ${DETENTION.freeMin / 60} hours` }
   }
   return null
 }

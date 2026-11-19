@@ -10,9 +10,11 @@ import Messages from './components/Messages'
 import Overview from './components/Overview'
 import Analytics from './components/Analytics'
 import { makeSampleEntries } from './sampleData'
+import { reasonById } from './delayReasons'
 import { GATE } from './formConfig'
 import { awaitingRelease, checkOutBlock, isReleased } from './handoff'
 import { Icon } from './icons'
+import * as ui from './ui'
 
 const STORAGE_KEY = 'guard-load-log'
 const EVENTS_KEY = 'gate-events'
@@ -107,11 +109,29 @@ export default function App() {
     }
   }, [entries])
 
+  // A notice is a string, or { text, undo } for a one-tap action that can be taken back. With Undo it
+  // stays 8 seconds, otherwise 3.
+  const noticeText = typeof notice === 'string' ? notice : notice?.text
+  const noticeUndo = typeof notice === 'object' ? notice?.undo : null
   useEffect(() => {
     if (!notice) return
-    const t = setTimeout(() => setNotice(''), 3000)
+    const t = setTimeout(() => setNotice(''), noticeUndo ? 8000 : 3000)
     return () => clearTimeout(t)
-  }, [notice])
+  }, [notice, noticeUndo])
+  // Applies `change` to one entry and shows `text` with an Undo that puts the entry back exactly as it was.
+  const changeWithUndo = (id, change, text) => {
+    const before = entries.find((e) => e.id === id)
+    setEntries((list) => list.map((e) => (e.id === id ? change(e) : e)))
+    setNotice({
+      text,
+      undo: before
+        ? () => {
+            setEntries((list) => list.map((e) => (e.id === id ? before : e)))
+            setNotice('Undone')
+          }
+        : null,
+    })
+  }
 
   // Gate events the Overview's Data Quality section counts; today only check-outs blocked because
   // the truck wasn't inspected or released. Kept in this browser beside the entries.
@@ -186,15 +206,27 @@ export default function App() {
 
   // Shipping marks a waiting truck's order ready (the product is staged); only then can it get a dock.
   const handleOrderReady = (id) => {
-    setEntries((list) => list.map((e) => (e.id === id ? { ...e, orderReadyAt: Date.now(), orderReadyBy: 'Shipping' } : e)))
     const entry = entries.find((e) => e.id === id)
-    setNotice(`${entry?.pickupNumber ? `Order ${entry.pickupNumber}` : 'Order'} ready · trailer ${entry?.trailerNumber ?? ''} can get a dock`)
+    changeWithUndo(
+      id,
+      (e) => ({ ...e, orderReadyAt: Date.now(), orderReadyBy: 'Shipping' }),
+      `${entry?.pickupNumber ? `Order ${entry.pickupNumber}` : 'Order'} marked ready, trailer ${entry?.trailerNumber ?? ''} can get a dock`,
+    )
   }
 
   const handleAssignDock = (id, dockDoor) => {
-    setEntries((list) => list.map((e) => (e.id === id ? { ...e, dockDoor, dockAssignedAt: Date.now() } : e)))
     const entry = entries.find((e) => e.id === id)
-    setNotice(`Trailer ${entry?.trailerNumber ?? ''} assigned to dock ${dockDoor}`)
+    changeWithUndo(id, (e) => ({ ...e, dockDoor, dockAssignedAt: Date.now() }), `Trailer ${entry?.trailerNumber ?? ''} assigned to Dock ${dockDoor}`)
+  }
+
+  // Shipping's reason for a long stay (delayReasons.js), saved as { id, by, at }.
+  const handleDelayReason = (id, reasonId) => {
+    const entry = entries.find((e) => e.id === id)
+    changeWithUndo(
+      id,
+      (e) => ({ ...e, delayReason: { id: reasonId, by: 'Shipping', at: Date.now() } }),
+      `Reason saved for trailer ${entry?.trailerNumber ?? ''}: ${reasonById(reasonId)?.label ?? reasonId}`,
+    )
   }
 
   // Loading & Inspection's "Loading started" / "Loading finished": `patch` is { loadStartedAt } or { loadFinishedAt }.
@@ -339,12 +371,21 @@ export default function App() {
           </div>
         )}
 
-        {notice && (
-          <div role="status" className="no-print flex animate-pop items-center gap-3 rounded-2xl border border-hair bg-panel px-5 py-4 font-semibold text-ok shadow-raised">
-            <Icon name="done" />
-            {notice}
-          </div>
-        )}
+        {/* Pinned to the bottom centre, so it is seen wherever the page is scrolled. */}
+        <div role="status" className="no-print pointer-events-none fixed inset-x-0 bottom-4 z-40 mx-auto w-[min(640px,calc(100vw-2rem))]">
+          {noticeText && (
+            <div key={noticeText} className="pointer-events-auto flex animate-pop items-center gap-3 rounded-2xl border border-hair bg-panel py-2 pr-2 pl-5 font-semibold text-ok shadow-overlay">
+              <Icon name="done" className="shrink-0" />
+              <span className="min-w-0 flex-1 py-2 text-ink">{noticeText}</span>
+              {noticeUndo && (
+                <button type="button" onClick={noticeUndo} className={ui.btnSmall}>
+                  <Icon name="undo" size={18} />
+                  Undo
+                </button>
+              )}
+            </div>
+          )}
+        </div>
 
         {tab === 'gate' ? (
           <div role="tabpanel" id="panel-gate" aria-labelledby="tab-gate" className="grid gap-6">
@@ -413,6 +454,8 @@ export default function App() {
               entries={entries}
               onAssignDock={handleAssignDock}
               onOrderReady={handleOrderReady}
+              onDelayReason={handleDelayReason}
+              onNotice={setNotice}
               onEdit={handleEdit}
               onUpdateEntry={handleShippingEdit}
               onCheckOut={handleCheckOut}

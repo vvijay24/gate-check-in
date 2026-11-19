@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import * as ui from '../ui'
 import { Icon } from '../icons'
-import { arrivalMs, clockTime, dayKey, duration } from '../time'
+import { arrivalMs, clock12, clockTime, dayKey, duration } from '../time'
 import { DOCKS } from '../yard'
 import { isDrop } from '../metrics'
 import { atDockNow, awaitingRelease, inYard, isReleased } from '../handoff'
@@ -177,7 +177,7 @@ function ChartCard({ title, sub, table, onOpen, openLabel, children }) {
       <div className="flex flex-wrap items-center gap-2.5">
         <h3 className="font-display text-[20px] font-bold">{title}</h3>
         {onOpen && (
-          <button type="button" onClick={onOpen} className={ui.btnGhost + ' min-h-9 px-2 text-[14px]'}>
+          <button type="button" onClick={onOpen} className={ui.btnGhost + ' px-2 text-[14px]'}>
             {openLabel}
             <Icon name="chevron" size={16} />
           </button>
@@ -190,7 +190,7 @@ function ChartCard({ title, sub, table, onOpen, openLabel, children }) {
       <p className="text-[13px] text-muted">{sub}</p>
       {children}
       <details className="text-[14px]">
-        <summary className="w-fit cursor-pointer font-semibold text-signal">Show as table</summary>
+        <summary className="flex min-h-11 w-fit cursor-pointer items-center font-semibold text-signal">Show as table</summary>
         {table}
       </details>
     </div>
@@ -239,28 +239,30 @@ function StageChart({ entries, now, onOpen }) {
       onOpen={onOpen}
       openLabel="Daily report"
       table={
-        <table className="mt-1.5 border-collapse">
-          <thead>
-            <tr className="text-[13px] text-muted">
-              <th className="px-3 py-1 text-left">Stage</th>
-              <th className="px-3 py-1 text-right">Avg min</th>
-              <th className="px-3 py-1 text-right">Target</th>
-              <th className="px-3 py-1 text-right">Trucks</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r) => (
-              <tr key={r.key} className="border-t border-hair">
-                <td className="px-3 py-1">{r.label}</td>
-                <td className="px-3 py-1 text-right tabular-nums">{r.avg == null ? '—' : Math.round(r.avg)}</td>
-                <td className="px-3 py-1 text-right tabular-nums">
-                  {STAGES[r.key].min}–{STAGES[r.key].max}
-                </td>
-                <td className="px-3 py-1 text-right tabular-nums">{r.n}</td>
+        <div className="mt-1.5 overflow-hidden rounded-xl border border-hair">
+          <table className={ui.table}>
+            <thead>
+              <tr>
+                <th className={ui.th}>Stage</th>
+                <th className={ui.th + ui.num}>Average</th>
+                <th className={ui.th + ui.num}>Target</th>
+                <th className={ui.th + ui.num}>Trucks</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r.key} className={ui.tr}>
+                  <td className={ui.tdTight}>{r.label}</td>
+                  <td className={ui.tdTight + ui.num}>{r.avg == null ? '—' : duration(r.avg * 60000)}</td>
+                  <td className={ui.tdTight + ui.num}>
+                    {STAGES[r.key].min}–{STAGES[r.key].max} min
+                  </td>
+                  <td className={ui.tdTight + ui.num}>{r.n}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       }
     >
       <div ref={box} className="min-w-0">
@@ -297,8 +299,8 @@ function StageChart({ entries, now, onOpen }) {
                     fill="var(--color-chart-live)"
                     tabIndex={0}
                     aria-label={`${r.label}: average ${Math.round(r.avg)} minutes, target ${s.min} to ${s.max}, ${r.n} trucks`}
-                    onMouseEnter={tip.show(`${r.label}: average ${Math.round(r.avg)} min · target ${s.min}–${s.max} · ${r.n} truck${r.n === 1 ? '' : 's'}`)}
-                    onFocus={tip.show(`${r.label}: average ${Math.round(r.avg)} min · target ${s.min}–${s.max} · ${r.n} truck${r.n === 1 ? '' : 's'}`)}
+                    onMouseEnter={tip.show(`${r.label}: average ${duration(r.avg * 60000)} · target ${s.min}–${s.max} min · ${r.n} truck${r.n === 1 ? '' : 's'}`)}
+                    onFocus={tip.show(`${r.label}: average ${duration(r.avg * 60000)} · target ${s.min}–${s.max} min · ${r.n} truck${r.n === 1 ? '' : 's'}`)}
                     onMouseLeave={tip.hide}
                     onBlur={tip.hide}
                   />
@@ -395,7 +397,7 @@ export default function ShippingBoard({ entries, onAssignDock, onOrderReady, onU
         in {clockTime(checkedInAt(e))}
         {e.guardOnDuty && <> by {e.guardOnDuty}</>}
       </span>
-      {e.appointmentTime && <span>appt {e.appointmentTime}</span>}
+      {e.appointmentTime && <span>Appointment {clock12(e.appointmentTime)}</span>}
     </div>
   )
 
@@ -640,7 +642,7 @@ export default function ShippingBoard({ entries, onAssignDock, onOrderReady, onU
                 <div className="grid gap-2 rounded-xl bg-ok-soft p-2.5">
                   <span className="flex items-center text-[14px] font-bold text-ok">
                     Pick a free dock
-                    <button type="button" onClick={() => setAssigningId(null)} className="ml-auto min-h-9 cursor-pointer px-1.5 font-semibold text-signal underline">
+                    <button type="button" onClick={() => setAssigningId(null)} className="ml-auto min-h-11 cursor-pointer px-1.5 font-semibold text-signal underline">
                       Cancel
                     </button>
                   </span>
@@ -683,7 +685,7 @@ export default function ShippingBoard({ entries, onAssignDock, onOrderReady, onU
           count={atDock.length}
           target={
             <>
-              pre-load {STAGES.preload.min}–{STAGES.preload.max} · load {STAGES.load.min}–{STAGES.load.max} · inspect {STAGES.inspect.min}–{STAGES.inspect.max} min
+              getting ready {STAGES.preload.min}–{STAGES.preload.max} · load {STAGES.load.min}–{STAGES.load.max} · inspect {STAGES.inspect.min}–{STAGES.inspect.max} min
             </>
           }
           empty="No trucks at a dock."
