@@ -11,7 +11,7 @@ import { LiveYard, phaseOf } from '../Dashboard'
 import LiveYardCard from '../LiveYardCard'
 import ReleaseDialog from '../ReleaseDialog'
 import { LoadCheckSheet, TrailerCheckSheet, hasDraft, recentTechnicians } from '../LoadingInspection'
-import { loadLine } from '../../loadSheet'
+import { loadSummary, palletLine, productLine } from '../../loadSheet'
 
 // The Loading & Inspection tab, for the loading crew and the QA inspector, each on their own tablet.
 // First "Who is using this tablet?" (role and name, kept on the device); then the docks as a wall, and
@@ -204,15 +204,16 @@ function DockWall({ entries, jobs, onRun }) {
                 <button
                   type="button"
                   onClick={() => onRun(j)}
-                  aria-label={`Dock ${d}, trailer ${e.trailerNumber}${loadLine(e) ? `, loading ${loadLine(e)}` : ''}: ${j.label}${j.time ? `, ${j.time}` : ''}`}
+                  aria-label={`Dock ${d}, trailer ${e.trailerNumber}, ${loadSummary(e)}: ${j.label}${j.time ? `, ${j.time}` : ''}`}
                   className="grid min-h-[132px] cursor-pointer content-start gap-1 overflow-hidden rounded-xl bg-panel px-3 pt-0 pb-2.5 text-left text-ink shadow-card transition-transform duration-150 hover:-translate-y-0.5"
                 >
                   <span className="-mx-3 mb-1.5 block h-1.5" style={{ background: COLOR[j.section] }} aria-hidden="true" />
                   <b className="truncate font-display text-[17px] leading-tight">{e.trailerNumber}</b>
                   <span className="truncate text-[13px] text-muted">{carrierOf(e)}</span>
-                  {loadLine(e) && (
-                    <span className="line-clamp-2 text-[12.5px] leading-snug text-ink" title={loadLine(e)}>
-                      {loadLine(e)}
+                  <span className="truncate text-[13px] font-semibold text-ink">{palletLine(e)}</span>
+                  {productLine(e) && (
+                    <span className="line-clamp-2 text-[12.5px] leading-snug text-ink" title={productLine(e)}>
+                      {productLine(e)}
                     </span>
                   )}
                   <span className="mt-1 text-[14px] font-bold text-signal">{j.label}</span>
@@ -222,9 +223,10 @@ function DockWall({ entries, jobs, onRun }) {
                 <div className="grid min-h-[132px] content-start gap-1 rounded-xl bg-panel/90 px-3 py-2.5 text-ink">
                   <b className="truncate font-display text-[17px] leading-tight">{e.trailerNumber}</b>
                   <span className="truncate text-[13px] text-muted">{carrierOf(e)}</span>
-                  {loadLine(e) && (
-                    <span className="line-clamp-2 text-[12.5px] leading-snug text-ink" title={loadLine(e)}>
-                      {loadLine(e)}
+                  <span className="truncate text-[13px] font-semibold text-ink">{palletLine(e)}</span>
+                  {productLine(e) && (
+                    <span className="line-clamp-2 text-[12.5px] leading-snug text-ink" title={productLine(e)}>
+                      {productLine(e)}
                     </span>
                   )}
                   <span className="mt-1 text-[13px] font-semibold text-ok">Released, waiting for the gate</span>
@@ -266,7 +268,10 @@ function JobRow({ j, dark, onRun }) {
         <b className="block truncate text-[16px] leading-snug">
           {e.trailerNumber} <span className="font-normal text-muted">{carrierOf(e)}</span>
         </b>
-        {loadLine(e) && <span className="block truncate text-[14px] text-ink" title={loadLine(e)}>{loadLine(e)}</span>}
+        <span className="block truncate text-[14px] text-ink" title={loadSummary(e)}>
+          <b className="font-semibold">{palletLine(e)}</b>
+          {productLine(e) && ` · ${productLine(e)}`}
+        </span>
         {j.problem ? (
           <span className="block text-[14px] font-semibold text-danger">
             {j.problem}
@@ -299,7 +304,7 @@ function JobSection({ id, jobs, mine, onRun }) {
     <section aria-labelledby={`jobs-${id}-title`} className={ui.card + ' min-w-0 overflow-hidden'}>
       <span className="block h-1.5" style={{ background: COLOR[id] }} aria-hidden="true" />
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-5 pt-4">
-        <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-signal-tint text-signal">
+        <span className={`grid size-10 shrink-0 place-items-center rounded-xl mg-chip mg-${id}`}>
           <Icon name={s.icon} />
         </span>
         <h2 id={`jobs-${id}-title`} className="font-display text-[20px] leading-tight font-bold">

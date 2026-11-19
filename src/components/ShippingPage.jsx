@@ -11,6 +11,7 @@ import EntryDialog from './EntryDialog'
 import { Card, PageTitle, SubTabs } from './shipping/parts'
 import { DocksSection, DropsSection, InspectionSection, LoadingSection, OrdersTiles, ReportSection } from './shipping/sections'
 import { NowSection, carrierOf, needsYou } from './shipping/now'
+import { lineUp, planDocks } from './shipping/lineup'
 import { ScheduleSection, scheduleSummary } from './shipping/schedule'
 import { LoadSheetsSection } from './shipping/loads'
 import { FindOrder, OrderHistory } from './shipping/history'
@@ -25,12 +26,13 @@ const SECTIONS = [
   { id: 'now', group: 'Today', label: 'Now', icon: 'now' },
   { id: 'schedule', group: 'Today', label: "Today's schedule", icon: 'calendar' },
   { id: 'docks', group: 'Today', label: 'Docks & loads', icon: 'dock' },
+  { id: 'yard', group: 'Today', label: 'Yard map', icon: 'yard' },
   { id: 'records', group: 'Past days', label: 'Records', icon: 'log' },
 ]
 const GROUPS = [...new Set(SECTIONS.map((s) => s.group))]
 const KEY = 'shipping-section'
 // Sections from before this layout, so a remembered one still opens in the right place.
-const OLD = { live: 'now', yard: 'docks', docks: 'docks', partners: 'now', log: 'records', report: 'records' }
+const OLD = { live: 'now', docks: 'docks', partners: 'now', log: 'records', report: 'records' }
 
 const DOCK_TABS = [
   { id: 'use', label: 'Dock use', icon: 'calendar', line: "The day's dock schedule and how busy each dock was. To see the docks right now, open Now." },
@@ -38,7 +40,6 @@ const DOCK_TABS = [
   { id: 'inspection', label: 'Inspection', icon: 'inspect', line: "Loads waiting for inspection, failed loads being fixed, and passed loads waiting for the inspector's release. View only." },
   { id: 'loads', label: 'Load sheets', icon: 'orders', line: 'What went on each trailer, and the box temperature against its rule.' },
   { id: 'drops', label: 'Drop trailers', icon: 'drop', line: 'Trailers left without a driver: empty ones to load, and loaded ones waiting for a driver.' },
-  { id: 'yard', label: 'Yard map', icon: 'yard', line: 'Every truck and trailer on site in 3D. Pause it, or replay any of the last 30 days. Tap a truck for its card.' },
 ]
 const RECORD_TABS = [
   { id: 'log', label: 'Entry log', icon: 'log' },
@@ -172,8 +173,10 @@ function DayPicker({ day, today, onChange }) {
 
 // `log` is the Entry log (built in App with its handlers). `schedule`: today's bookings (App builds it
 // once, so the Gate sees the same list). `onDelayReason(id, reasonId)` saves why a truck stayed long;
-// `onNotice(text | { text, undo })` shows a notice at the bottom of the screen.
-export default function ShippingPage({ entries, schedule = [], onAssignDock, onOrderReady, onDelayReason, onNotice, onEdit, onUpdateEntry, onCheckOut, log }) {
+// `onNotice(text | { text, undo })` shows a notice at the bottom of the screen. `onFillDocks` (SAMPLE)
+// fills every dock and lines up trucks behind them, to show the line-up.
+// `replayRequest` ({ day, key }, from the Overview): open the Yard map replaying that day.
+export default function ShippingPage({ entries, schedule = [], onAssignDock, onOrderReady, onDelayReason, onNotice, onEdit, onUpdateEntry, onCheckOut, onFillDocks, replayRequest, onReplayHandled, log }) {
   const [now, setNow] = useState(Date.now)
   const [section, setSection] = useState(() => {
     try {
@@ -192,6 +195,8 @@ export default function ShippingPage({ entries, schedule = [], onAssignDock, onO
   const [schedDay, setSchedDay] = useState(() => dayKey(new Date()))
   const [staged, setStaged] = useDayStore('shipping-staged')
   const [calls, setCalls] = useDayStore('shipping-calls')
+  // The clerk's order for the line-up (entry ids), for today.
+  const [lineStore, setLineStore] = useDayStore('dock-lineup')
   const top = useRef(null)
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 15000)
@@ -226,6 +231,37 @@ export default function ShippingPage({ entries, schedule = [], onAssignDock, onO
   }
   const call = (id) => setCalls((items) => ({ ...items, [id]: Date.now() }))
 
+  // The line-up for the docks and when each busy dock should be free (shipping/lineup.jsx).
+  const line = lineUp(entries, lineStore.order)
+  const plan = planDocks(entries, line, now)
+  const moveUp = (id) => {
+    const ids = line.map((e) => e.id)
+    const i = ids.indexOf(id)
+    if (i < 1) return
+    ;[ids[i - 1], ids[i]] = [ids[i], ids[i - 1]]
+    const e = line[i]
+    setLineStore((items) => ({ ...items, order: ids }))
+    onNotice?.({
+      text: `Trailer ${e.trailerNumber} moved up to number ${i}`,
+      undo: () => {
+        setLineStore((items) => ({ ...items, order: line.map((x) => x.id) }))
+        onNotice?.('Undone')
+      },
+    })
+  }
+  // When a busy dock frees up and a truck is waiting, say who's next.
+  const openKey = DOCKS.filter((d) => !occupiedDocks(entries).has(dockKey(d))).join(',')
+  const lastOpen = useRef(openKey)
+  const firstUp = plan.rows.find((r) => r.inMin === 0)
+  useEffect(() => {
+    const before = new Set(lastOpen.current.split(','))
+    lastOpen.current = openKey
+    const freed = openKey.split(',').filter((d) => d && !before.has(d))
+    if (freed.length && firstUp) onNotice?.(`Dock ${firstUp.dock} is free. Trailer ${firstUp.e.trailerNumber} is next.`)
+    // Only when the set of open docks changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openKey])
+
   // Figures for the sidebar and the titles.
   const rows = needsYou({ entries, schedule: day, now, calls })
   const todo = rows.filter((r) => !r.info)
@@ -243,6 +279,27 @@ export default function ShippingPage({ entries, schedule = [], onAssignDock, onO
   }
 
   const view = (id) => setViewingId(id)
+  // The day the Yard map replays: { day, key }. Records ("Replay this day") and the Overview ask for it.
+  const [replay, setReplay] = useState(null)
+  const replayDay = (day) => {
+    setReplay({ day, key: Date.now() })
+    select('yard')
+  }
+  useEffect(() => {
+    if (!replayRequest?.day) return
+    replayDay(replayRequest.day)
+    onReplayHandled?.()
+    // Only when the Overview asks again.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [replayRequest?.key])
+  // Records → Assign dock: go to Now and pick the dock on the dock wall. Ends once the truck has a dock.
+  const [pickingId, setPickingId] = useState(null)
+  const picking = entries.find((e) => e.id === pickingId && !e.dockDoor && !e.timeOut) ?? null
+  const pickDock = (id) => {
+    setPickingId(id)
+    select('now')
+    setTimeout(() => document.getElementById('dock-wall-title')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 50)
+  }
   // "Find an order" sits in the title row of every section.
   const find = <FindOrder entries={entries} onOpen={setHistoryId} />
   const today = dayKey(new Date(now))
@@ -277,6 +334,12 @@ export default function ShippingPage({ entries, schedule = [], onAssignDock, onO
           onOrderReady={onOrderReady}
           onDelayReason={onDelayReason}
           onOpenSchedule={() => select('schedule')}
+          plan={plan}
+          picking={picking}
+          onCancelPick={() => setPickingId(null)}
+          onMoveUp={moveUp}
+          sampleLoaded={entries.some((e) => e.sample)}
+          onFillDocks={onFillDocks}
         />
       </>
     ),
@@ -304,13 +367,22 @@ export default function ShippingPage({ entries, schedule = [], onAssignDock, onO
         {dockTab === 'inspection' && <InspectionSection entries={entries} now={now} head={false} />}
         {dockTab === 'loads' && <LoadSheetsSection entries={entries} now={now} />}
         {dockTab === 'drops' && <DropsSection entries={entries} now={now} onView={view} head={false} />}
-        {dockTab === 'yard' && (
-          <Card icon="yard" title="Union Springs yard" sub="Docks, the yard lane and the gate">
-            <div className="p-4 sm:p-5">
-              <YardPlayer entries={entries} onEdit={onEdit} onCheckOut={onCheckOut} />
-            </div>
-          </Card>
-        )}
+      </>
+    ),
+    yard: (
+      <>
+        <PageTitle
+          title="Yard map"
+          now={now}
+          line="Every truck and trailer on site in 3D. Pause it, or replay any of the last 30 days. Tap a truck for its card."
+        >
+          {find}
+        </PageTitle>
+        <Card icon="yard" title="Union Springs yard" sub="Docks, the yard lane and the gate">
+          <div className="p-4 sm:p-5">
+            <YardPlayer entries={entries} onEdit={onEdit} onCheckOut={onCheckOut} replay={replay} />
+          </div>
+        </Card>
       </>
     ),
     records: (
@@ -322,7 +394,7 @@ export default function ShippingPage({ entries, schedule = [], onAssignDock, onO
         {recordTab === 'log' ? (
           <>
             <OrdersTiles entries={entries} now={now} />
-            {cloneElement(log, { bare: true })}
+            {cloneElement(log, { bare: true, onPickDock: pickDock, onReplayDay: replayDay })}
           </>
         ) : (
           <ReportSection entries={entries} now={now} head={false} />

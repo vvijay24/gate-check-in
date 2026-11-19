@@ -34,6 +34,9 @@ function YardBars({ points, focus, height: H = 280 }) {
   const y = (v) => M.t + ih - (v / top) * ih
 
   return (
+    <div className="grid min-w-0 gap-1">
+    {/* Axis titles sit outside the measured box, so the tooltip's position stays right. */}
+    <span className="text-[12.5px] font-semibold text-muted">↑ Trucks on site</span>
     <div ref={box} className="relative min-w-0 overflow-x-clip">
       <svg width={w} height={H} viewBox={`0 0 ${w} ${H}`} role="img" aria-label="Trucks on site every half hour for the last six hours, by stage" className="block">
         {[0, 1, 2, 3, 4].map((i) => {
@@ -119,6 +122,8 @@ function YardBars({ points, focus, height: H = 280 }) {
           ))}
         </div>
       )}
+    </div>
+    <span className="text-center text-[12.5px] font-semibold text-muted">Time of day, every half hour →</span>
     </div>
   )
 }

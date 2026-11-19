@@ -10,10 +10,12 @@ import { detentionClockStart, detentionState } from '../../detention'
 import { ASK_AFTER_MIN, REASONS, suggestReason } from '../../delayReasons'
 import { contactFor, needsStaging, NO_SHOW_MIN } from '../../schedule'
 import { HANDOFFS } from '../../impactSettings'
-import { loadLine } from '../../loadSheet'
+import { loadSummary, palletLine, productLine } from '../../loadSheet'
 import { DETENTION } from '../../turnaround/targets'
 import { dockKey, occupiedDocks } from '../AssignDock'
 import { bookingState } from '../gate/GateHome'
+import { LineUp, estimate } from './lineup'
+import { DaySummary } from './daySummary'
 
 // Shipping → Now: the dock wall (what each bay is doing), "Action required" (one list of what to do, most
 // urgent first), "Coming up" (the next bookings) and "Everyone on site" (folded at the bottom).
@@ -37,8 +39,6 @@ const freeDocks = (entries) => {
   const busy = occupiedDocks(entries)
   return DOCKS.filter((d) => !busy.has(dockKey(d)))
 }
-// Trucks whose order is ready and that wait for a dock, longest ready first.
-const readyForDock = (entries) => entries.filter((e) => !e.timeOut && !e.dockDoor && !inYard(e) && e.orderReadyAt).sort((a, b) => a.orderReadyAt - b.orderReadyAt)
 
 // ---------------------------------------------------------------- Dock wall
 function bayProgress(e, now) {
@@ -52,10 +52,11 @@ function bayProgress(e, now) {
   return { fill, name, time: duration(now - st.since), tone: toneOf(minutes, stage) }
 }
 
-export function DockWall({ entries, now, onView, onAssignDock }) {
+// `plan` (lineup.jsx): each dock's next truck in the line-up and when a busy dock should be free.
+// `picking`: a truck sent from Records to get a dock; every open dock offers it, until it has one.
+export function DockWall({ entries, now, plan, picking, onCancelPick, onView, onAssignDock }) {
   const busy = occupiedDocks(entries)
   const open = DOCKS.filter((d) => !busy.has(dockKey(d)))
-  const ready = readyForDock(entries)
   return (
     <section aria-labelledby="dock-wall-title" className="on-chrome grid gap-4 rounded-2xl bg-chrome px-5 pt-4 pb-5 text-white shadow-card">
       <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
@@ -74,10 +75,29 @@ export function DockWall({ entries, now, onView, onAssignDock }) {
           ))}
         </ul>
       </div>
+      {picking && (
+        <div role="status" className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl bg-panel px-4 py-2.5 text-ink shadow-card animate-pop">
+          <Icon name="dock" size={20} className="text-signal" />
+          <b className="text-[15px]">
+            {open.length
+              ? `Pick a dock for trailer ${picking.trailerNumber}`
+              : `Every dock is busy. Trailer ${picking.trailerNumber} is number ${plan.rows.findIndex((r) => r.e.id === picking.id) + 1} in the line-up below.`}
+          </b>
+          <span className="text-[14px] text-muted">
+            {entryCarrier(picking)}
+            {picking.pickupNumber ? `, ${picking.pickupNumber}` : ''}
+          </span>
+          <button type="button" onClick={onCancelPick} className={ui.btnGhost + ' ml-auto'}>
+            <Icon name="close" size={16} />
+            Cancel
+          </button>
+        </div>
+      )}
       <ol className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
         {DOCKS.map((d) => {
           const e = busy.get(dockKey(d))
-          const next = !e && ready[open.indexOf(d)]
+          const next = !e && picking ? picking : plan.next.get(dockKey(d))
+          const freeIn = plan.freeIn.get(dockKey(d))
           const p = e && bayProgress(e, now)
           return (
             <li key={d} className="grid content-start gap-2">
@@ -88,14 +108,15 @@ export function DockWall({ entries, now, onView, onAssignDock }) {
                 <button
                   type="button"
                   onClick={() => onView(e.id)}
-                  aria-label={`Dock ${d}: trailer ${e.trailerNumber}, ${entryCarrier(e)}${loadLine(e) ? `, loading ${loadLine(e)}` : ''}${p ? `, ${p.name}, ${p.time}` : ''}. Open the entry.`}
+                  aria-label={`Dock ${d}: trailer ${e.trailerNumber}, ${entryCarrier(e)}, ${loadSummary(e)}${p ? `, ${p.name}, ${p.time}` : ''}${freeIn ? `, free in about ${estimate(freeIn)}` : ''}${next ? `, next ${next.trailerNumber}` : ''}. Open the entry.`}
                   className="grid min-h-[150px] cursor-pointer content-start gap-1.5 rounded-xl bg-panel px-3 py-2.5 text-left text-ink shadow-card transition-transform duration-150 hover:-translate-y-0.5"
                 >
                   <b className="truncate font-display text-[17px] leading-tight">{e.trailerNumber}</b>
                   <span className="truncate text-[13px] text-muted">{entryCarrier(e)}</span>
-                  {loadLine(e) && (
-                    <span className="line-clamp-2 text-[12.5px] leading-snug text-ink" title={loadLine(e)}>
-                      {loadLine(e)}
+                  <span className="truncate text-[13px] font-semibold text-ink">{palletLine(e)}</span>
+                  {productLine(e) && (
+                    <span className="line-clamp-2 text-[12.5px] leading-snug text-ink" title={productLine(e)}>
+                      {productLine(e)}
                     </span>
                   )}
                   {p && (
@@ -110,6 +131,12 @@ export function DockWall({ entries, now, onView, onAssignDock }) {
                       <span className="text-[13px] font-semibold">{p.name}</span>
                       <span className={'text-[13px] font-semibold tabular-nums ' + TONE_TEXT[p.tone]}>{p.time} in this step</span>
                     </>
+                  )}
+                  {freeIn && (
+                    <span className="mt-1 grid gap-0.5 border-t border-hair pt-1.5 text-[13px] leading-snug">
+                      <span className="text-muted tabular-nums">Free in about {estimate(freeIn)}</span>
+                      {next && <b className="truncate text-signal">Next: {next.trailerNumber}</b>}
+                    </span>
                   )}
                 </button>
               ) : (
@@ -156,8 +183,8 @@ export function needsYou({ entries, schedule, now, calls = {} }) {
       const wait = now - checkedInAt(e)
       rows.push({ key: 'order-' + e.id, kind: 'order', tone: wait > ORDER_MAX * MIN ? 'bad' : 'warn', rank: isDrop(e) ? 6 : 3, sort: -wait, e, wait })
     }
-    // c. Order ready, no dock.
-    if (!e.dockDoor && !inYard(e) && e.orderReadyAt) rows.push({ key: 'dock-' + e.id, kind: 'dock', tone: 'warn', rank: free.length ? 2 : 4, sort: e.orderReadyAt, e, free })
+    // c. Order ready, no dock, and a dock is free (while every dock is busy the truck waits in the line-up).
+    if (!e.dockDoor && !inYard(e) && e.orderReadyAt && free.length) rows.push({ key: 'dock-' + e.id, kind: 'dock', tone: 'warn', rank: free.length ? 2 : 4, sort: e.orderReadyAt, e, free })
     // d. Long stay with no reason.
     if (!isDrop(e) && !e.delayReason && now - arrivalMs(e) > ASK_AFTER_MIN * MIN)
       rows.push({ key: 'why-' + e.id, kind: 'why', tone: 'warn', rank: 5, sort: arrivalMs(e), e, suggestion: suggestReason(e, now) })
@@ -499,10 +526,12 @@ export function EveryoneOnSite({ entries, now, onView }) {
 }
 
 // ---------------------------------------------------------------- The section
-export function NowSection({ entries, schedule, now, calls, onCall, onStage, onView, onAssignDock, onOrderReady, onDelayReason, onOpenSchedule, rows }) {
+export function NowSection({ entries, schedule, now, calls, onCall, onStage, onView, onAssignDock, onOrderReady, onDelayReason, onOpenSchedule, rows, plan, picking, onCancelPick, onMoveUp, sampleLoaded, onFillDocks }) {
   return (
     <div className="grid grid-cols-[minmax(0,1fr)] gap-5">
-      <DockWall entries={entries} now={now} onView={onView} onAssignDock={onAssignDock} />
+      <DaySummary entries={entries} schedule={schedule} now={now} />
+      <DockWall entries={entries} now={now} plan={plan} picking={picking} onCancelPick={onCancelPick} onView={onView} onAssignDock={onAssignDock} />
+      <LineUp entries={entries} plan={plan} now={now} onAssignDock={onAssignDock} onMoveUp={onMoveUp} sampleLoaded={sampleLoaded} onFillDocks={onFillDocks} />
       <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_300px]">
         <NeedsYou rows={rows} now={now} onCall={onCall} onOrderReady={onOrderReady} onAssignDock={onAssignDock} onDelayReason={onDelayReason} onStage={onStage} onView={onView} calls={calls} />
         <ComingUp schedule={schedule} now={now} onStage={onStage} onOpenSchedule={onOpenSchedule} />

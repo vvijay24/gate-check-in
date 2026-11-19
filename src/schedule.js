@@ -4,6 +4,7 @@
 // kind 'Fresh' | 'Frozen', pallets, staged, entryId }.
 import { arrivalMs, clock12, dayKey, duration, EARLY_GRACE_MIN, LATE_GRACE_MIN } from './time'
 import { CARRIERS, CUSTOMERS } from './sampleData'
+import { bookedPallets } from './loadSheet'
 
 const MIN = 60000
 // A booked truck more than this many minutes past its slot counts as a no-show.
@@ -46,7 +47,7 @@ export function bookingsFromEntries(entries, day) {
       customer: e.customerPickupFor || '—',
       type: (e.visitPurpose ?? []).includes('Drop Trailer') ? 'Drop Trailer' : 'Pickup',
       kind: e.loadSheet?.kind ?? (hash(e.id) % 5 < 3 ? 'Fresh' : 'Frozen'),
-      pallets: e.loadSheet?.pallets ?? 18 + (hash(e.id) % 8),
+      pallets: bookedPallets(e),
       staged: !!e.orderReadyAt,
       entryId: e.id,
     }))
@@ -82,8 +83,9 @@ export function makeSampleSchedule(entries, now = Date.now()) {
       type,
       kind,
       pallets: 18 + Math.floor(random() * 8),
-      // Staged once its slot is within the hour, about 3 in 5 of the time.
-      staged: ms - now <= STAGE_BEFORE_MIN * MIN && random() < 0.6,
+      // A truck already past its slot: its order is staged about 3 in 5 of the time. Bookings still to come
+      // are staged below.
+      staged: ms <= now && random() < 0.6,
       entryId: null,
     }
   }
@@ -100,6 +102,10 @@ export function makeSampleSchedule(entries, now = Date.now()) {
     const random = seeded(daySeed * 1440 + m)
     if (random() < 0.8) future.push(make(m, `SO-${51200 + ((m / 20) % 96)}`, random))
   }
+  // Within the next hour only the soonest booking is already staged (its truck is about to arrive); the
+  // later ones are still to stage, so Orders to stage always has work in it.
+  const soon = future.find((a) => a.ms - now <= STAGE_BEFORE_MIN * MIN)
+  if (soon) soon.staged = true
 
   return [...arrived, ...[...overdue, ...future].filter((a) => !arrivedOrders.has(a.orderNo))].sort((a, b) => a.ms - b.ms)
 }

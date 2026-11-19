@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import * as ui from '../../ui'
 import { Icon } from '../../icons'
-import { clock12, duration } from '../../time'
+import { clock12, clockTime, duration } from '../../time'
 import { inYard, isReleased } from '../../handoff'
 import { apptStatus, STAGE_BEFORE_MIN } from '../../schedule'
 import { Card, Empty, ShowTable } from './parts'
@@ -60,6 +60,7 @@ function HourColumns({ schedule, now, current }) {
   const busiest = hours.reduce((b, x) => (x.booked > b.booked ? x : b), hours[0]).h
   return (
     <div className="grid gap-3 px-5 pt-4 pb-4">
+      <span className="-mb-2 text-[12.5px] font-semibold text-muted">↑ Trucks booked (pale) and arrived (dark)</span>
       <div className="flex h-[150px] items-end gap-1.5 border-b border-line" role="img" aria-label="Bookings and arrivals by hour today. The table below has the numbers.">
         {hours.map((x) => {
           const show = x.h === current || x.h === busiest
@@ -88,6 +89,7 @@ function HourColumns({ schedule, now, current }) {
           </span>
         ))}
       </div>
+      <span className="-mt-2 text-center text-[12.5px] font-semibold text-muted">Hour of the day →</span>
       <p className="text-[13px] text-muted">
         Each column is one hour. The pale part is the trucks booked in it and the dark part the ones that have arrived. Numbers show for {current != null ? 'this hour and ' : ''}the busiest one.
       </p>
@@ -111,6 +113,7 @@ const StageButton = ({ a, onStage }) => (
 
 function OrdersToStage({ schedule, now, onStage }) {
   const list = schedule.filter((a) => !a.entryId && !a.staged && a.ms - now <= STAGE_BEFORE_MIN * MIN && a.ms >= now - 15 * MIN)
+  const next = schedule.find((a) => !a.entryId && !a.staged && a.ms - now > STAGE_BEFORE_MIN * MIN)
   return (
     <Card icon="orders" title="Orders to stage" sub="Bookings in the next hour whose order isn't at the dock yet">
       {list.length ? (
@@ -119,14 +122,29 @@ function OrdersToStage({ schedule, now, onStage }) {
             <li key={a.id} className="flex flex-wrap items-center gap-x-4 gap-y-1 py-2.5">
               <b className="font-display tabular-nums">{clock12(a.time)}</b>
               <span className="min-w-0 flex-1">
-                <b>{a.orderNo}</b>, {a.customer}, {carrierOf(a)} <span className="text-muted">({a.ms > now ? `in ${duration(a.ms - now)}` : 'due now'})</span>
+                <b>{a.orderNo}</b>, {a.carrier === 'Pickup' ? carrierOf(a) : `${a.customer}, ${carrierOf(a)}`} <span className="text-muted">({a.ms > now ? `in ${duration(a.ms - now)}` : 'due now'})</span>
               </span>
               <StageButton a={a} onStage={onStage} />
             </li>
           ))}
         </ul>
+      ) : next ? (
+        // Nothing due within the hour: the next booking that will need staging, and from when.
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-5 py-3.5">
+          <p className="min-w-0 flex-1 text-[15px]">
+            <span className="flex items-center gap-2 text-muted">
+              <Icon name="done" size={18} className="text-ok" />
+              Every order due in the next hour is staged.
+            </span>
+            <span className="mt-1 block">
+              <b>Next:</b> {next.orderNo} for {next.carrier === 'Pickup' ? carrierOf(next) : `${next.customer}, ${carrierOf(next)}`}, {clock12(next.time)} truck.{' '}
+              <span className="text-muted">Stage it from {clockTime(next.ms - STAGE_BEFORE_MIN * MIN)}.</span>
+            </span>
+          </p>
+          <StageButton a={next} onStage={onStage} />
+        </div>
       ) : (
-        <Empty>Every order due in the next hour is staged.</Empty>
+        <Empty>Every order due in the next hour is staged, and nothing else is booked today.</Empty>
       )}
     </Card>
   )

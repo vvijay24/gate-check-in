@@ -80,8 +80,9 @@ const calm = (el) => {
   })
 }
 
-// Draws a kit chart into a div, again when its width or `deps` change.
-function Chart({ draw, deps, label, height = 220 }) {
+// Draws a kit chart into a div, again when its width or `deps` change. `x` / `y`: the axis titles (what
+// runs along the bottom, and what the bars measure, with the unit), shown in small grey type.
+function Chart({ draw, deps, label, height = 220, x, y }) {
   const ref = useRef(null)
   useEffect(() => {
     const el = ref.current
@@ -100,7 +101,15 @@ function Chart({ draw, deps, label, height = 220 }) {
     return () => ro.disconnect()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps)
-  return <div ref={ref} className="tt-chart relative" style={{ minHeight: height }} role="img" aria-label={label} />
+  const plot = <div ref={ref} className="tt-chart relative" style={{ minHeight: height }} role="img" aria-label={label} />
+  if (!x && !y) return plot
+  return (
+    <div className="grid min-w-0 gap-1">
+      {y && <span className="text-[12.5px] font-semibold text-muted">↑ {y}</span>}
+      {plot}
+      {x && <span className="text-center text-[12.5px] font-semibold text-muted">{x} →</span>}
+    </div>
+  )
 }
 
 function Legend({ items }) {
@@ -146,6 +155,36 @@ const InfoButton = ({ on, onClick, label }) => (
     <span className={'grid size-7 place-items-center rounded-full border-[1.5px] text-[13px] font-bold transition-colors duration-150 ' + (on ? 'border-signal bg-signal text-signal-ink' : 'border-line text-signal hover:border-signal')}>i</span>
   </button>
 )
+
+// "Watch a day on the 3D yard map": one button per day in the dates shown (the map keeps 30 days), the
+// day with the longest average time on site marked. Opens Shipping's Yard map replaying that day.
+function ReplayDays({ days, onReplay }) {
+  if (!onReplay) return null
+  const oldest = shiftDate(dayKey(new Date()), -29)
+  const list = days.filter((d) => d.day >= oldest && d.trucks > 0)
+  if (!list.length) return null
+  const longest = list.reduce((a, d) => ((d.avgTurn ?? 0) > (a.avgTurn ?? 0) ? d : a), list[0])
+  return (
+    <div className="no-print flex flex-wrap items-center gap-2 rounded-2xl border border-hair bg-panel px-4 py-3 shadow-card">
+      <span className="mr-1 inline-flex items-center gap-2 text-[14px] font-semibold">
+        <Icon name="yard" size={18} className="text-signal" />
+        Watch a day on the 3D yard map
+      </span>
+      {list.map((d) => (
+        <button
+          key={d.day}
+          type="button"
+          onClick={() => onReplay(d.day)}
+          aria-label={`Replay ${dayLabel(d.day)} on the yard map${d.day === longest.day ? ', the longest day' : ''}`}
+          className={'min-h-11 cursor-pointer rounded-full border px-3.5 text-[14px] font-semibold whitespace-nowrap transition-colors duration-150 hover:border-signal-bright ' + (d.day === longest.day ? 'border-signal bg-signal-tint' : 'border-line bg-panel')}
+        >
+          {dayLabel(d.day)}
+          {d.day === longest.day && <span className="ml-1.5 font-normal text-muted">longest day</span>}
+        </button>
+      ))}
+    </div>
+  )
+}
 
 // ---------------------------------------------------------------- Cards
 // Each card's icon sits on a soft square in its topic's colour (index.css .mg-*): time is blue, money gold,
@@ -678,9 +717,9 @@ function diveOf(id, { rows, s, days }) {
         ],
         action: byCarrier[0] ? `Start with ${byCarrier[0].name}: their trucks ran up ${usd(byCarrier[0].charges)}. Check the reasons below, and claim back the ones on the carrier's side.` : 'Keep trucks out within their 2 free hours.',
         charts: [
-          { title: 'Waiting charges by day', note: `Each bar is one day. It shows what carriers can charge us: $${DETENTION.ratePerHour} for every hour a truck stayed past its 2 free hours.`, draw: dayBars(days, (d) => d.charges, usd), deps: [days], table: dayTable(usd, (d) => d.charges, 'Charges') },
-          { title: 'By carrier', note: 'Each bar is one carrier. It shows the charges their trucks ran up. The most charged is at the top.', draw: nameBars(byCarrier, (r) => r.charges, usd), deps: [byCarrier], table: nameTable(byCarrier, usd, (r) => r.charges, 'Charges') },
-          { title: 'By reason', note: "Each bar is one reason Shipping gave for a long stay. It shows the charges on those trucks. The most charged reason is at the top.", draw: nameBars(why.map((x) => ({ ...x, name: x.label })), (r) => r.charges, usd), deps: [why], table: nameTable(why.map((x) => ({ ...x, name: x.label })), usd, (r) => r.charges, 'Charges', 'Reason') },
+          { title: 'Waiting charges by day', x: 'Day', y: 'Waiting charges ($)', note: `Each bar is one day. It shows what carriers can charge us: $${DETENTION.ratePerHour} for every hour a truck stayed past its 2 free hours.`, draw: dayBars(days, (d) => d.charges, usd), deps: [days], table: dayTable(usd, (d) => d.charges, 'Charges') },
+          { title: 'By carrier', x: 'Waiting charges ($)', y: 'Carrier', note: 'Each bar is one carrier. It shows the charges their trucks ran up. The most charged is at the top.', draw: nameBars(byCarrier, (r) => r.charges, usd), deps: [byCarrier], table: nameTable(byCarrier, usd, (r) => r.charges, 'Charges') },
+          { title: 'By reason', x: 'Waiting charges ($)', y: 'Reason given by Shipping', note: "Each bar is one reason Shipping gave for a long stay. It shows the charges on those trucks. The most charged reason is at the top.", draw: nameBars(why.map((x) => ({ ...x, name: x.label })), (r) => r.charges, usd), deps: [why], table: nameTable(why.map((x) => ({ ...x, name: x.label })), usd, (r) => r.charges, 'Charges', 'Reason') },
         ],
         rows: charged,
         cols: [...base, 'turn', 'reason', 'charge'],
@@ -700,9 +739,9 @@ function diveOf(id, { rows, s, days }) {
         ],
         action: worstStep(s) ? `The step furthest past its target is ${worstStep(s).label.toLowerCase()}. Work on that first.` : 'Every step is within its target.',
         charts: [
-          { title: 'Average time on site by day', note: `Each bar is one day. It shows the average time a pickup spent here. Striped bars are over our ${TURN_TARGET / 60}-hour target.`, over: `Over ${TURN_TARGET / 60} hours`, draw: dayBars(days, (d) => d.avgTurn, dur, (v) => v > TURN_TARGET, TURN_TARGET), deps: [days], table: dayTable(dur, (d) => d.avgTurn, 'Average on site') },
+          { title: 'Average time on site by day', x: 'Day', y: 'Average time on site per pickup', note: `Each bar is one day. It shows the average time a pickup spent here. Striped bars are over our ${TURN_TARGET / 60}-hour target.`, over: `Over ${TURN_TARGET / 60} hours`, draw: dayBars(days, (d) => d.avgTurn, dur, (v) => v > TURN_TARGET, TURN_TARGET), deps: [days], table: dayTable(dur, (d) => d.avgTurn, 'Average on site') },
           {
-            title: 'Where the time went, by day',
+            title: 'Where the time went, by day', x: 'Day', y: 'Minutes per pickup',
             note: 'Each bar is one day, split into the four parts of a visit. The tallest part is where most time went.',
             legend: STEPS.map((st) => [st.label, st.color]),
             draw: (el) =>
@@ -718,7 +757,7 @@ function diveOf(id, { rows, s, days }) {
             deps: [days],
             table: { head: ['Day', ...['For the order', 'For a dock', 'At the dock', 'To leave'].map((label) => ({ label, right: true }))], rows: days.map((d) => [dayLabel(d.day), ...STEPS.map((st) => dur(d.steps[st.key]))]) },
           },
-          { title: 'By carrier', note: `Each bar is one carrier. It shows how long their pickups stayed on average. Striped bars are over ${TURN_TARGET / 60} hours. The longest is at the top.`, over: `Over ${TURN_TARGET / 60} hours`, draw: nameBars(byCarrier, (r) => r.avgTurn, dur, (v) => v > TURN_TARGET), deps: [byCarrier], table: nameTable(byCarrier, dur, (r) => r.avgTurn, 'Average on site') },
+          { title: 'By carrier', x: 'Average time on site per pickup', y: 'Carrier', note: `Each bar is one carrier. It shows how long their pickups stayed on average. Striped bars are over ${TURN_TARGET / 60} hours. The longest is at the top.`, over: `Over ${TURN_TARGET / 60} hours`, draw: nameBars(byCarrier, (r) => r.avgTurn, dur, (v) => v > TURN_TARGET), deps: [byCarrier], table: nameTable(byCarrier, dur, (r) => r.avgTurn, 'Average on site') },
         ],
         rows: list,
         cols: [...base, 'arrived', 'yardWait', 'leave', 'turn'],
@@ -741,7 +780,7 @@ function diveOf(id, { rows, s, days }) {
         action: (s.steps.order ?? 0) > (s.steps.dock ?? 0) ? 'Most of the wait is for the order. Stage orders before the booked slot, so trucks get a dock as they arrive.' : 'Most of the wait is for a free dock. Assign docks as soon as the order is ready, and look at the busiest hours below.',
         charts: [
           {
-            title: 'The wait, by day',
+            title: 'The wait, by day', x: 'Day', y: 'Minutes per pickup',
             note: 'Each bar is one day, split into waiting for the order and then for a free dock. Our target is 30 minutes in all.',
             legend: [[STEPS[0].label, STEPS[0].color], [STEPS[1].label, STEPS[1].color]],
             draw: (el) =>
@@ -762,7 +801,7 @@ function diveOf(id, { rows, s, days }) {
             table: { head: ['Day', { label: 'For the order', right: true }, { label: 'For a dock', right: true }], rows: days.map((d) => [dayLabel(d.day), dur(d.steps.order), dur(d.steps.dock)]) },
           },
           {
-            title: 'By hour of arrival',
+            title: 'By hour of arrival', x: 'Hour the truck arrived', y: 'Average wait for a dock (min)',
             note: `Each bar is one hour of the day. It shows how long trucks arriving then waited for a dock. Striped bars are over ${WAIT_TARGET} minutes.`,
             over: `Over ${WAIT_TARGET} minutes`,
             draw: (el) =>
@@ -798,8 +837,8 @@ function diveOf(id, { rows, s, days }) {
         ],
         action: byCarrier[0] && byCarrier[0].onTime < ON_TIME_TARGET ? `Talk to ${byCarrier[0].name}: ${pct(byCarrier[0].onTime)} of their trucks were on time.` : 'Every carrier is on target.',
         charts: [
-          { title: 'On time by carrier', note: `Out of each carrier's booked trucks, how many arrived on time. Striped bars mean fewer than ${Math.round(ON_TIME_TARGET * 10)} in 10. The worst is at the top.`, over: `Fewer than ${Math.round(ON_TIME_TARGET * 10)} in 10 on time`, draw: nameBars(byCarrier, (r) => r.onTime, pct, (v) => v < ON_TIME_TARGET), deps: [byCarrier], table: nameTable(byCarrier, pct, (r) => r.onTime, 'On time') },
-          { title: 'Late trucks by day', note: 'Each bar is one day. It shows how many booked trucks came more than 15 minutes late.', draw: dayBars(days, (d) => d.lateCount, (v) => `${Math.round(v)}`), deps: [days], table: dayTable((v) => `${v} trucks`, (d) => d.lateCount, 'Late trucks') },
+          { title: 'On time by carrier', x: 'Booked trucks on time (%)', y: 'Carrier', note: `Out of each carrier's booked trucks, how many arrived on time. Striped bars mean fewer than ${Math.round(ON_TIME_TARGET * 10)} in 10. The worst is at the top.`, over: `Fewer than ${Math.round(ON_TIME_TARGET * 10)} in 10 on time`, draw: nameBars(byCarrier, (r) => r.onTime, pct, (v) => v < ON_TIME_TARGET), deps: [byCarrier], table: nameTable(byCarrier, pct, (r) => r.onTime, 'On time') },
+          { title: 'Late trucks by day', x: 'Day', y: 'Trucks more than 15 min late', note: 'Each bar is one day. It shows how many booked trucks came more than 15 minutes late.', draw: dayBars(days, (d) => d.lateCount, (v) => `${Math.round(v)}`), deps: [days], table: dayTable((v) => `${v} trucks`, (d) => d.lateCount, 'Late trucks') },
         ],
         rows: list,
         cols: [...base, 'booked', 'arrived', 'lateBy'],
@@ -823,8 +862,8 @@ function diveOf(id, { rows, s, days }) {
         ],
         action: fixRows[0] ? `The most common fix was "${fixRows[0].name}". Check that step with the dock crew before loading.` : 'No loads were re-checked.',
         charts: [
-          { title: 'Passed first time, by day', note: `Each bar is one day. It shows the share of loads that passed without a re-check. Striped bars are under ${pct(PASS_TARGET)}.`, over: `Under ${pct(PASS_TARGET)}`, draw: dayBars(days, (d) => d.firstPass, pct, (v) => v < PASS_TARGET), deps: [days], table: dayTable(pct, (d) => d.firstPass, 'Passed first time') },
-          { title: 'What was done about it', note: 'Each bar is one fix the dock made after a failed inspection. It shows how many loads needed it. The most common is at the top.', draw: nameBars(fixRows, (r) => r.n, (v) => `${v}`), deps: [fixRows], table: nameTable(fixRows, (v) => `${v} loads`, (r) => r.n, 'Loads', 'Fix') },
+          { title: 'Passed first time, by day', x: 'Day', y: 'Loads passed first time (%)', note: `Each bar is one day. It shows the share of loads that passed without a re-check. Striped bars are under ${pct(PASS_TARGET)}.`, over: `Under ${pct(PASS_TARGET)}`, draw: dayBars(days, (d) => d.firstPass, pct, (v) => v < PASS_TARGET), deps: [days], table: dayTable(pct, (d) => d.firstPass, 'Passed first time') },
+          { title: 'What was done about it', x: 'Loads', y: 'What the dock did', note: 'Each bar is one fix the dock made after a failed inspection. It shows how many loads needed it. The most common is at the top.', draw: nameBars(fixRows, (r) => r.n, (v) => `${v}`), deps: [fixRows], table: nameTable(fixRows, (v) => `${v} loads`, (r) => r.n, 'Loads', 'Fix') },
         ],
         rows: list,
         cols: [...base, 'result', 'fix'],
@@ -843,8 +882,8 @@ function diveOf(id, { rows, s, days }) {
         ],
         action: 'Release passed loads straight away, and have the paperwork ready before inspection ends.',
         charts: [
-          { title: 'Waiting to leave, by day', note: `How long a loaded truck waited to leave after passing inspection. Striped bars are longer than our ${LEAVE_TARGET}-minute target.`, over: `Over ${LEAVE_TARGET} minutes`, draw: dayBars(days, (d) => d.leave, dur, (v) => v > LEAVE_TARGET, LEAVE_TARGET), deps: [days], table: dayTable(dur, (d) => d.leave, 'Waiting to leave') },
-          { title: 'By carrier', note: `Each bar is one carrier. It shows how long their loaded trucks waited to leave. Striped bars are over ${LEAVE_TARGET} minutes. The longest is at the top.`, over: `Over ${LEAVE_TARGET} minutes`, draw: nameBars(byCarrier, (r) => r.leave, dur, (v) => v > LEAVE_TARGET), deps: [byCarrier], table: nameTable(byCarrier, dur, (r) => r.leave, 'Waiting to leave') },
+          { title: 'Waiting to leave, by day', x: 'Day', y: 'Average wait to leave', note: `How long a loaded truck waited to leave after passing inspection. Striped bars are longer than our ${LEAVE_TARGET}-minute target.`, over: `Over ${LEAVE_TARGET} minutes`, draw: dayBars(days, (d) => d.leave, dur, (v) => v > LEAVE_TARGET, LEAVE_TARGET), deps: [days], table: dayTable(dur, (d) => d.leave, 'Waiting to leave') },
+          { title: 'By carrier', x: 'Average wait to leave', y: 'Carrier', note: `Each bar is one carrier. It shows how long their loaded trucks waited to leave. Striped bars are over ${LEAVE_TARGET} minutes. The longest is at the top.`, over: `Over ${LEAVE_TARGET} minutes`, draw: nameBars(byCarrier, (r) => r.leave, dur, (v) => v > LEAVE_TARGET), deps: [byCarrier], table: nameTable(byCarrier, dur, (r) => r.leave, 'Waiting to leave') },
         ],
         rows: list,
         cols: [...base, 'turn', 'leave'],
@@ -863,8 +902,8 @@ function diveOf(id, { rows, s, days }) {
         ],
         action: customers[0] ? `Start with ${customers[0].name}'s orders: ${pct(customers[0].staged)} were staged in time.` : 'Stage each order an hour before its slot.',
         charts: [
-          { title: 'Staged before the slot, by day', note: `Each bar is one day. It shows the share of booked orders ready before the truck's slot. Striped bars are under ${pct(STAGED_TARGET)}.`, over: `Under ${pct(STAGED_TARGET)}`, draw: dayBars(days, (d) => d.staged, pct, (v) => v < STAGED_TARGET), deps: [days], table: dayTable(pct, (d) => d.staged, 'Staged') },
-          { title: 'By customer', note: `Each bar is one customer. It shows the share of their orders staged in time. Striped bars are under ${pct(STAGED_TARGET)}. The worst is at the top.`, over: `Under ${pct(STAGED_TARGET)}`, draw: nameBars(customers, (r) => r.staged, pct, (v) => v < STAGED_TARGET), deps: [customers], table: nameTable(customers, pct, (r) => r.staged, 'Staged', 'Customer') },
+          { title: 'Staged before the slot, by day', x: 'Day', y: 'Orders staged before the slot (%)', note: `Each bar is one day. It shows the share of booked orders ready before the truck's slot. Striped bars are under ${pct(STAGED_TARGET)}.`, over: `Under ${pct(STAGED_TARGET)}`, draw: dayBars(days, (d) => d.staged, pct, (v) => v < STAGED_TARGET), deps: [days], table: dayTable(pct, (d) => d.staged, 'Staged') },
+          { title: 'By customer', x: 'Orders staged before the slot (%)', y: 'Customer', note: `Each bar is one customer. It shows the share of their orders staged in time. Striped bars are under ${pct(STAGED_TARGET)}. The worst is at the top.`, over: `Under ${pct(STAGED_TARGET)}`, draw: nameBars(customers, (r) => r.staged, pct, (v) => v < STAGED_TARGET), deps: [customers], table: nameTable(customers, pct, (r) => r.staged, 'Staged', 'Customer') },
         ],
         rows: list,
         cols: [...base, 'customer', 'booked', 'ready'],
@@ -883,8 +922,8 @@ function diveOf(id, { rows, s, days }) {
         ],
         action: byCarrier[0] ? `${byCarrier[0].name} costs the most per truck (${usd(byCarrier[0].chargePerTruck)}). Look at their trucks below.` : 'No charges.',
         charts: [
-          { title: 'Charges per truck, by day', note: 'Each bar is one day. It shows the waiting charges spread over every pickup that left that day.', draw: dayBars(days, (d) => d.chargePerTruck, usd), deps: [days], table: dayTable(usd, (d) => d.chargePerTruck, 'Per truck') },
-          { title: 'By carrier', note: 'Each bar is one carrier. It shows their waiting charges per pickup. The most costly is at the top.', draw: nameBars(byCarrier, (r) => r.chargePerTruck, usd), deps: [byCarrier], table: nameTable(byCarrier, usd, (r) => r.chargePerTruck, 'Per truck') },
+          { title: 'Charges per truck, by day', x: 'Day', y: 'Waiting charges per pickup ($)', note: 'Each bar is one day. It shows the waiting charges spread over every pickup that left that day.', draw: dayBars(days, (d) => d.chargePerTruck, usd), deps: [days], table: dayTable(usd, (d) => d.chargePerTruck, 'Per truck') },
+          { title: 'By carrier', x: 'Waiting charges per pickup ($)', y: 'Carrier', note: 'Each bar is one carrier. It shows their waiting charges per pickup. The most costly is at the top.', draw: nameBars(byCarrier, (r) => r.chargePerTruck, usd), deps: [byCarrier], table: nameTable(byCarrier, usd, (r) => r.chargePerTruck, 'Per truck') },
         ],
         rows: list,
         cols: [...base, 'turn', 'charge'],
@@ -904,8 +943,8 @@ function diveOf(id, { rows, s, days }) {
         ],
         action: 'Copy the claim list below and send it to each carrier with the dates and reasons.',
         charts: [
-          { title: 'By reason', note: "Each bar is one carrier-side reason. It shows the charges on those trucks. The biggest is at the top.", draw: nameBars(why2, (r) => r.charges, usd), deps: [why2], table: nameTable(why2, usd, (r) => r.charges, 'Charges', 'Reason') },
-          { title: 'By carrier', note: 'Each bar is one carrier. It shows the charges we can dispute with them. The biggest is at the top.', draw: nameBars(byCarrier, (r) => r.charges, usd), deps: [byCarrier], table: nameTable(byCarrier, usd, (r) => r.charges, 'Charges') },
+          { title: 'By reason', x: 'Waiting charges ($)', y: 'Carrier-side reason', note: "Each bar is one carrier-side reason. It shows the charges on those trucks. The biggest is at the top.", draw: nameBars(why2, (r) => r.charges, usd), deps: [why2], table: nameTable(why2, usd, (r) => r.charges, 'Charges', 'Reason') },
+          { title: 'By carrier', x: 'Charges we can dispute ($)', y: 'Carrier', note: 'Each bar is one carrier. It shows the charges we can dispute with them. The biggest is at the top.', draw: nameBars(byCarrier, (r) => r.charges, usd), deps: [byCarrier], table: nameTable(byCarrier, usd, (r) => r.charges, 'Charges') },
         ],
         rows: list,
         cols: [...base, 'turn', 'reason', 'charge'],
@@ -916,7 +955,7 @@ function diveOf(id, { rows, s, days }) {
   }
 }
 
-function Dive({ id, ctx, onOpen, onBack }) {
+function Dive({ id, ctx, onOpen, onBack, onReplay }) {
   const [showAll, setShowAll] = useState(false)
   const d = diveOf(id, ctx)
   const [unpicked, setUnpicked] = useState(() => new Set())
@@ -983,10 +1022,11 @@ function Dive({ id, ctx, onOpen, onBack }) {
           {d.action}
         </span>
       </p>
+      <ReplayDays days={ctx.days} onReplay={onReplay} />
       <div className="grid gap-5 lg:grid-cols-2">
         {d.charts.map((c, i) => (
           <Panel key={c.title} title={c.title} note={c.note} legend={c.legend} over={c.over} table={c.table} wide={d.charts.length === 3 && i === 0}>
-            <Chart draw={c.draw} deps={[...c.deps, id]} label={c.title} />
+            <Chart draw={c.draw} deps={[...c.deps, id]} label={c.title} x={c.x} y={c.y} />
           </Panel>
         ))}
       </div>
@@ -1018,7 +1058,8 @@ function Dive({ id, ctx, onOpen, onBack }) {
 }
 
 // ---------------------------------------------------------------- The page
-export default function MgmtOverview({ entries, sampleCount, onLoadSample, onRemoveSample }) {
+// `onReplayDay(day)`: open Shipping's 3D yard map replaying that day.
+export default function MgmtOverview({ entries, sampleCount, onLoadSample, onRemoveSample, onReplayDay }) {
   const today = dayKey(new Date())
   const [preset, setPreset] = useState(DEFAULT_PRESET)
   const [custom, setCustom] = useState({ from: shiftDate(today, -6), to: today })
@@ -1206,7 +1247,7 @@ export default function MgmtOverview({ entries, sampleCount, onLoadSample, onRem
         <OverPattern />
         {strip}
         {filterBar}
-        <Dive key={dive} id={dive} ctx={{ rows, s, days: daySeries }} onOpen={openDive} onBack={() => setDive(null)} />
+        <Dive key={dive} id={dive} ctx={{ rows, s, days: daySeries }} onOpen={openDive} onBack={() => setDive(null)} onReplay={onReplayDay} />
       </div>
     )
 
@@ -1307,19 +1348,20 @@ export default function MgmtOverview({ entries, sampleCount, onLoadSample, onRem
             over={`Over ${TURN_TARGET / 60} hours`}
             table={{ head: ['Day', { label: 'Average on site', right: true }], rows: daySeries.map((d) => [dayLabel(d.day), dur(d.avgTurn)]) }}
           >
-            <Chart draw={dayBars(daySeries, (d) => d.avgTurn, dur, (v) => v > TURN_TARGET, TURN_TARGET)} deps={[daySeries]} label="Average time on site by day" />
+            <Chart draw={dayBars(daySeries, (d) => d.avgTurn, dur, (v) => v > TURN_TARGET, TURN_TARGET)} deps={[daySeries]} label="Average time on site by day" x="Day" y="Average time on site per pickup" />
           </Panel>
           <Panel title="Trucks handled" note="Each bar is one day. It shows every truck that checked in, pickups and drop trailers." table={{ head: ['Day', { label: 'Trucks', right: true }], rows: daySeries.map((d) => [dayLabel(d.day), `${d.trucks} trucks`]) }}>
-            <Chart draw={dayBars(daySeries, (d) => d.trucks, (v) => `${Math.round(v)}`)} deps={[daySeries]} label="Trucks handled by day" />
+            <Chart draw={dayBars(daySeries, (d) => d.trucks, (v) => `${Math.round(v)}`)} deps={[daySeries]} label="Trucks handled by day" x="Day" y="Trucks checked in" />
           </Panel>
           <Panel
             title="Waiting charges"
             note={`Each bar is one day. It shows what carriers can charge us: $${DETENTION.ratePerHour} for every hour a truck stayed past its 2 free hours.`}
             table={{ head: ['Day', { label: 'Charges', right: true }], rows: daySeries.map((d) => [dayLabel(d.day), usd(d.charges)]) }}
           >
-            <Chart draw={dayBars(daySeries, (d) => d.charges, usd)} deps={[daySeries]} label="Waiting charges by day" />
+            <Chart draw={dayBars(daySeries, (d) => d.charges, usd)} deps={[daySeries]} label="Waiting charges by day" x="Day" y="Waiting charges ($)" />
           </Panel>
         </div>
+        <ReplayDays days={daySeries} onReplay={onReplayDay} />
       </section>
 
       {/* Step by step */}
@@ -1387,6 +1429,8 @@ export default function MgmtOverview({ entries, sampleCount, onLoadSample, onRem
                 draw={(el) => TT.groupBars(el, { rows: paperRows.map((r) => ({ ...r, paper: r.paper ?? 0, now: r.now ?? 0 })), key: (r) => r.name, label: String, series: [{ field: 'paper', name: 'Paper week', color: PAPER }, { field: 'now', name: 'This period', color: DIGITAL }], fmt: (v) => `${Math.round(v)} min` })}
                 deps={[paper, s]}
                 label="Minutes per truck, paper week against this period"
+                x="Part of the visit"
+                y="Minutes per truck"
               />
             </Panel>
             <Panel
@@ -1399,6 +1443,8 @@ export default function MgmtOverview({ entries, sampleCount, onLoadSample, onRem
                 draw={(el) => TT.groupBars(el, { rows: paperPct.map((r) => ({ ...r, paper: r.paper ?? 0, now: r.now ?? 0 })), key: (r) => r.name, label: String, series: [{ field: 'paper', name: 'Paper week', color: PAPER }, { field: 'now', name: 'This period', color: DIGITAL }], fmt: (v) => `${Math.round(v * 100)}%` })}
                 deps={[paper, s]}
                 label="Share of trucks, paper week against this period"
+                x="Measure"
+                y="Share of trucks (%)"
               />
             </Panel>
           </div>

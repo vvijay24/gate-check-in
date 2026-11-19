@@ -47,6 +47,67 @@ const hhmm = (d) => `${pad(d.getHours())}:${pad(d.getMinutes())}`
 const MIN = 60000
 const TECHNICIANS = ['J. Ortiz', 'M. Chen', 'A. Patel', 'D. Brooks', 'L. Nguyen']
 
+// SAMPLE: a busy afternoon for the Shipping line-up. Every open dock gets a truck (some getting ready,
+// some loading) and three more trucks wait with their order ready: two booked, one without a booking.
+// Returns only the new visits, marked `sample` so "Remove sample data" takes them away too.
+export function addBusyDocks(entries, now = Date.now()) {
+  const busy = new Set(entries.filter((e) => !e.timeOut && e.dockDoor && !e.release?.toYard).map((e) => String(e.dockDoor)))
+  const free = DOCKS.filter((d) => !busy.has(String(d)))
+  const stamp = now.toString(36)
+  let n = 0
+  const truck = (arrivedAgo, carrier, customer, extra) => {
+    const at = now - arrivedAgo * MIN
+    const arrival = new Date(at)
+    const i = ++n
+    return {
+      ...EMPTY_FORM,
+      id: `sample-busy-${stamp}-${i}`,
+      sample: true,
+      createdAt: at,
+      checkInStartedAt: at - 4 * MIN,
+      dateIn: dayKey(arrival),
+      timeIn: hhmm(arrival),
+      gateIn: GATE,
+      visitPurpose: ['Pickup'],
+      truckName: carrier,
+      trailerNumber: String(30000 + ((now / 1000 + i * 7919) % 60000 | 0)),
+      truckerNameIn: DRIVERS[i % DRIVERS.length],
+      driverPhone: `555-${300 + i}-${4100 + i * 37}`,
+      guardOnDuty: 'R. Singh',
+      reefer: 'Yes',
+      tempSet: '34',
+      tempActual: '34.2',
+      fuelIn: '3/4',
+      sealIntact: 'Yes',
+      pickupNumber: `SO-5${3100 + i}`,
+      customerPickupFor: customer,
+      orderReadyBy: 'Shipping',
+      ...extra,
+    }
+  }
+  const booked = (minsAgo) => hhmm(new Date(Math.round((now - minsAgo * MIN) / (15 * MIN)) * 15 * MIN))
+  const trailerCheck = (at) => ({ ...Object.fromEntries(TRAILER_CHECKS.map((c) => [c.name, 'Yes'])), precoolTemp: '-4', setPoint: '34', reeferRunning: 'Yes', technician: TECHNICIANS[0], inspector: 'R. Singh', result: 'Pass', issues: [], savedAt: at })
+  // At each open dock: getting ready (5 min in), loading 15 min in, or loading 40 min in.
+  const docked = free.map((d, i) => {
+    const step = i % 3
+    const assigned = now - [5, 25, 50][step] * MIN
+    const loadAt = now - [0, 15, 40][step] * MIN
+    return truck([30, 50, 75][step], CARRIERS[(i + 1) % 5], CUSTOMERS[i % CUSTOMERS.length], {
+      appointmentTime: booked([25, 45, 70][step]),
+      orderReadyAt: assigned - 6 * MIN,
+      dockDoor: d,
+      dockAssignedAt: assigned,
+      ...(step > 0 && { trailerCheck: trailerCheck(loadAt - 2 * MIN), loadStartedAt: loadAt }),
+    })
+  })
+  const waiting = [
+    truck(45, 'Syfan', 'US Foods', { appointmentTime: booked(30), orderReadyAt: now - 25 * MIN }),
+    truck(35, 'KLLM', 'Green Valley', { appointmentTime: booked(15), orderReadyAt: now - 18 * MIN }),
+    truck(20, 'Penske', 'Gold Creek', { orderReadyAt: now - 6 * MIN }),
+  ]
+  return addSampleLoadSheets([...docked, ...waiting])
+}
+
 export function makeSampleEntries(now = Date.now()) {
   const random = seeded(20261027)
   const pick = (list) => list[Math.floor(random() * list.length)]

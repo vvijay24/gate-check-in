@@ -25,6 +25,33 @@ export function loadLine(e) {
   return e.customerPickupFor ? `For ${e.customerPickupFor}${pallets ? `, ${pallets} pallets` : ''}` : ''
 }
 
+// A stable number from a string (the one schedule.js uses).
+const hash = (s) => [...String(s)].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7)
+
+// SAMPLE: the pallets the order was booked for, until bookings are imported. The load sheet's count when
+// there is one, otherwise a made-up 18-25 that stays the same for the truck. Today's schedule uses it too.
+export function bookedPallets(e) {
+  return e.loadSheet?.pallets ?? 18 + (hash(e.id) % 8)
+}
+
+// The pallets, on a line of their own: "20 pallets loaded" once the crew has counted them in the loading
+// check, "22 pallets booked" until then.
+export function palletLine(e) {
+  const loaded = Number(e.loadingInspection?.palletsLoaded)
+  if (loaded) return `${loaded} ${loaded === 1 ? 'pallet' : 'pallets'} loaded`
+  return `${bookedPallets(e)} pallets booked`
+}
+
+// What the pallets are: "Fresh: Wings, Thighs", or the customer the order is for without a load sheet.
+export function productLine(e) {
+  const s = e.loadSheet
+  if (s?.products?.length) return `${s.kind}: ${s.products.map((p) => p.name).join(', ')}`
+  return e.customerPickupFor ? `For ${e.customerPickupFor}` : ''
+}
+
+// Both, for screen readers and tooltips.
+export const loadSummary = (e) => [palletLine(e), productLine(e)].filter(Boolean).join(', ')
+
 // Box temperature minus the set point (°F), or null when the box hasn't been read yet.
 export function tempGap(e) {
   const s = e.loadSheet

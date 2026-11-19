@@ -3,7 +3,7 @@ import { flushSync } from 'react-dom'
 import * as ui from '../ui'
 import { LOG_COLUMNS, exportToExcel } from '../logColumns'
 import AssignDock, { occupiedDocks } from './AssignDock'
-import { LATE_GRACE_MIN, arrivalMs, clock12, clockTime, dayKey, departureMs, duration, minutesLate } from '../time'
+import { LATE_GRACE_MIN, arrivalMs, clock12, clockTime, dayKey, departureMs, duration, minutesLate, shiftDate } from '../time'
 import { DETENTION_ICON, DETENTION_TAG, detentionState } from '../detention'
 import { Icon } from '../icons'
 import CardHead from './CardHead'
@@ -63,6 +63,37 @@ function friendlyDate(key) {
   if (key === dayKey(yesterday)) return 'Yesterday'
   const d = new Date(`${key}T00:00`)
   return d.toLocaleDateString([], { month: 'short', day: 'numeric', ...(d.getFullYear() !== now.getFullYear() && { year: 'numeric' }) })
+}
+
+// "Day" filter: any date from the calendar, or a day back / forward with the arrows. `value` '' = every day.
+const arrowCls =
+  'grid size-11 shrink-0 cursor-pointer place-items-center rounded-[10px] border-[1.5px] border-line bg-panel text-ink transition-colors duration-150 hover:border-signal-bright disabled:cursor-not-allowed disabled:opacity-40'
+function DayFilter({ value, today, onChange }) {
+  const step = (n) => onChange(shiftDate(value || today, n))
+  return (
+    <div className="grid gap-1 text-[13px] font-semibold text-muted">
+      <label htmlFor="log-day">Day</label>
+      <div className="flex items-center gap-1">
+        <button type="button" onClick={() => step(-1)} className={arrowCls} aria-label={value ? 'The day before' : 'Yesterday'}>
+          <Icon name="chevron" size={18} className="rotate-180" />
+        </button>
+        <input
+          id="log-day"
+          type="date"
+          max={today}
+          value={value ?? ''}
+          onChange={(ev) => onChange(ev.target.value)}
+          className={
+            'min-h-11 w-[170px] cursor-pointer rounded-[10px] border-[1.5px] bg-panel px-2 text-[14px] font-semibold text-ink transition-colors ' +
+            (value ? 'border-signal' : 'border-line hover:border-signal-bright')
+          }
+        />
+        <button type="button" onClick={() => step(1)} disabled={!value || value >= today} className={arrowCls} aria-label="The day after">
+          <Icon name="chevron" size={18} />
+        </button>
+      </div>
+    </div>
+  )
 }
 
 // The six columns on screen. `options` lists the header dropdown's choices for the rows in the tab;
@@ -155,7 +186,9 @@ function printEntryLog() {
 
 // `initialFilters` (e.g. { status: 'Waiting for order' }): header filters already set when it opens.
 // `bare`: no title strip (Shipping's Records tab already names it); the tabs sit beside the search.
-export default function EntryLog({ entries, onEdit, onCheckOut, onDelete, onAssignDock, onOrderReady, initialFilters, bare = false }) {
+// `onPickDock(id)`: when given (Shipping's Records), Assign dock opens Now to pick the dock on the dock wall.
+// `onReplayDay(day)`: when given, a picked day offers a replay on the 3D yard map (last 30 days).
+export default function EntryLog({ entries, onEdit, onCheckOut, onDelete, onAssignDock, onOrderReady, onPickDock, onReplayDay, initialFilters, bare = false }) {
   const [tab, setTab] = useState('today')
   const [search, setSearch] = useState('')
   // Header dropdown choices by column id; '' = All.
@@ -192,6 +225,15 @@ export default function EntryLog({ entries, onEdit, onCheckOut, onDelete, onAssi
   const active = columns.filter((c) => filters[c.id])
   const rows = lists[tab].filter((e) => active.every((c) => c.match(e, filters[c.id], now)))
   const setFilter = (id, value) => setFilters((f) => ({ ...f, [id]: value }))
+  // A day is looked up across every visit, so Today (which hides the Date in column) moves to All.
+  const pickDay = (value) => {
+    setFilter('date', value)
+    if (value && tab === 'today') setTab('all')
+  }
+  const chooseTab = (id) => {
+    setTab(id)
+    if (id === 'today') setFilter('date', '')
+  }
   const clearAll = () => {
     setSearch('')
     setFilters({})
@@ -202,7 +244,7 @@ export default function EntryLog({ entries, onEdit, onCheckOut, onDelete, onAssi
   const narrowing = [
     TABS.find((t) => t.id === tab).label,
     q && `search “${search.trim()}”`,
-    ...active.map((c) => `${c.label}: ${c.options(lists[tab]).find((o) => o.value === filters[c.id])?.label ?? filters[c.id]}`),
+    ...active.map((c) => (c.id === 'date' ? `Day: ${friendlyDate(filters.date)}` : `${c.label}: ${c.options(lists[tab]).find((o) => o.value === filters[c.id])?.label ?? filters[c.id]}`)),
   ].filter(Boolean)
   const shown = showAll ? rows : rows.slice(0, MAX_ROWS)
   // Print covers every filtered row, so expand the table before the print dialog opens.
@@ -211,7 +253,9 @@ export default function EntryLog({ entries, onEdit, onCheckOut, onDelete, onAssi
     printEntryLog()
   }
 
-  const empty = q || active.length
+  const empty = filters.date && !q && active.length === 1
+    ? `No trucks checked in on ${friendlyDate(filters.date) === 'Today' ? 'today' : friendlyDate(filters.date)}. Pick another day, or tap Clear all.`
+    : q || active.length
     ? 'No entries match your search or filters.'
     : {
         today: 'No check-ins today and no trucks on site. Earlier days are under All.',
@@ -241,7 +285,7 @@ export default function EntryLog({ entries, onEdit, onCheckOut, onDelete, onAssi
           key={t.id}
           role="tab"
           aria-selected={tab === t.id}
-          onClick={() => setTab(t.id)}
+          onClick={() => chooseTab(t.id)}
           className={
             'min-h-11 cursor-pointer rounded-lg px-3.5 font-display text-[15px] font-bold transition-colors duration-150 ' +
             (tab === t.id ? 'bg-signal text-signal-ink shadow-card' : 'text-ink hover:bg-signal-tint')
@@ -277,8 +321,9 @@ export default function EntryLog({ entries, onEdit, onCheckOut, onDelete, onAssi
 
       {/* One row of labelled drop-downs, in place of filters inside the column headers. */}
       <div className="no-print flex flex-wrap items-end gap-3 px-5 pb-3">
+        <DayFilter value={filters.date ?? ''} today={today} onChange={pickDay} />
         {columns
-          .filter((c) => !c.noFilter)
+          .filter((c) => !c.noFilter && c.id !== 'date')
           .map((c) => (
             <label key={c.id} className="grid gap-1 text-[13px] font-semibold text-muted">
               {c.label}
@@ -308,6 +353,12 @@ export default function EntryLog({ entries, onEdit, onCheckOut, onDelete, onAssi
           </b>
           <span className="text-muted"> · {narrowing.join(' · ')}</span>
         </span>
+        {onReplayDay && filters.date && filters.date >= shiftDate(today, -29) && (
+          <button type="button" onClick={() => onReplayDay(filters.date)} className={ui.btnSmall}>
+            <Icon name="yard" size={18} />
+            Replay {friendlyDate(filters.date) === 'Today' ? 'today' : friendlyDate(filters.date)} on the yard map
+          </button>
+        )}
         {(q || active.length > 0) && (
           <button type="button" onClick={clearAll} className={ui.btnGhost}>
             <Icon name="close" size={16} />
@@ -420,7 +471,14 @@ export default function EntryLog({ entries, onEdit, onCheckOut, onDelete, onAssi
                         <span className="text-[13px] text-muted">Order not ready</span>
                       )
                     ) : (
-                      <AssignDock entry={e} occupied={occupied} onAssignDock={onAssignDock} compact />
+                      onPickDock ? (
+                        <button type="button" onClick={() => onPickDock(e.id)} className={ui.btnSmall} aria-label={`Assign a dock to trailer ${e.trailerNumber} on Now`}>
+                          <Icon name="dock" size={18} />
+                          Assign dock
+                        </button>
+                      ) : (
+                        <AssignDock entry={e} occupied={occupied} onAssignDock={onAssignDock} compact />
+                      )
                     )}
                   </td>
                   <td className="no-print whitespace-nowrap px-3 py-3">

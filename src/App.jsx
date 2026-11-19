@@ -11,7 +11,7 @@ import Messages from './components/Messages'
 // The management Overview; the older truck turnaround overview stays in components/Overview.jsx.
 import Overview from './components/MgmtOverview'
 import Analytics from './components/Analytics'
-import { makeSampleEntries } from './sampleData'
+import { addBusyDocks, makeSampleEntries } from './sampleData'
 import { makeSampleSchedule } from './schedule'
 import { freshCheckIn } from './gateForm'
 import { GateBar, InPicker, OutPicker, PanelBack, notBookedStart } from './components/gate/GateHome'
@@ -203,6 +203,13 @@ export default function App() {
   }
   const handleEdit = (entry) => openGate('in', entry)
   // "Open in Insights" from Shipping: Insights reads its section from the address when it opens.
+  // Overview → "Replay on the yard map": Shipping's Yard map, replaying that day.
+  const [replayRequest, setReplayRequest] = useState(null)
+  const openReplay = (day) => {
+    setReplayRequest({ day, key: Date.now() })
+    setTab('shipping')
+    window.scrollTo({ top: 0 })
+  }
   const openInsights = (section) => {
     try {
       window.history.replaceState(null, '', `${window.location.pathname}?tab=insights&s=${section}`)
@@ -321,6 +328,12 @@ export default function App() {
     const samples = makeSampleEntries()
     setEntries((list) => [...samples, ...list.filter((e) => !e.sample)].sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0)))
     setNotice(`Loaded ${samples.length} sample visits from the last month`)
+  }
+  // SAMPLE: every dock busy and a few trucks waiting for one, to show Shipping's line-up.
+  const handleFillDocks = () => {
+    const extra = addBusyDocks(entries)
+    setEntries((list) => [...extra, ...list].sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0)))
+    setNotice(`Added ${extra.length} sample trucks: every dock is busy and some are waiting`)
   }
   const handleRemoveSample = () => {
     setEntries((list) => list.filter((e) => !e.sample))
@@ -489,6 +502,7 @@ export default function App() {
           <div role="tabpanel" id="panel-analytics" aria-labelledby="tab-analytics">
             <Overview
               entries={entries}
+              onReplayDay={openReplay}
               sampleCount={sampleCount}
               onLoadSample={handleLoadSample}
               onRemoveSample={handleRemoveSample}
@@ -512,6 +526,9 @@ export default function App() {
               onOrderReady={handleOrderReady}
               onDelayReason={handleDelayReason}
               onNotice={setNotice}
+              onFillDocks={handleFillDocks}
+              replayRequest={replayRequest}
+              onReplayHandled={() => setReplayRequest(null)}
               schedule={schedule}
               onEdit={handleEdit}
               onUpdateEntry={handleShippingEdit}
