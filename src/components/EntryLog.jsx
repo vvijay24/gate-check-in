@@ -71,7 +71,9 @@ const COLUMNS = [
   {
     id: 'order',
     label: 'Order no.',
-    minWidth: 140,
+    minWidth: 150,
+    // Searched, not filtered: the drop-downs above the table cover the other columns.
+    noFilter: true,
     options: () => [
       { value: 'with', label: 'With order no' },
       { value: 'none', label: 'No order no' },
@@ -94,7 +96,7 @@ const COLUMNS = [
   // From the old Outbound shipments table: the appointment against the arrival, and time on site.
   {
     id: 'appt',
-    label: 'Appointment / Arrived',
+    label: 'Booked / arrived',
     // On time / late, then the hour it arrived (what the Time In column used to filter by).
     options: (rows) => [
       { value: 'ontime', label: 'On time' },
@@ -152,7 +154,8 @@ function printEntryLog() {
 }
 
 // `initialFilters` (e.g. { status: 'Waiting for order' }): header filters already set when it opens.
-export default function EntryLog({ entries, onEdit, onCheckOut, onDelete, onAssignDock, onOrderReady, initialFilters }) {
+// `bare`: no title strip (Shipping's Records tab already names it); the tabs sit beside the search.
+export default function EntryLog({ entries, onEdit, onCheckOut, onDelete, onAssignDock, onOrderReady, initialFilters, bare = false }) {
   const [tab, setTab] = useState('today')
   const [search, setSearch] = useState('')
   // Header dropdown choices by column id; '' = All.
@@ -183,8 +186,10 @@ export default function EntryLog({ entries, onEdit, onCheckOut, onDelete, onAssi
   const q = search.trim().toLowerCase()
   const matches = q ? entries.filter((e) => LOG_COLUMNS.some((c) => String(c.get(e) ?? '').toLowerCase().includes(q))) : entries
   const lists = tabLists(matches)
-  // Header dropdowns narrow the selected tab further.
-  const active = COLUMNS.filter((c) => filters[c.id])
+  // The Date in column is hidden on Today (every row is today's, or still here from earlier).
+  const columns = COLUMNS.filter((c) => !(tab === 'today' && c.id === 'date'))
+  // The drop-downs above the table narrow the selected tab further.
+  const active = columns.filter((c) => filters[c.id])
   const rows = lists[tab].filter((e) => active.every((c) => c.match(e, filters[c.id], now)))
   const setFilter = (id, value) => setFilters((f) => ({ ...f, [id]: value }))
   const clearAll = () => {
@@ -229,39 +234,71 @@ export default function EntryLog({ entries, onEdit, onCheckOut, onDelete, onAssi
     }
   }
 
+  const tabs = (
+    <div role="tablist" aria-label="Entry log filter" className="no-print flex flex-wrap gap-1 rounded-xl border border-hair bg-panel p-1">
+      {TABS.map((t) => (
+        <button
+          key={t.id}
+          role="tab"
+          aria-selected={tab === t.id}
+          onClick={() => setTab(t.id)}
+          className={
+            'min-h-11 cursor-pointer rounded-lg px-3.5 font-display text-[15px] font-bold transition-colors duration-150 ' +
+            (tab === t.id ? 'bg-signal text-signal-ink shadow-card' : 'text-ink hover:bg-signal-tint')
+          }
+        >
+          {t.label} <span className="font-semibold opacity-70">({lists[t.id].length})</span>
+        </button>
+      ))}
+    </div>
+  )
   return (
     <section id="entry-log" className="rounded-2xl border border-hair bg-panel shadow-card">
-      <CardHead icon="log" title="Entry Log" sub="Every check-in, newest first">
-        <div role="tablist" aria-label="Entry Log filter" className="no-print flex flex-wrap gap-1 rounded-xl border border-hair bg-panel p-1">
-          {TABS.map((t) => (
-            <button
-              key={t.id}
-              role="tab"
-              aria-selected={tab === t.id}
-              onClick={() => setTab(t.id)}
-              className={
-                'min-h-11 cursor-pointer rounded-lg px-3.5 font-display text-[15px] font-bold transition-colors duration-150 ' +
-                (tab === t.id ? 'bg-signal text-signal-ink shadow-card' : 'text-ink hover:bg-signal-tint')
-              }
-            >
-              {t.label} <span className="font-semibold opacity-70">({lists[t.id].length})</span>
-            </button>
-          ))}
-        </div>
-      </CardHead>
+      {!bare && (
+        <CardHead icon="log" title="Entry log" sub="Every check-in, newest first">
+          {tabs}
+        </CardHead>
+      )}
 
       <div className="no-print flex flex-wrap items-center gap-3 px-5 pt-4 pb-3">
+        {bare && tabs}
         <label htmlFor="entry-search" className="sr-only">
-          Search the Entry Log
+          Search the entry log
         </label>
         <input
           id="entry-search"
           type="search"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search order no, customer, trailer, truck, trucker, seal, dock, guard…"
-          className={ui.input + ' min-w-0 flex-1'}
+          placeholder="Search order no., customer, trailer, carrier, driver, seal, dock or guard"
+          className={ui.input.replace('min-h-[52px]', 'min-h-12').replace('text-[17px]', 'text-[16px]') + ' min-w-[240px] flex-1'}
         />
+      </div>
+
+      {/* One row of labelled drop-downs, in place of filters inside the column headers. */}
+      <div className="no-print flex flex-wrap items-end gap-3 px-5 pb-3">
+        {columns
+          .filter((c) => !c.noFilter)
+          .map((c) => (
+            <label key={c.id} className="grid gap-1 text-[13px] font-semibold text-muted">
+              {c.label}
+              <select
+                value={filters[c.id] ?? ''}
+                onChange={(ev) => setFilter(c.id, ev.target.value)}
+                className={
+                  'min-h-11 w-[170px] cursor-pointer rounded-[10px] border-[1.5px] bg-panel px-2 text-[14px] font-semibold text-ink transition-colors ' +
+                  (filters[c.id] ? 'border-signal' : 'border-line hover:border-signal-bright')
+                }
+              >
+                <option value="">All</option>
+                {c.options(lists[tab]).map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ))}
       </div>
 
       <div className="no-print flex flex-wrap items-baseline gap-x-3 gap-y-1 px-5 pb-3 text-[14px]" aria-live="polite">
@@ -280,38 +317,24 @@ export default function EntryLog({ entries, onEdit, onCheckOut, onDelete, onAssi
       </div>
 
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[1040px] border-collapse text-left text-[14px]">
-          <thead className="bg-field text-[13px] font-semibold text-muted">
-            <tr className="border-y border-hair">
-              {COLUMNS.map((c) => (
-                <th key={c.id} className="px-3 py-2.5 align-top" style={c.minWidth ? { minWidth: c.minWidth } : undefined}>
-                  <span className="block">{c.label}</span>
-                  <select
-                    aria-label={`Filter by ${c.label}`}
-                    value={filters[c.id] ?? ''}
-                    onChange={(ev) => setFilter(c.id, ev.target.value)}
-                    className={
-                      'no-print mt-1 w-full max-w-[170px] cursor-pointer rounded-lg border-[1.5px] bg-panel px-1.5 py-1 text-[13px] font-normal text-ink transition-colors ' +
-                      (filters[c.id] ? 'border-signal' : 'border-line hover:border-signal-bright')
-                    }
-                  >
-                    <option value="">All</option>
-                    {c.options(lists[tab]).map((o) => (
-                      <option key={o.value} value={o.value}>
-                        {o.label}
-                      </option>
-                    ))}
-                  </select>
+        <table className="w-full min-w-[900px] border-collapse text-left text-[14px]">
+          <thead>
+            <tr>
+              {columns.map((c) => (
+                <th key={c.id} className={ui.th + ' px-3'} style={c.minWidth ? { minWidth: c.minWidth } : undefined}>
+                  {c.label}
                 </th>
               ))}
-              <th className="no-print px-3 py-2.5 align-top">Dock</th>
-              <th className="no-print px-3 py-2.5 align-top">Options</th>
+              <th className={ui.th + ' no-print px-3'}>Dock</th>
+              <th className={ui.th + ' no-print px-3'}>
+                <span className="sr-only">More actions</span>
+              </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-hair">
             {rows.length === 0 ? (
               <tr>
-                <td colSpan={8} className="px-5 py-8 text-center text-muted">
+                <td colSpan={columns.length + 2} className="px-5 py-8 text-center text-muted">
                   {empty}
                 </td>
               </tr>
@@ -329,18 +352,23 @@ export default function EntryLog({ entries, onEdit, onCheckOut, onDelete, onAssi
                   <td className="px-3 py-3">
                     <span className="font-semibold">{e.pickupNumber || <Dash />}</span>
                     {/* Which truck this is, even for deliveries and drops that have no order no. */}
-                    <span className="block text-[13px] text-muted">
+                    <span className="block text-[13px] whitespace-nowrap text-muted">
                       Trailer {e.trailerNumber || '—'}
-                      {e.truckName && ` · ${e.truckName}`}
+                      {e.truckName && `, ${e.truckName}`}
                     </span>
                   </td>
                   <td className="px-3 py-3">{e.customerPickupFor || <Dash />}</td>
-                  <td className="whitespace-nowrap px-3 py-3" title={e.dateIn}>
-                    {friendlyDate(e.dateIn) || <Dash />}
-                  </td>
+                  {tab !== 'today' && (
+                    <td className="whitespace-nowrap px-3 py-3" title={e.dateIn}>
+                      {friendlyDate(e.dateIn) || <Dash />}
+                    </td>
+                  )}
                   <td className="whitespace-nowrap px-3 py-3">
-                    {e.appointmentTime ? `Appointment ${clock12(e.appointmentTime)}` : 'No appointment'}
-                    <span className="block text-[13px] text-muted">In {e.timeIn || '—'}</span>
+                    {e.appointmentTime ? `Booked ${clock12(e.appointmentTime)}` : 'Not booked'}
+                    <span className="block text-[13px] text-muted">
+                      Arrived {clock12(e.timeIn) || '—'}
+                      {tab === 'today' && e.dateIn !== today && `, ${friendlyDate(e.dateIn).toLowerCase()}`}
+                    </span>
                     {isLate(e) && (
                       <span className="flex items-center gap-1 text-[13px] font-semibold text-danger">
                         <Icon name="warning" size={14} />
@@ -384,7 +412,7 @@ export default function EntryLog({ entries, onEdit, onCheckOut, onDelete, onAssi
                       <Dash />
                     ) : !e.orderReadyAt ? (
                       onOrderReady ? (
-                        <button type="button" onClick={() => onOrderReady(e.id)} className={ui.btnSmallPrimary}>
+                        <button type="button" onClick={() => onOrderReady(e.id)} className={ui.btnSmall}>
                           <Icon name="done" size={18} />
                           Order ready
                         </button>
@@ -396,9 +424,9 @@ export default function EntryLog({ entries, onEdit, onCheckOut, onDelete, onAssi
                     )}
                   </td>
                   <td className="no-print whitespace-nowrap px-3 py-3">
-                    {/* Always shows "Options"; picking a choice runs it and the select snaps back. */}
+                    {/* Always shows "More"; picking a choice runs it and the select snaps back. */}
                     <select
-                      aria-label={`Options for ${e.truckName} ${e.trailerNumber}`}
+                      aria-label={`More for ${e.truckName} ${e.trailerNumber}`}
                       value=""
                       onChange={(ev) => {
                         const choice = ev.target.value
@@ -406,13 +434,13 @@ export default function EntryLog({ entries, onEdit, onCheckOut, onDelete, onAssi
                         else if (choice === 'edit') onEdit(e)
                         else if (choice === 'delete' && window.confirm(`Delete entry for ${e.truckName}?`)) onDelete(e.id)
                       }}
-                      className="cursor-pointer rounded-lg border-[1.5px] border-line bg-panel px-2 py-1.5 text-[14px] font-semibold text-ink transition-colors hover:border-signal-bright"
+                      className="min-h-11 w-[92px] cursor-pointer rounded-[10px] border-[1.5px] border-line bg-panel px-2 text-[14px] font-semibold text-ink transition-colors hover:border-signal-bright"
                     >
                       <option value="" disabled>
-                        Options
+                        More
                       </option>
-                      <option value="checkout">{e.timeOut ? 'Edit Check Out' : 'Check Out'}</option>
-                      <option value="edit">Edit Check In</option>
+                      <option value="checkout">{e.timeOut ? 'Edit check out' : 'Check out'}</option>
+                      <option value="edit">Edit check in</option>
                       <option value="delete">Delete</option>
                     </select>
                   </td>

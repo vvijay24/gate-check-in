@@ -27,6 +27,8 @@ import {
   MapPin,
   Maximize2,
   MessageSquare,
+  Phone,
+  Bell,
   ListChecks,
   Package,
   Pencil,
@@ -99,6 +101,8 @@ export const ICONS = {
   report: FileText,
   calendar: CalendarDays,
   external: ExternalLink,
+  phone: Phone,
+  now: Bell,
 }
 
 export function Icon({ name, size = 20, className = '' }) {

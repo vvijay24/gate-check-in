@@ -33,7 +33,7 @@ import {
   recheckedLoad,
   visitsInDays,
 } from '../../shippingData'
-import { Card, Empty, HBars, InsightsLink, Keys, LivePill, RangeSwitch, SectionHead, Table, Td, Tile, Tiles, VBars } from './parts'
+import { Card, Empty, HBars, InsightsLink, Keys, LivePill, RangeSwitch, SectionHead, ShowTable, Table, Td, Tile, Tiles, VBars } from './parts'
 
 // The Shipping page's sections after the Live Board, one per sidebar item. Every number comes from the
 // gate entries (shippingData.js); Loading and Inspection are view only (the dock crew and the inspector
@@ -109,7 +109,7 @@ function DockSchedule({ bars, now }) {
                     className="absolute top-1 bottom-1 flex items-center overflow-hidden rounded-md px-1.5 text-[11.5px] font-semibold whitespace-nowrap text-white"
                     style={{ left: x(b.from), width: w(b.from, b.to), background: b.stage === 'done' ? 'var(--color-chart-live)' : STAGE_COLOR[b.stage] }}
                   >
-                    {b.e.trailerNumber}
+                    {b.to - b.from >= 60 * MIN ? b.e.trailerNumber : ''}
                   </span>
                 ))}
               <span className="absolute -top-1 -bottom-1 w-0.5 rounded bg-danger" style={{ left: x(now) }} aria-hidden="true" />
@@ -134,6 +134,14 @@ function DockSchedule({ bars, now }) {
           ['Now', 'var(--color-danger)'],
         ]}
       />
+      <p className="mt-2 text-[13px] text-muted">
+        Each row is one dock and each bar one truck there, from dock assigned to leaving it. The colour says where a truck at the dock is now. The red line is now.
+      </p>
+      <ShowTable
+        className="mt-1"
+        head={['Dock', 'Trailer', 'Carrier', 'From', 'To']}
+        rows={[...bars].sort((a, b) => dockKey(a.dock).localeCompare(dockKey(b.dock)) || a.from - b.from).map((b) => [`Dock ${b.dock}`, b.e.trailerNumber, b.e.truckName, clockTime(b.from), b.stage === 'done' ? clockTime(b.to) : 'Still there'])}
+      />
     </div>
   )
 }
@@ -147,21 +155,24 @@ export function DocksSection({ entries, now, head = true }) {
   return (
     <div className="grid grid-cols-[minmax(0,1fr)] gap-6">
       {head && (
-      <SectionHead title="Docks" sub="The day's dock schedule and how busy each dock has been. The docks right now are on the Live Board.">
+      <SectionHead title="Docks" sub="The day's dock schedule and how busy each dock has been.">
         <LivePill />
       </SectionHead>
       )}
-      <Card icon="calendar" title="Dock schedule today" sub="One bar per truck at a dock; the red line is now. Hover a bar for its times.">
+      <Card icon="calendar" title="Dock schedule today" sub="One bar per truck at a dock. Hover a bar for its times.">
         {bars.length ? <DockSchedule bars={bars} now={now} /> : <Empty>No trucks at a dock yet today.</Empty>}
       </Card>
       <div className="grid gap-6 xl:grid-cols-2">
         <Card icon="dock" title="How busy each dock was" sub="Share of today so far with a truck at the dock">
           <div className="p-5">
             <HBars labelWidth={70} max={1} rows={[...m.doors].sort((a, b) => (b.utilization ?? 0) - (a.utilization ?? 0)).map((d) => ({ label: `Dock ${d.door}`, value: d.utilization ?? 0, text: pct(d.utilization) }))} />
-            <p className="mt-3 text-[13px] text-muted">All docks together: {pct(m.dockUtilization)} busy today · {free.length} free now.</p>
+            <p className="mt-3 text-[13px] text-muted">
+              Each bar is one dock. It shows the share of today so far that a truck was at it. The busiest dock is at the top. All docks together: {pct(m.dockUtilization)} busy, {free.length} free now.
+            </p>
+            <ShowTable className="mt-1" head={['Dock', { label: 'Busy', right: true }, { label: 'Loads', right: true }]} rows={m.doors.map((d) => [`Dock ${d.door}`, pct(d.utilization), `${d.loads} loads`])} />
           </div>
         </Card>
-        <Card icon="time" title="Time at each dock" sub="Today · time at the dock is from dock assigned to leaving it">
+        <Card icon="time" title="Time at each dock" sub="Today. Time at the dock runs from dock assigned to leaving it.">
           <Table head={['Dock', { label: 'Loads', right: true }, { label: 'Avg at the dock', right: true }, { label: 'Avg wait for it', right: true }]} minWidth={420}>
             {m.doors.map((d) => (
               <tr key={d.door} className={ui.tr}>
@@ -191,7 +202,7 @@ function DockCard({ e, now, color }) {
     <article className="relative grid gap-2 rounded-2xl border border-hair bg-field py-3.5 pr-4 pl-5">
       <span className="absolute inset-y-3.5 left-0 w-1 rounded-r" style={{ background: color }} aria-hidden="true" />
       <div className="flex items-center justify-between gap-2">
-        <span className="text-[13px] font-bold tracking-[0.06em] text-muted uppercase">Dock {e.dockDoor}</span>
+        <span className="text-[14px] font-bold text-muted">Dock {e.dockDoor}</span>
         <span className={ui.tag + ' ' + PHASE_TAG[phase]}>{PHASE_WORD[phase]}</span>
       </div>
       <div className="min-w-0">
@@ -265,7 +276,7 @@ export function LoadingSection({ entries, now, head = true }) {
         )}
       </Card>
       <div className="grid gap-6 2xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
-        <Card icon="chart" title="Loading time, today's trucks" sub={`Minutes from Loading started to finished · green band = ${STAGES.load.min}–${STAGES.load.max} min target`}>
+        <Card icon="chart" title="Loading time, today's trucks" sub={`From Loading started to finished. The green band is the ${STAGES.load.min}–${STAGES.load.max} minute target.`}>
           <div className="p-5">
             {loaded.length ? (
               <VBars
@@ -281,6 +292,12 @@ export function LoadingSection({ entries, now, head = true }) {
               />
             ) : (
               <p className="text-muted">No loads finished yet today.</p>
+            )}
+            {loaded.length > 0 && (
+              <>
+                <p className="mt-3 text-[13px] text-muted">Each bar is one truck loaded today, in order. It shows how long loading took. Red is over the {STAGES.load.max}-minute limit.</p>
+                <ShowTable head={['Trailer', 'Dock', { label: 'Loading took', right: true }]} rows={loaded.slice(-14).map((e) => [e.trailerNumber, `Dock ${e.dockDoor}`, duration(loadMs(e))])} />
+              </>
             )}
           </div>
         </Card>
@@ -313,9 +330,13 @@ export function InspectionSection({ entries, now, head = true }) {
   const toInspect = after.filter((e) => phaseOf(e) === 'inspect')
   const failed = after.filter((e) => phaseOf(e) === 'failed')
   const unreleased = after.filter(awaitingRelease)
+  // Failed loads first, then passed after a re-check, then plain passes; newest first in each.
+  const group = (e) => (e.loadingInspection.result !== 'Pass' ? 0 : e.loadingInspection.correctiveAction ? 1 : 2)
   const inspectedToday = entries
     .filter((e) => inspectionSavedAt(e) && dayKey(new Date(inspectionSavedAt(e))) === today)
-    .sort((a, b) => inspectionSavedAt(b) - inspectionSavedAt(a))
+    .sort((a, b) => group(a) - group(b) || inspectionSavedAt(b) - inspectionSavedAt(a))
+  const temps = (e) => [e.loadingInspection.tempFront, e.loadingInspection.tempMiddle, e.loadingInspection.tempRear].filter((t) => t !== undefined && t !== '')
+  const anyTemps = inspectedToday.some((e) => temps(e).length)
   const firstTime = inspectedToday.filter(passedFirstTime).length
   const week = visitsInDays(entries, 7, now)
   const fixes = new Map()
@@ -350,25 +371,29 @@ export function InspectionSection({ entries, now, head = true }) {
         )}
       </Card>
       <div className="grid gap-6 2xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
-        <Card icon="log" title="Inspections today" sub="Newest first · product temperatures front / middle / rear">
+        <Card icon="log" title="Inspections today" sub="Failed and re-checked loads are at the top, then the newest.">
           {inspectedToday.length ? (
-            <Table head={['Time', 'Trailer', 'Customer', 'Result', { label: 'Product °F', right: true }, 'Seal', { label: 'Took', right: true }, 'Inspector']} minWidth={760}>
+            <Table
+              head={['Time', 'Trailer', 'Customer', 'Result', ...(anyTemps ? [{ label: 'Product °F', right: true }] : []), 'Seal', { label: 'Took', right: true }, 'Inspector']}
+              minWidth={anyTemps ? 760 : 680}
+            >
               {inspectedToday.slice(0, 12).map((e) => {
                 const i = e.loadingInspection
-                const temps = [i.tempFront, i.tempMiddle, i.tempRear].filter((t) => t !== undefined && t !== '')
                 return (
                   <tr key={e.id} className={ui.tr}>
-                    <Td className="tabular-nums">{clockTime(inspectionSavedAt(e))}</Td>
+                    <Td className="whitespace-nowrap tabular-nums">{clockTime(inspectionSavedAt(e))}</Td>
                     <Td strong>{e.trailerNumber}</Td>
                     <Td>{e.customerPickupFor || <Dash />}</Td>
-                    <Td>
-                      {i.result === 'Pass' ? (
-                        <span className={ui.tag + ' bg-ok-soft text-ok'}>{i.correctiveAction ? 'Pass after re-check' : 'Pass'}{inYard(e) ? ' · to yard' : ''}</span>
+                    <Td className="whitespace-nowrap">
+                      {i.result !== 'Pass' ? (
+                        <span className={ui.tag + ' bg-danger-soft text-danger'}>Failed</span>
+                      ) : i.correctiveAction ? (
+                        <span className={ui.tag + ' bg-warn text-warn-ink'}>Passed after a re-check</span>
                       ) : (
-                        <span className={ui.tag + ' bg-danger-soft text-danger'}>Fail</span>
+                        <span className="text-[14px] font-semibold text-ok">{inYard(e) ? 'Passed, to the yard' : 'Passed'}</span>
                       )}
                     </Td>
-                    <Td right>{temps.length ? temps.join(' / ') : <Dash />}</Td>
+                    {anyTemps && <Td right>{temps(e).length ? temps(e).map((t) => `${t}°F`).join(', ') : <Dash />}</Td>}
                     <Td>{i.sealApplied || <Dash />}</Td>
                     <Td right>{mins(inspectMs(e))}</Td>
                     <Td>{i.inspector || <Dash />}</Td>
@@ -380,9 +405,17 @@ export function InspectionSection({ entries, now, head = true }) {
             <Empty>No inspections yet today.</Empty>
           )}
         </Card>
-        <Card icon="warning" title="Failed loads, last 7 days" sub={`${week.filter(recheckedLoad).length} of ${week.filter((e) => e.loadingInspection).length} inspections · what was done about them`}>
+        <Card icon="warning" title="Failed loads, last 7 days" sub={`${week.filter(recheckedLoad).length} of ${week.filter((e) => e.loadingInspection).length} inspections, and what was done about them`}>
           <div className="p-5">
-            {fixes.size ? <HBars labelWidth={190} color="var(--color-danger)" rows={[...fixes].sort((a, b) => b[1] - a[1]).map(([label, value]) => ({ label, value }))} /> : <p className="text-muted">No failed loads in the last 7 days.</p>}
+            {fixes.size ? (
+              <>
+                <HBars labelWidth={190} rows={[...fixes].sort((a, b) => b[1] - a[1]).map(([label, value]) => ({ label, value, text: `${value} load${value === 1 ? '' : 's'}` }))} />
+                <p className="mt-3 text-[13px] text-muted">Each bar is one fix the dock made after a failed load inspection. It shows how many loads needed it. The most common is at the top.</p>
+                <ShowTable head={['What was done', { label: 'Loads', right: true }]} rows={[...fixes].sort((a, b) => b[1] - a[1]).map(([label, value]) => [label, `${value} loads`])} />
+              </>
+            ) : (
+              <p className="text-muted">No failed loads in the last 7 days.</p>
+            )}
           </div>
         </Card>
       </div>
@@ -391,15 +424,15 @@ export function InspectionSection({ entries, now, head = true }) {
 }
 
 // ---------------------------------------------------------------- Drop trailers
-export function DropsSection({ entries, now, onView, compact = false }) {
+export function DropsSection({ entries, now, onView, compact = false, head = true }) {
   const drops = entries.filter((e) => !e.timeOut && isDrop(e)).sort((a, b) => arrivalMs(a) - arrivalMs(b))
   const loaded = drops.filter(inYard)
   const empty = drops.filter((e) => !inYard(e))
   const stale = drops.filter((e) => now - arrivalMs(e) > STALE_WARN_H * 3600000)
   const state = (e) =>
-    inYard(e) ? ['Loaded · waiting for a driver', 'bg-ok-soft text-ok'] : e.dockDoor ? [`At Dock ${e.dockDoor}`, 'bg-signal-soft text-signal'] : e.orderReadyAt ? ['Empty · ready for a dock', 'bg-warn text-warn-ink'] : ['Empty · waiting for order', 'bg-warn text-warn-ink']
+    inYard(e) ? ['Loaded, waiting for a driver', 'bg-ok-soft text-ok'] : e.dockDoor ? [`At Dock ${e.dockDoor}`, 'bg-signal-soft text-signal'] : e.orderReadyAt ? ['Empty, ready for a dock', 'bg-warn text-warn-ink'] : ['Empty, waiting for the order', 'bg-warn text-warn-ink']
   const table = (
-      <Card icon="drop" title={compact ? 'Drop trailers in the yard' : 'Trailers in the yard'} sub={compact ? `${empty.length} empty · ${loaded.length} loaded, waiting for a driver${stale.length ? ` · ${stale.length} over ${STALE_WARN_H} h` : ''} · longest here first` : 'Longest here first · tap a trailer # for its entry'}>
+      <Card icon="drop" title={compact ? 'Drop trailers in the yard' : 'Trailers in the yard'} sub={compact ? `${empty.length} empty, ${loaded.length} loaded and waiting for a driver${stale.length ? `, ${stale.length} over ${STALE_WARN_H} hours` : ''}. Longest here first.` : 'Longest here first. Tap a trailer for its entry.'}>
       {drops.length ? (
         <Table head={['Trailer', 'Carrier', 'Order', 'State', 'Spot', 'Dropped', { label: 'On site', right: true }, 'Reefer']} minWidth={860}>
           {drops.map((e) => {
@@ -413,7 +446,7 @@ export function DropsSection({ entries, now, onView, compact = false }) {
                   </button>
                 </Td>
                 <Td>{e.truckName}</Td>
-                <Td>{[e.pickupNumber, e.customerPickupFor].filter(Boolean).join(' · ') || <Dash />}</Td>
+                <Td>{[e.pickupNumber, e.customerPickupFor].filter(Boolean).join(', ') || <Dash />}</Td>
                 <Td>
                   <span className={ui.tag + ' ' + cls}>{word}</span>
                 </Td>
@@ -424,7 +457,7 @@ export function DropsSection({ entries, now, onView, compact = false }) {
                 <Td right className={age > STALE_HIGH_H * 3600000 ? 'font-semibold text-danger' : age > STALE_WARN_H * 3600000 ? 'font-semibold text-warn-ink' : ''}>
                   {duration(age)}
                 </Td>
-                <Td>{e.reefer === 'Yes' ? `${e.tempSet || '?'} °F · fuel ${e.fuelIn || '?'}` : 'Dry van'}</Td>
+                <Td className="whitespace-nowrap">{e.reefer === 'Yes' ? `${e.tempSet || '?'}°F, fuel ${e.fuelIn || '?'}` : 'Dry van'}</Td>
               </tr>
             )
           })}
@@ -437,14 +470,16 @@ export function DropsSection({ entries, now, onView, compact = false }) {
   if (compact) return table
   return (
     <div className="grid grid-cols-[minmax(0,1fr)] gap-6">
-      <SectionHead title="Drop trailers" sub={`Trailers left without a driver: empty ones waiting to be loaded, and loaded ones parked for a driver to hook. Flagged after ${STALE_WARN_H} h in the yard.`}>
-        <LivePill />
-      </SectionHead>
+      {head && (
+        <SectionHead title="Drop trailers" sub={`Trailers left without a driver: empty ones waiting to be loaded, and loaded ones parked for a driver to hook. Flagged after ${STALE_WARN_H} hours in the yard.`}>
+          <LivePill />
+        </SectionHead>
+      )}
       <Tiles>
-        <Tile icon="drop" label="Drop trailers on site" value={drops.length} note={`${empty.length} empty · ${loaded.length} loaded`} />
-        <Tile icon="waiting" label="Not loaded yet" value={empty.length} note={empty.length ? `${empty.filter((e) => e.orderReadyAt).length} with the order ready` : 'none'} tone={empty.length ? 'warn' : undefined} />
-        <Tile icon="done" label="Loaded, waiting for a hook" value={loaded.length} note={loaded.length ? `spots ${loaded.map((e) => e.release.spot).filter(Boolean).join(', ') || '—'}` : 'none'} tone={loaded.length ? 'good' : undefined} />
-        <Tile icon="warning" label={`Older than ${STALE_WARN_H} h`} value={stale.length} note={stale.length ? stale.map((e) => e.trailerNumber).join(', ') : 'none stale'} tone={stale.length ? 'bad' : 'good'} />
+        <Tile icon="drop" label="Drop trailers on site" value={`${drops.length} trailers`} note={`${empty.length} empty, ${loaded.length} loaded`} />
+        <Tile icon="waiting" label="Not loaded yet" value={`${empty.length} trailers`} note={empty.length ? `${empty.filter((e) => e.orderReadyAt).length} with the order ready` : 'None'} tone={empty.length ? 'warn' : undefined} />
+        <Tile icon="done" label="Loaded, waiting for a driver" value={`${loaded.length} trailers`} note={loaded.length ? `Spots ${loaded.map((e) => e.release.spot).filter(Boolean).join(', ') || '—'}` : 'None'} />
+        <Tile icon="warning" label={`Older than ${STALE_WARN_H} hours`} value={`${stale.length} trailers`} note={stale.length ? stale.map((e) => e.trailerNumber).join(', ') : 'None'} tone={stale.length ? 'bad' : undefined} />
       </Tiles>
       {table}
     </div>
@@ -652,7 +687,7 @@ function printReport() {
   window.print()
 }
 
-export function ReportSection({ entries, now }) {
+export function ReportSection({ entries, now, head = true }) {
   const today = dayKey(new Date(now))
   const [day, setDay] = useState(today)
   const [pdfHint, setPdfHint] = useState(false)
@@ -670,14 +705,14 @@ export function ReportSection({ entries, now }) {
         `${r.shipped.length} truck${r.shipped.length === 1 ? '' : 's'} left (${r.pickups} pickup${r.pickups === 1 ? '' : 's'}, ${r.drops} drop trailer${r.drops === 1 ? '' : 's'}); ${r.visits.length} checked in.`,
         r.avgOrderWaitMs != null ? `Orders took ${duration(r.avgOrderWaitMs)} on average to be ready. ${r.lateOrders} took over ${ORDER_WAIT_MAX} minutes.` : '',
         r.inspected ? `${r.firstTime} of ${r.inspected} loads passed inspection the first time.` : '',
-        r.fee ? `Estimated detention ${usd(r.fee)}.` : 'No detention.',
+        r.fee ? `Waiting charges about ${usd(r.fee)}.` : 'No waiting charges.',
       ]
         .filter(Boolean)
         .join(' ')
     : 'No trucks checked in this day.'
   return (
     <div className="grid grid-cols-[minmax(0,1fr)] gap-6">
-      <SectionHead title="Daily report" sub="One page per day for the shift lead or the plant manager, built from the day's records. Pick a day, then print it or save it as a PDF.">
+      <SectionHead title={head ? 'Daily report' : ''} sub="One page per day for the shift lead or the plant manager, built from the day's records. Pick a day, then print it or save it as a PDF.">
         <label className="flex items-center gap-2 text-[14px] font-semibold">
           <span className="sr-only">Day</span>
           <select value={day} onChange={(ev) => setDay(ev.target.value)} className="min-h-11 cursor-pointer rounded-[10px] border-[1.5px] border-line bg-panel px-3 text-[15px] font-semibold">
@@ -719,7 +754,7 @@ export function ReportSection({ entries, now }) {
           {fig('Trucks left', r.shipped.length)}
           {fig('Avg gate to gate', dur(r.avgG2gMs))}
           {fig('Orders ready late', r.lateOrders)}
-          {fig('Est. detention', usd(r.fee))}
+          {fig('Waiting charges', usd(r.fee))}
         </div>
         <h4 className="mt-6 mb-1.5 font-display text-[16px] font-bold">Summary</h4>
         <p className="text-[14.5px] leading-relaxed">{lead}</p>
@@ -772,19 +807,22 @@ export function ReportSection({ entries, now }) {
                 <tr>
                   <th className={ui.th}>Customer</th>
                   <th className={ui.th + ui.num}>Orders</th>
-                  <th className={ui.th + ui.num}>Wait for order</th>
+                  <th className={ui.th + ui.num}>Average wait for the order</th>
                 </tr>
               </thead>
               <tbody>
                 {r.customers.map((c) => (
                   <tr key={c.name} className={ui.tr}>
                     <td className={ui.td}>{c.name}</td>
-                    <td className={ui.td + ui.num}>{c.orders}</td>
-                    <td className={ui.td + ui.num}>{mins(c.avgOrderWaitMs)}</td>
+                    <td className={ui.td + ui.num}>
+                      {c.orders} order{c.orders === 1 ? '' : 's'}
+                    </td>
+                    <td className={ui.td + ui.num + (c.avgOrderWaitMs > ORDER_WAIT_MAX * MIN ? ' font-semibold text-danger' : '')}>{mins(c.avgOrderWaitMs)}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
+            <p className="mt-2 text-[13px] text-muted">Red means the order took longer than our {ORDER_WAIT_MAX}-minute target.</p>
           </>
         )}
       </article>
