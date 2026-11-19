@@ -51,3 +51,14 @@ export function shortDate(key) {
 }
 
 export const clockTime = (ms) => new Date(ms).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+
+// A typed "HH:MM" on the 12-hour clock: "13:30" → "1:30 PM". Blank stays blank.
+export function clock12(hhmm) {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(hhmm ?? '')
+  if (!m) return hhmm ?? ''
+  const h = Number(m[1])
+  return `${h % 12 || 12}:${m[2]} ${h < 12 ? 'AM' : 'PM'}`
+}
+
+// A date key and a typed time for read-outs: "Today, 7:12 AM", "Oct 28, 1:30 PM".
+export const dayTime = (key, hhmm) => [shortDate(key), clock12(hhmm)].filter(Boolean).join(', ')

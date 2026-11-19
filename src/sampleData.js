@@ -10,10 +10,13 @@ import { EMPTY_FORM, GATE } from './formConfig'
 import { dayKey } from './time'
 import { DOCKS } from './yard'
 import { CHECK_NAMES, LOAD_CHECKS, TRAILER_CHECKS } from './inspectionChecks'
+import { addSampleLoadSheets } from './loadSheet'
+import { addSampleReasons } from './delayReasons'
 
 const DAYS = 30
-const CARRIERS = ['KLLM', 'Brannon Golden', 'Penske', 'Syfan', 'U S Citylink', 'Pickup']
-const CUSTOMERS = ['US Foods', 'Vertical Cold', 'Decatur West', 'Green Valley', 'Gold Creek', 'Brakebush Bros','Pacific-Agri']
+// Also used by the sample booking schedule (schedule.js).
+export const CARRIERS = ['KLLM', 'Brannon Golden', 'Penske', 'Syfan', 'U S Citylink', 'Pickup']
+export const CUSTOMERS =['US Foods', 'Vertical Cold', 'Decatur West', 'Green Valley', 'Gold Creek', 'Brakebush Bros','Pacific-Agri']
 const DRIVERS = ['D. Brooks', 'L. Nguyen', 'C. Ramirez', 'T. Walker', 'A. Patel', 'K. Johnson', 'S. Miller', 'J. Lopez', 'M. Davis', 'R. Wilson']
 const FUEL = ['1/4', '1/2', '3/4', 'Full']
 // Check-ins by hour from 5 AM to 7 PM, busiest mid-morning.
@@ -43,6 +46,67 @@ const pad = (n) => String(n).padStart(2, '0')
 const hhmm = (d) => `${pad(d.getHours())}:${pad(d.getMinutes())}`
 const MIN = 60000
 const TECHNICIANS = ['J. Ortiz', 'M. Chen', 'A. Patel', 'D. Brooks', 'L. Nguyen']
+
+// SAMPLE: a busy afternoon for the Shipping line-up. Every open dock gets a truck (some getting ready,
+// some loading) and three more trucks wait with their order ready: two booked, one without a booking.
+// Returns only the new visits, marked `sample` so "Remove sample data" takes them away too.
+export function addBusyDocks(entries, now = Date.now()) {
+  const busy = new Set(entries.filter((e) => !e.timeOut && e.dockDoor && !e.release?.toYard).map((e) => String(e.dockDoor)))
+  const free = DOCKS.filter((d) => !busy.has(String(d)))
+  const stamp = now.toString(36)
+  let n = 0
+  const truck = (arrivedAgo, carrier, customer, extra) => {
+    const at = now - arrivedAgo * MIN
+    const arrival = new Date(at)
+    const i = ++n
+    return {
+      ...EMPTY_FORM,
+      id: `sample-busy-${stamp}-${i}`,
+      sample: true,
+      createdAt: at,
+      checkInStartedAt: at - 4 * MIN,
+      dateIn: dayKey(arrival),
+      timeIn: hhmm(arrival),
+      gateIn: GATE,
+      visitPurpose: ['Pickup'],
+      truckName: carrier,
+      trailerNumber: String(30000 + ((now / 1000 + i * 7919) % 60000 | 0)),
+      truckerNameIn: DRIVERS[i % DRIVERS.length],
+      driverPhone: `555-${300 + i}-${4100 + i * 37}`,
+      guardOnDuty: 'R. Singh',
+      reefer: 'Yes',
+      tempSet: '34',
+      tempActual: '34.2',
+      fuelIn: '3/4',
+      sealIntact: 'Yes',
+      pickupNumber: `SO-5${3100 + i}`,
+      customerPickupFor: customer,
+      orderReadyBy: 'Shipping',
+      ...extra,
+    }
+  }
+  const booked = (minsAgo) => hhmm(new Date(Math.round((now - minsAgo * MIN) / (15 * MIN)) * 15 * MIN))
+  const trailerCheck = (at) => ({ ...Object.fromEntries(TRAILER_CHECKS.map((c) => [c.name, 'Yes'])), precoolTemp: '-4', setPoint: '34', reeferRunning: 'Yes', technician: TECHNICIANS[0], inspector: 'R. Singh', result: 'Pass', issues: [], savedAt: at })
+  // At each open dock: getting ready (5 min in), loading 15 min in, or loading 40 min in.
+  const docked = free.map((d, i) => {
+    const step = i % 3
+    const assigned = now - [5, 25, 50][step] * MIN
+    const loadAt = now - [0, 15, 40][step] * MIN
+    return truck([30, 50, 75][step], CARRIERS[(i + 1) % 5], CUSTOMERS[i % CUSTOMERS.length], {
+      appointmentTime: booked([25, 45, 70][step]),
+      orderReadyAt: assigned - 6 * MIN,
+      dockDoor: d,
+      dockAssignedAt: assigned,
+      ...(step > 0 && { trailerCheck: trailerCheck(loadAt - 2 * MIN), loadStartedAt: loadAt }),
+    })
+  })
+  const waiting = [
+    truck(45, 'Syfan', 'US Foods', { appointmentTime: booked(30), orderReadyAt: now - 25 * MIN }),
+    truck(35, 'KLLM', 'Green Valley', { appointmentTime: booked(15), orderReadyAt: now - 18 * MIN }),
+    truck(20, 'Penske', 'Gold Creek', { orderReadyAt: now - 6 * MIN }),
+  ]
+  return addSampleLoadSheets([...docked, ...waiting])
+}
 
 export function makeSampleEntries(now = Date.now()) {
   const random = seeded(20261027)
@@ -147,7 +211,7 @@ export function makeSampleEntries(now = Date.now()) {
         const dockAt = Math.max(orderReadyAt + between(3, 14) * slowWait * MIN, doorFree[door])
         const dwell = between(50, 125) * slowDock * MIN
         // A pickup leaves through the gate; a dropped trailer is released to the yard a few minutes after
-        // it passes, which frees the dock, and is hooked by a driver hours later (now and then a day or two).
+        // it passes, which frees the dock, and is hooked by a driver a few hours later (now and then overnight).
         const pickupDepart = Math.round(dockAt + trailerDelay + dwell + recheckDelay + between(4, 12) * MIN)
         if (dockAt <= now) {
           e.dockDoor = DOCKS[door]
@@ -157,7 +221,9 @@ export function makeSampleEntries(now = Date.now()) {
         const firstInspectAt = Math.round(dockAt + trailerDelay + dwell * 0.75)
         const inspectedAt = Math.round(firstInspectAt + recheckDelay)
         const yardAt = Math.round(inspectedAt + between(4, 10) * MIN)
-        depart = drop ? yardAt + Math.round((random() < 0.06 ? between(26, 52) : between(1, 8)) * 60) * MIN : pickupDepart
+        // A driver hooks a loaded drop trailer 1-5 h after it's parked; now and then it waits overnight (8-14 h).
+        // Same number of random draws as before, so the rest of the sample doesn't change.
+        depart = drop ? yardAt + Math.round((random() < 0.06 ? between(8, 14) : between(1, 5)) * 60) * MIN : pickupDepart
         doorFree[door] = drop ? yardAt : pickupDepart
         // Loading & Inspection's "Loading started / finished": a short pre-load, then loading, then the
         // inspection (each now and then running long).
@@ -268,6 +334,10 @@ export function makeSampleEntries(now = Date.now()) {
     e.release.spot = String(spot)
     used.add(e.release.spot)
   }
+  // A load sheet on every visit (SAMPLE), and a delay reason on past visits over 2 hours. Both draw from
+  // their own seeds, so the visits above stay the same.
+  addSampleLoadSheets(entries)
+  addSampleReasons(entries)
   // Newest first, like the log.
   return entries.reverse()
 }

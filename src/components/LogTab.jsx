@@ -35,7 +35,7 @@ export default function LogTab({ entries }) {
           <thead className="bg-field text-[13px] font-semibold text-muted">
             <tr className="border-b border-hair">
               {LOG_COLUMNS.map((c) => (
-                <th key={c.header} className="whitespace-nowrap px-3.5 py-3">
+                <th key={c.header} className="whitespace-nowrap px-3.5 py-2.5">
                   {c.header}
                 </th>
               ))}

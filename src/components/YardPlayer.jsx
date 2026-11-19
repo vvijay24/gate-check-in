@@ -6,7 +6,8 @@ import YardMap from './YardMap'
 // The full-size 3D yard map with a player: Live by default (updates as the gate and docks record each
 // step), Pause freezes it at that moment, and Replay plays back any of the last 30 days. Dragging the
 // time slider jumps to that moment of the day (and switches to Replay); Back to live returns to now.
-// Taps that open work (View entry, Check out, Inspect) only act on the live map.
+// Taps that open work (View entry, Check out, Inspect) only act on the live map. `replay` ({ day, key }):
+// opens that day in Replay from 6 AM, e.g. from "Replay this day" on Records or the Overview.
 
 const DAY_MIN = 24 * 60
 const DAYS_BACK = 30
@@ -18,7 +19,7 @@ const SPEEDS = [
 const hourLabel = (h) => `${h % 12 || 12} ${h < 12 ? 'AM' : 'PM'}`
 const startOf = (day) => new Date(`${day}T00:00`).getTime()
 
-export default function YardPlayer({ entries, onEdit, onCheckOut, focus, onInspect }) {
+export default function YardPlayer({ entries, onEdit, onCheckOut, focus, onInspect, replay }) {
   const [now, setNow] = useState(Date.now)
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 30000)
@@ -83,6 +84,11 @@ export default function YardPlayer({ entries, onEdit, onCheckOut, focus, onInspe
     setMinute(m ?? (d === today ? Math.max(0, Math.floor((now - startOf(d)) / 60000) - 120) : 6 * 60))
     setPlaying(false)
   }
+  useEffect(() => {
+    if (replay?.day && days.includes(replay.day)) startReplay(replay.day, 6 * 60)
+    // Only when a new replay is asked for.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [replay?.key])
   const play = () => {
     if (minute >= maxMin) setMinute(0)
     setPlaying((p) => !p)
@@ -93,9 +99,9 @@ export default function YardPlayer({ entries, onEdit, onCheckOut, focus, onInspe
   const sliderValue = mode === 'replay' ? Math.round(minute) : Math.floor((Math.min(clock, now) - startOf(today)) / 60000)
 
   const seg = (on) =>
-    'min-h-9 cursor-pointer rounded-md px-3 text-[13px] font-semibold transition-colors duration-150 ' + (on ? 'bg-signal text-signal-ink' : 'text-ink hover:bg-field')
-  const btn = 'min-h-9 cursor-pointer rounded-md border border-line bg-panel px-3 text-[13px] font-semibold text-ink hover:bg-field'
-  const main = 'min-h-9 min-w-24 cursor-pointer rounded-md bg-signal px-3 text-[13px] font-semibold text-signal-ink hover:brightness-110'
+    'min-h-11 cursor-pointer rounded-md px-3 text-[13px] font-semibold transition-colors duration-150 ' + (on ? 'bg-signal text-signal-ink' : 'text-ink hover:bg-field')
+  const btn = 'min-h-11 cursor-pointer rounded-md border border-line bg-panel px-3 text-[13px] font-semibold text-ink hover:bg-field'
+  const main = 'min-h-11 min-w-24 cursor-pointer rounded-md bg-signal px-3 text-[13px] font-semibold text-signal-ink hover:brightness-110'
 
   const status = live ? (
     <span className="inline-flex items-center gap-1.5 rounded-full bg-ok-soft px-2.5 py-0.5 text-[12px] font-bold text-ok">

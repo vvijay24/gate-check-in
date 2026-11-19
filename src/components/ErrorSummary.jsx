@@ -2,14 +2,19 @@ import { Icon } from '../icons'
 
 // Lists every field that stopped the save, each a link that jumps to (and focuses) the field, which
 // has the id `field-<name>`. `labels` names the fields; `className` adds spacing where it sits.
-export default function ErrorSummary({ errors, action, summaryRef, labels = {}, className = '' }) {
+// `onJump(name)` runs first, e.g. to open the step a field is on (the Gate's one-panel Check In).
+export default function ErrorSummary({ errors, action, summaryRef, labels = {}, className = '', onJump }) {
   const names = Object.keys(errors)
   if (!names.length) return null
   const jump = (ev, name) => {
     ev.preventDefault()
-    const el = document.getElementById(`field-${name}`)
-    el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-    el?.focus({ preventScroll: true })
+    onJump?.(name)
+    // A frame later, so a step opened by onJump has rendered its field.
+    requestAnimationFrame(() => {
+      const el = document.getElementById(`field-${name}`)
+      el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      el?.focus({ preventScroll: true })
+    })
   }
   return (
     <div ref={summaryRef} tabIndex={-1} role="alert" className={'animate-pop rounded-xl border border-danger/25 bg-danger-soft px-4 py-3 ' + className}>

@@ -1,65 +1,75 @@
 import { cloneElement, useEffect, useRef, useState } from 'react'
 import { Icon } from '../icons'
 import { DOCKS } from '../yard'
+import { dayKey, shiftDate } from '../time'
+import { bookingsFromEntries } from '../schedule'
 import { atDockNow } from '../handoff'
-import { detentionState } from '../detention'
 import { phaseOf } from './Dashboard'
 import { dockKey, occupiedDocks } from './AssignDock'
-import ShippingBoard from './ShippingBoard'
 import YardPlayer from './YardPlayer'
 import EntryDialog from './EntryDialog'
-import { Card, InsightsLink, LivePill, RangeSwitch, SectionHead, SubTabs } from './shipping/parts'
-import {
-  CarriersSection,
-  CustomersSection,
-  DetentionSection,
-  DocksSection,
-  DropsSection,
-  InspectionSection,
-  LoadingSection,
-  OrdersTiles,
-  ReportSection,
-} from './shipping/sections'
+import { Card, PageTitle, SubTabs } from './shipping/parts'
+import { DocksSection, DropsSection, InspectionSection, LoadingSection, OrdersTiles, ReportSection } from './shipping/sections'
+import { NowSection, carrierOf, needsYou } from './shipping/now'
+import { lineUp, planDocks } from './shipping/lineup'
+import { ScheduleSection, scheduleSummary } from './shipping/schedule'
+import { LoadSheetsSection } from './shipping/loads'
+import { FindOrder, OrderHistory } from './shipping/history'
 
-// The Shipping tab: a sidebar of six sections and the chosen one beside it. Live Board (the work
-// board, live charts and the drop trailers in the yard) is the desk's home, with the 3D Yard map next. Docks holds
-// the dock schedule and the view-only Loading and Inspection; Partners holds Customers, Carriers and
-// Detention (Shipping's short-range view, with a link to Insights for the full one); then the Entry log
-// (with the day's order figures) and the printable Daily report.
-// Wide screens: a navy rail beside the content, pinned under the header. Narrow screens: a row of chips.
+// The Shipping tab, for the clerk at the desk. Two groups in the sidebar: Today (Now, Today's schedule,
+// Docks & loads) and Past days (Records). Each section's title is its sidebar name, with one status line
+// and a "Live" marker. Wide screens: a navy rail beside the content, pinned under the header. Narrow
+// screens: a row of chips. Partners (Carriers, Customers, Waiting charges) moves to the Overview; its
+// components stay in shipping/sections.jsx.
 
 const SECTIONS = [
-  { id: 'live', group: 'Today', label: 'Live Board', icon: 'live' },
+  { id: 'now', group: 'Today', label: 'Now', icon: 'now' },
+  { id: 'schedule', group: 'Today', label: "Today's schedule", icon: 'calendar' },
+  { id: 'docks', group: 'Today', label: 'Docks & loads', icon: 'dock' },
   { id: 'yard', group: 'Today', label: 'Yard map', icon: 'yard' },
-  { id: 'docks', group: 'Today', label: 'Docks', icon: 'dock' },
-  { id: 'partners', group: 'Performance', label: 'Partners', icon: 'customer' },
-  { id: 'log', group: 'Records', label: 'Entry log', icon: 'log' },
-  { id: 'report', group: 'Records', label: 'Daily report', icon: 'report' },
+  { id: 'records', group: 'Past days', label: 'Records', icon: 'log' },
 ]
 const GROUPS = [...new Set(SECTIONS.map((s) => s.group))]
 const KEY = 'shipping-section'
+// Sections from before this layout, so a remembered one still opens in the right place.
+const OLD = { live: 'now', docks: 'docks', partners: 'now', log: 'records', report: 'records' }
 
-// The count beside a section in the sidebar, and whether it needs action (`warn`) or is just a figure.
-function badges(entries, now) {
-  const onSite = entries.filter((e) => !e.timeOut)
-  const noDock = onSite.filter((e) => !e.dockDoor)
-  const waiting = noDock.filter((e) => !e.orderReadyAt).length
-  const ready = noDock.filter((e) => e.orderReadyAt).length
-  const atDock = onSite.filter(atDockNow)
-  const free = DOCKS.filter((d) => !occupiedDocks(entries).has(dockKey(d))).length
-  const loading = atDock.filter((e) => ['trailer', 'trailerFail', 'ready', 'loading'].includes(phaseOf(e))).length
-  const failed = atDock.filter((e) => phaseOf(e) === 'failed').length
-  const toInspect = atDock.filter((e) => phaseOf(e) === 'inspect').length
-  const over = onSite.filter((e) => detentionState(e, now)?.level === 'over').length
-  return {
-    live: waiting + ready ? { n: waiting + ready, warn: true, words: 'trucks waiting for their order or a dock' } : null,
-    // Docks: a failed load needs a re-check first; otherwise how many docks are free.
-    docks: failed ? { n: failed, warn: true, words: 'loads failed inspection' } : { n: `${free} free`, words: 'docks free' },
-    partners: over ? { n: over, bad: true, words: 'trucks past free time' } : null,
-    log: waiting ? { n: waiting, warn: true, words: 'orders not ready' } : null,
-    // Tab counts inside Docks.
-    tabs: { loading, inspection: failed + toInspect, failed },
-  }
+const DOCK_TABS = [
+  { id: 'use', label: 'Dock use', icon: 'calendar', line: "The day's dock schedule and how busy each dock was. To see the docks right now, open Now." },
+  { id: 'loading', label: 'Loading', icon: 'load', line: 'Who is loading now and how long it is taking. View only: the dock crew works on the Loading & Inspection tab.' },
+  { id: 'inspection', label: 'Inspection', icon: 'inspect', line: "Loads waiting for inspection, failed loads being fixed, and passed loads waiting for the inspector's release. View only." },
+  { id: 'loads', label: 'Load sheets', icon: 'orders', line: 'What went on each trailer, and the box temperature against its rule.' },
+  { id: 'drops', label: 'Drop trailers', icon: 'drop', line: 'Trailers left without a driver: empty ones to load, and loaded ones waiting for a driver.' },
+]
+const RECORD_TABS = [
+  { id: 'log', label: 'Entry log', icon: 'log' },
+  { id: 'report', label: 'Daily report', icon: 'report' },
+]
+
+// Kept on this device for today only: { day, items: { [key]: ms } }. Used for orders marked staged (by
+// order no.) and carriers called (by booking id).
+function useDayStore(key) {
+  const today = dayKey(new Date())
+  const [store, setStore] = useState(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(key))
+      return saved?.day === today ? saved : { day: today, items: {} }
+    } catch {
+      return { day: today, items: {} }
+    }
+  })
+  const items = store.day === today ? store.items : {}
+  const update = (fn) =>
+    setStore((s) => {
+      const next = { day: today, items: fn(s.day === today ? { ...s.items } : {}) }
+      try {
+        localStorage.setItem(key, JSON.stringify(next))
+      } catch {
+        // Still applies for this session.
+      }
+      return next
+    })
+  return [items, update]
 }
 
 function Sidebar({ section, onSelect, counts }) {
@@ -71,7 +81,7 @@ function Sidebar({ section, onSelect, counts }) {
       <ul className="-mx-1 flex gap-2 overflow-x-auto px-1 pt-0.5 pb-2 lg:mx-0 lg:block lg:overflow-visible lg:p-0">
         {GROUPS.map((g) => (
           <li key={g} className="contents lg:block">
-            <span className="hidden px-3 pt-3.5 pb-1.5 text-[11px] font-bold tracking-[0.09em] text-rail-muted uppercase lg:block">{g}</span>
+            <span className="hidden px-3 pt-3.5 pb-1.5 text-[12px] font-bold text-rail-muted lg:block">{g}</span>
             <ul className="contents lg:grid lg:gap-0.5">
               {SECTIONS.filter((s) => s.group === g).map((s) => {
                 const on = section === s.id
@@ -100,8 +110,8 @@ function Sidebar({ section, onSelect, counts }) {
                             (b.bad ? 'bg-danger text-white' : b.warn ? 'bg-warn text-warn-ink' : on ? 'bg-panel/25 text-current lg:bg-signal-bright lg:text-chrome' : 'bg-signal-soft text-signal lg:bg-white/12 lg:text-rail-text')
                           }
                         >
-                          {b.n}
-                          <span className="sr-only"> {b.words}</span>
+                          <span aria-hidden={b.words ? true : undefined}>{b.n}</span>
+                          {b.words && <span className="sr-only">{b.words}</span>}
                         </span>
                       )}
                     </button>
@@ -116,106 +126,77 @@ function Sidebar({ section, onSelect, counts }) {
   )
 }
 
-// Live Board: the work board, then the drop trailers in the yard.
-function LiveBoard({ entries, now, onAssignDock, onOrderReady, onUpdateEntry, onEdit, onCheckOut, onView, onGo }) {
+const plural = (n, one, many = one + 's') => `${n} ${n === 1 ? one : many}`
+const WEEKDAY = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+// "Thu Nov 12".
+const dayName = (key) => {
+  const d = new Date(`${key}T00:00`)
+  return `${WEEKDAY[d.getDay()]} ${d.toLocaleDateString([], { month: 'short', day: 'numeric' })}`
+}
+
+// Today's schedule for another day: ◀ Yesterday | Today | Tomorrow ▶, and a date box.
+function DayPicker({ day, today, onChange }) {
+  const seg = (on) =>
+    'inline-flex min-h-11 cursor-pointer items-center justify-center rounded-lg px-3 text-[14px] font-semibold transition-colors duration-150 ' +
+    (on ? 'bg-signal text-signal-ink shadow-card' : 'text-ink hover:bg-signal-tint')
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)] gap-6">
-      <ShippingBoard entries={entries} onAssignDock={onAssignDock} onOrderReady={onOrderReady} onUpdateEntry={onUpdateEntry} onGo={onGo} />
-      <DropsSection entries={entries} now={now} onView={onView} compact />
+    <div className="no-print flex flex-wrap items-center gap-3">
+      <div role="group" aria-label="Day to show" className="flex gap-1 rounded-xl border border-hair bg-panel p-1 shadow-card">
+        <button type="button" aria-label="Previous day" onClick={() => onChange(shiftDate(day, -1))} className={seg(false) + ' px-2.5'}>
+          <Icon name="chevron" size={18} className="rotate-180" />
+        </button>
+        {[
+          ['Yesterday', shiftDate(today, -1)],
+          ['Today', today],
+          ['Tomorrow', shiftDate(today, 1)],
+        ].map(([label, key]) => (
+          <button key={label} type="button" aria-pressed={day === key} onClick={() => onChange(key)} className={seg(day === key)}>
+            {label}
+          </button>
+        ))}
+        <button type="button" aria-label="Next day" onClick={() => onChange(shiftDate(day, 1))} className={seg(false) + ' px-2.5'}>
+          <Icon name="chevron" size={18} />
+        </button>
+      </div>
+      <label className="flex items-center gap-2 text-[14px] font-semibold text-muted">
+        Date
+        <input
+          type="date"
+          value={day}
+          onChange={(e) => e.target.value && onChange(e.target.value)}
+          className="min-h-11 cursor-pointer rounded-[10px] border-[1.5px] border-line bg-panel px-2.5 text-[14px] font-semibold text-ink hover:border-signal-bright"
+        />
+      </label>
     </div>
   )
 }
 
-const DOCK_TABS = [
-  { id: 'schedule', label: 'Schedule & use', icon: 'calendar' },
-  { id: 'loading', label: 'Loading', icon: 'load' },
-  { id: 'inspection', label: 'Inspection', icon: 'inspect' },
-]
-const DOCK_SUB = {
-  schedule: "The day's dock schedule and how busy each dock has been. The docks right now are on the Live Board.",
-  loading: 'Who is loading now and how long it is taking. View only: the dock crew works on the Loading & Inspection tab.',
-  inspection: "Loads waiting for inspection, failed loads being fixed, and passed loads waiting for the inspector's release. View only.",
-}
-
-function DocksHub({ entries, now, tab, onTab, counts }) {
-  const tabs = DOCK_TABS.map((t) => ({ ...t, badge: counts[t.id] || null, warn: t.id === 'inspection' && counts.failed > 0 }))
-  return (
-    <div className="grid grid-cols-[minmax(0,1fr)] gap-5">
-      <SectionHead title="Docks" sub={DOCK_SUB[tab]}>
-        <LivePill />
-      </SectionHead>
-      <SubTabs label="Docks views" tabs={tabs} value={tab} onChange={onTab} />
-      {tab === 'schedule' && <DocksSection entries={entries} now={now} head={false} />}
-      {tab === 'loading' && <LoadingSection entries={entries} now={now} head={false} />}
-      {tab === 'inspection' && <InspectionSection entries={entries} now={now} head={false} />}
-    </div>
-  )
-}
-
-const PARTNER_TABS = [
-  { id: 'customers', label: 'Customers', icon: 'customer', insights: 'customers' },
-  { id: 'carriers', label: 'Carriers', icon: 'truck', insights: 'carriers' },
-  { id: 'detention', label: 'Detention', icon: 'money', insights: 'turnaround' },
-]
-const PARTNER_SUB = {
-  customers: 'Who we load for: how many orders, how long their orders took to be ready, and how quickly their trucks turned.',
-  carriers: 'Who brings the trucks: on-time arrival, how long they stay, and the detention they could bill.',
-  detention: 'Trucks close to or past 2 h of free time, and what it costs. The clock starts at the later of the appointment and arrival.',
-}
-
-function PartnersHub({ entries, now, tab, onTab, onOpenInsights, over }) {
-  const [days, setDays] = useState(7)
-  const tabs = PARTNER_TABS.map((t) => ({ ...t, badge: t.id === 'detention' && over ? over : null, warn: true }))
-  const props = { entries, now, onOpenInsights, head: false }
-  return (
-    <div className="grid grid-cols-[minmax(0,1fr)] gap-5">
-      <SectionHead title="Partners" sub={PARTNER_SUB[tab]}>
-        {tab === 'detention' ? <LivePill /> : <RangeSwitch value={days} onChange={setDays} />}
-        <InsightsLink onOpen={onOpenInsights} section={PARTNER_TABS.find((t) => t.id === tab).insights} />
-      </SectionHead>
-      <SubTabs label="Partners views" tabs={tabs} value={tab} onChange={onTab} />
-      {tab === 'customers' && <CustomersSection {...props} days={days} />}
-      {tab === 'carriers' && <CarriersSection {...props} days={days} />}
-      {tab === 'detention' && <DetentionSection {...props} />}
-    </div>
-  )
-}
-
-// `log` is the Entry Log (built in App with its handlers). `onOpenInsights(section)` opens Insights.
-const SUBKEY = 'shipping-subtabs'
-export default function ShippingPage({ entries, onAssignDock, onOrderReady, onEdit, onUpdateEntry, onCheckOut, onOpenInsights, log }) {
+// `log` is the Entry log (built in App with its handlers). `schedule`: today's bookings (App builds it
+// once, so the Gate sees the same list). `onDelayReason(id, reasonId)` saves why a truck stayed long;
+// `onNotice(text | { text, undo })` shows a notice at the bottom of the screen. `onFillDocks` (SAMPLE)
+// fills every dock and lines up trucks behind them, to show the line-up.
+// `replayRequest` ({ day, key }, from the Overview): open the Yard map replaying that day.
+export default function ShippingPage({ entries, schedule = [], onAssignDock, onOrderReady, onDelayReason, onNotice, onEdit, onUpdateEntry, onCheckOut, onFillDocks, replayRequest, onReplayHandled, log }) {
   const [now, setNow] = useState(Date.now)
   const [section, setSection] = useState(() => {
     try {
       const saved = sessionStorage.getItem(KEY)
-      return SECTIONS.some((s) => s.id === saved) ? saved : 'live'
+      return SECTIONS.some((s) => s.id === saved) ? saved : OLD[saved] ?? 'now'
     } catch {
-      return 'live'
+      return 'now'
     }
   })
-  // The tab open inside Docks and Partners, kept while switching sections.
-  const [sub, setSub] = useState(() => {
-    try {
-      return { docks: 'schedule', partners: 'customers', ...JSON.parse(sessionStorage.getItem(SUBKEY)) }
-    } catch {
-      return { docks: 'schedule', partners: 'customers' }
-    }
-  })
-  const setSubTab = (hub) => (id) =>
-    setSub((s) => {
-      const next = { ...s, [hub]: id }
-      try {
-        sessionStorage.setItem(SUBKEY, JSON.stringify(next))
-      } catch {
-        // Remembering the tab is only a convenience.
-      }
-      return next
-    })
-  // Filters the Entry log opens with, set by a Live Board tile; `logKey` remounts it so they apply.
-  const [logFilters, setLogFilters] = useState(null)
-  const [logKey, setLogKey] = useState(0)
-  // The entry open in the View entry pop-up (from the drop trailers table).
+  const [dockTab, setDockTab] = useState('use')
+  const [recordTab, setRecordTab] = useState('log')
+  // The entry open in the View entry pop-up, and the order open in the order history pop-up.
   const [viewingId, setViewingId] = useState(null)
+  const [historyId, setHistoryId] = useState(null)
+  // The day Today's schedule shows (today unless the clerk picks another).
+  const [schedDay, setSchedDay] = useState(() => dayKey(new Date()))
+  const [staged, setStaged] = useDayStore('shipping-staged')
+  const [calls, setCalls] = useDayStore('shipping-calls')
+  // The clerk's order for the line-up (entry ids), for today.
+  const [lineStore, setLineStore] = useDayStore('dock-lineup')
   const top = useRef(null)
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 15000)
@@ -229,62 +210,197 @@ export default function ShippingPage({ entries, onAssignDock, onOrderReady, onEd
     } catch {
       // Remembering the section is only a convenience.
     }
-    // Back to the top of the content (below the sticky header) when it's scrolled away.
     const el = top.current
     if (el && el.getBoundingClientRect().top < 0) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
 
-  // From the Live Board: open a section (and its tab), with the Entry log's filters when given.
-  const go = (id, tab, filters) => {
-    if (tab && (id === 'docks' || id === 'partners')) setSubTab(id)(tab)
-    if (id === 'log') {
-      setLogFilters(filters ?? null)
-      setLogKey((k) => k + 1)
-    }
-    select(id)
-    requestAnimationFrame(() => top.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+  // Orders marked staged here count on top of the schedule's own.
+  const day = schedule.map((a) => (staged[a.orderNo] ? { ...a, staged: true } : a))
+  const markStaged = (a) => {
+    setStaged((items) => ({ ...items, [a.orderNo]: Date.now() }))
+    onNotice?.({
+      text: `${a.orderNo} marked staged for ${carrierOf(a)}`,
+      undo: () => {
+        setStaged((items) => {
+          delete items[a.orderNo]
+          return items
+        })
+        onNotice?.('Undone')
+      },
+    })
   }
-  const counts = badges(entries, now)
+  const call = (id) => setCalls((items) => ({ ...items, [id]: Date.now() }))
+
+  // The line-up for the docks and when each busy dock should be free (shipping/lineup.jsx).
+  const line = lineUp(entries, lineStore.order)
+  const plan = planDocks(entries, line, now)
+  const moveUp = (id) => {
+    const ids = line.map((e) => e.id)
+    const i = ids.indexOf(id)
+    if (i < 1) return
+    ;[ids[i - 1], ids[i]] = [ids[i], ids[i - 1]]
+    const e = line[i]
+    setLineStore((items) => ({ ...items, order: ids }))
+    onNotice?.({
+      text: `Trailer ${e.trailerNumber} moved up to number ${i}`,
+      undo: () => {
+        setLineStore((items) => ({ ...items, order: line.map((x) => x.id) }))
+        onNotice?.('Undone')
+      },
+    })
+  }
+  // When a busy dock frees up and a truck is waiting, say who's next.
+  const openKey = DOCKS.filter((d) => !occupiedDocks(entries).has(dockKey(d))).join(',')
+  const lastOpen = useRef(openKey)
+  const firstUp = plan.rows.find((r) => r.inMin === 0)
+  useEffect(() => {
+    const before = new Set(lastOpen.current.split(','))
+    lastOpen.current = openKey
+    const freed = openKey.split(',').filter((d) => d && !before.has(d))
+    if (freed.length && firstUp) onNotice?.(`Dock ${firstUp.dock} is free. Trailer ${firstUp.e.trailerNumber} is next.`)
+    // Only when the set of open docks changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openKey])
+
+  // Figures for the sidebar and the titles.
+  const rows = needsYou({ entries, schedule: day, now, calls })
+  const todo = rows.filter((r) => !r.info)
+  const anyLate = todo.some((r) => r.kind === 'late')
+  const sched = scheduleSummary(day, null, now)
+  const busy = occupiedDocks(entries)
+  const free = DOCKS.filter((d) => !busy.has(dockKey(d))).length
+  const atDock = entries.filter(atDockNow)
+  const loading = atDock.filter((e) => ['trailer', 'trailerFail', 'ready', 'loading'].includes(phaseOf(e))).length
+  const toInspect = atDock.filter((e) => ['inspect', 'failed'].includes(phaseOf(e))).length
+  const counts = {
+    now: todo.length ? { n: todo.length, bad: anyLate, warn: !anyLate, words: `${plural(todo.length, 'thing')} ${todo.length === 1 ? 'needs' : 'need'} action` } : null,
+    schedule: sched.late ? { n: sched.late, bad: true, words: `${plural(sched.late, 'truck')} late or not here` } : null,
+    docks: { n: `${free} free`, words: `${free} of ${DOCKS.length} docks free` },
+  }
+
+  const view = (id) => setViewingId(id)
+  // The day the Yard map replays: { day, key }. Records ("Replay this day") and the Overview ask for it.
+  const [replay, setReplay] = useState(null)
+  const replayDay = (day) => {
+    setReplay({ day, key: Date.now() })
+    select('yard')
+  }
+  useEffect(() => {
+    if (!replayRequest?.day) return
+    replayDay(replayRequest.day)
+    onReplayHandled?.()
+    // Only when the Overview asks again.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [replayRequest?.key])
+  // Records → Assign dock: go to Now and pick the dock on the dock wall. Ends once the truck has a dock.
+  const [pickingId, setPickingId] = useState(null)
+  const picking = entries.find((e) => e.id === pickingId && !e.dockDoor && !e.timeOut) ?? null
+  const pickDock = (id) => {
+    setPickingId(id)
+    select('now')
+    setTimeout(() => document.getElementById('dock-wall-title')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 50)
+  }
+  // "Find an order" sits in the title row of every section.
+  const find = <FindOrder entries={entries} onOpen={setHistoryId} />
+  const today = dayKey(new Date(now))
+  const isToday = schedDay === today
+  const shownDay = isToday ? day : bookingsFromEntries(entries, schedDay)
+  const byId = Object.fromEntries(entries.map((e) => [e.id, e]))
+  const schedLine = isToday
+    ? sched.line
+    : schedDay > today
+      ? `No bookings for ${dayName(schedDay)} yet.`
+      : scheduleSummary(shownDay, byId, now, dayName(schedDay)).line
   const body = {
-    live: (
-      <LiveBoard
-        entries={entries}
-        now={now}
-        onAssignDock={onAssignDock}
-        onOrderReady={onOrderReady}
-        onUpdateEntry={onUpdateEntry}
-        onEdit={onEdit}
-        onCheckOut={onCheckOut}
-        onView={setViewingId}
-        onGo={go}
-      />
+    now: (
+      <>
+        <PageTitle
+          title="Now"
+          now={now}
+          line={todo.length ? `${plural(todo.length, 'thing')} ${todo.length === 1 ? 'needs' : 'need'} action. The most urgent is first.` : 'No action required right now.'}
+        >
+          {find}
+        </PageTitle>
+        <NowSection
+          entries={entries}
+          schedule={day}
+          now={now}
+          rows={rows}
+          calls={calls}
+          onCall={call}
+          onStage={markStaged}
+          onView={view}
+          onAssignDock={onAssignDock}
+          onOrderReady={onOrderReady}
+          onDelayReason={onDelayReason}
+          onOpenSchedule={() => select('schedule')}
+          plan={plan}
+          picking={picking}
+          onCancelPick={() => setPickingId(null)}
+          onMoveUp={moveUp}
+          sampleLoaded={entries.some((e) => e.sample)}
+          onFillDocks={onFillDocks}
+        />
+      </>
     ),
-    // The 3D yard map on its own page: Live by default, with Pause and Replay of the last 30 days.
+    schedule: (
+      <>
+        <PageTitle title={isToday ? "Today's schedule" : `Schedule for ${dayName(schedDay)}`} now={now} line={schedLine}>
+          {find}
+        </PageTitle>
+        <DayPicker day={schedDay} today={today} onChange={setSchedDay} />
+        <ScheduleSection key={schedDay} schedule={shownDay} entries={entries} now={now} onStage={markStaged} onView={view} isToday={isToday} />
+      </>
+    ),
+    docks: (
+      <>
+        <PageTitle
+          title="Docks & loads"
+          now={now}
+          line={`${DOCKS.length - free} of ${DOCKS.length} docks busy. ${plural(loading, 'truck')} loading, ${toInspect} waiting for inspection. ${DOCK_TABS.find((t) => t.id === dockTab).line}`}
+        >
+          {find}
+        </PageTitle>
+        <SubTabs label="Docks & loads views" tabs={DOCK_TABS} value={dockTab} onChange={setDockTab} />
+        {dockTab === 'use' && <DocksSection entries={entries} now={now} head={false} />}
+        {dockTab === 'loading' && <LoadingSection entries={entries} now={now} head={false} />}
+        {dockTab === 'inspection' && <InspectionSection entries={entries} now={now} head={false} />}
+        {dockTab === 'loads' && <LoadSheetsSection entries={entries} now={now} />}
+        {dockTab === 'drops' && <DropsSection entries={entries} now={now} onView={view} head={false} />}
+      </>
+    ),
     yard: (
-      <div className="grid grid-cols-[minmax(0,1fr)] gap-5">
-        <SectionHead title="Yard map" sub="Every truck and trailer on site in 3D. Live by default; pause it, or replay any of the last 30 days. Tap a truck for its card.">
-          <LivePill />
-        </SectionHead>
+      <>
+        <PageTitle
+          title="Yard map"
+          now={now}
+          line="Every truck and trailer on site in 3D. Pause it, or replay any of the last 30 days. Tap a truck for its card."
+        >
+          {find}
+        </PageTitle>
         <Card icon="yard" title="Union Springs yard" sub="Docks, the yard lane and the gate">
           <div className="p-4 sm:p-5">
-            <YardPlayer entries={entries} onEdit={onEdit} onCheckOut={onCheckOut} />
+            <YardPlayer entries={entries} onEdit={onEdit} onCheckOut={onCheckOut} replay={replay} />
           </div>
         </Card>
-      </div>
+      </>
     ),
-    docks: <DocksHub entries={entries} now={now} tab={sub.docks} onTab={setSubTab('docks')} counts={counts.tabs} />,
-    partners: <PartnersHub entries={entries} now={now} tab={sub.partners} onTab={setSubTab('partners')} onOpenInsights={onOpenInsights} over={counts.partners?.n} />,
-    // The Entry log with the day's order figures on top (its Today view lists the same trucks as Orders did).
-    log: (
-      <div className="grid grid-cols-[minmax(0,1fr)] gap-5">
-        <SectionHead title="Entry log" sub="Every gate entry. Today shows the day's orders with when each was ready and how long it waited; mark an order ready here or on the Live Board.">
-          <LivePill />
-        </SectionHead>
-        <OrdersTiles entries={entries} now={now} />
-        {cloneElement(log, { key: logKey, initialFilters: logFilters ?? undefined })}
-      </div>
+    records: (
+      <>
+        <PageTitle title="Records" now={now} line="Every truck that came through the gate, and the daily report.">
+          {find}
+        </PageTitle>
+        <SubTabs label="Records views" tabs={RECORD_TABS} value={recordTab} onChange={setRecordTab} />
+        {recordTab === 'log' ? (
+          <>
+            <OrdersTiles entries={entries} now={now} />
+            {cloneElement(log, { bare: true, onPickDock: pickDock, onReplayDay: replayDay })}
+          </>
+        ) : (
+          <ReportSection entries={entries} now={now} head={false} />
+        )}
+      </>
     ),
-    report: <ReportSection entries={entries} now={now} />,
   }[section]
 
   return (
@@ -298,8 +414,9 @@ export default function ShippingPage({ entries, onAssignDock, onOrderReady, onEd
           setViewingId(null)
         }}
       />
+      <OrderHistory entry={entries.find((x) => x.id === historyId) ?? null} onClose={() => setHistoryId(null)} />
       <Sidebar section={section} onSelect={select} counts={counts} />
-      <div key={section} className="min-w-0 animate-fade">
+      <div key={section} className="grid min-w-0 animate-fade content-start gap-5">
         {body}
       </div>
     </div>

@@ -51,6 +51,10 @@ export const checkOutStart = (entry) =>
 // Driver phones: 10 digits, typed with any spaces, dashes or brackets, saved as 555-123-4567.
 const digits = (s) => String(s ?? '').replace(/\D/g, '')
 export const isPhone = (s) => digits(s).length === 10
+// What a driver-phone box keeps as it's typed in: numbers only, at most 10 of them.
+export const phoneInput = (s) => digits(s).slice(0, 10)
+// Props for a driver-phone box: the number keypad, numbers only, 10 digits at most.
+export const PHONE_PROPS = { type: 'tel', inputMode: 'numeric', pattern: '[0-9]*', autoComplete: 'off', placeholder: '10 digits' }
 export const formatPhone = (s) => (isPhone(s) ? digits(s).replace(/(\d{3})(\d{3})(\d{4})/, '$1-$2-$3') : s)
 export const withPhones = (form) => ({ ...form, driverPhone: formatPhone(form.driverPhone), driverPhoneOut: formatPhone(form.driverPhoneOut) })
 
@@ -79,11 +83,11 @@ export const cleanForSave = (form) => withPhones(form.reefer === 'Yes' ? form : 
 // Names for the error list, by field name.
 export const FIELD_LABELS = {
   ...FIELD_NAMES,
-  dateIn: 'Date In',
-  timeIn: 'Time In',
+  dateIn: 'Date in',
+  timeIn: 'Time in',
   gateIn: 'Gate In',
-  dateOut: 'Date Out',
-  timeOut: 'Time Out',
+  dateOut: 'Date out',
+  timeOut: 'Time out',
   gateOut: 'Gate Out',
   visitPurpose: 'Purpose of Visit',
   odometerPhoto: 'Odometer photo',

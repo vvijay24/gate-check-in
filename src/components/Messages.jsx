@@ -51,7 +51,7 @@ export default function Messages({ raised }) {
   }
 
   return (
-    <section className={'no-print fixed right-4 z-30 w-[min(380px,calc(100vw-2rem))] ' + (raised ? 'bottom-28' : 'bottom-4')}>
+    <section className={'no-print fixed right-4 z-30 ' + (open ? 'w-[min(380px,calc(100vw-2rem))] ' : '') + (raised ? 'bottom-28' : 'bottom-4')}>
       {open ? (
         <div className="animate-pop overflow-hidden rounded-2xl border border-hair bg-panel shadow-overlay">
           <div className="on-chrome flex items-center justify-between gap-3 bg-chrome px-4 py-3 text-white">
@@ -66,7 +66,7 @@ export default function Messages({ raised }) {
               type="button"
               aria-label="Minimize messages"
               onClick={() => setOpen(false)}
-              className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-lg text-2xl leading-none transition-colors duration-150 hover:bg-white/10"
+              className="flex size-11 cursor-pointer items-center justify-center rounded-lg text-2xl leading-none transition-colors duration-150 hover:bg-white/10"
             >
               −
             </button>
@@ -139,11 +139,11 @@ export default function Messages({ raised }) {
           type="button"
           aria-expanded="false"
           onClick={() => setOpen(true)}
-          className="on-chrome ml-auto flex min-h-12 cursor-pointer items-center gap-2 rounded-full border border-white/10 bg-chrome px-5 font-display text-[15px] font-bold text-white shadow-overlay transition-[background-color,transform] duration-150 hover:-translate-y-0.5 hover:bg-signal"
+          title="Shipping chat (demo)"
+          className="on-chrome ml-auto grid size-12 cursor-pointer place-items-center rounded-full border border-white/10 bg-chrome text-white shadow-overlay transition-[background-color,transform] duration-150 hover:-translate-y-0.5 hover:bg-signal"
         >
           <Icon name="messages" />
-          Shipping chat
-          <span className={ui.tag + ' bg-warn text-warn-ink'}>Demo</span>
+          <span className="sr-only">Shipping chat (demo)</span>
         </button>
       )}
     </section>

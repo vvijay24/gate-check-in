@@ -83,7 +83,7 @@ const computeSummary = (visit_metrics) => {
 const computeStages = (visit_metrics) => {
     const targets = [
       ['Gate check-in', 'gate_in_min', 3, 5], ['Waiting for order', 'order_wait_min', 0, 15], ['Dock assignment', 'dock_assign_min', 5, 15],
-      ['Pre-loading', 'preload_min', 5, 10], ['Loading', 'load_min', 30, 60], ['Inspection', 'inspection_min', 10, 15], ['Gate checkout', 'checkout_min', 3, 5],
+      ['Getting ready', 'preload_min', 5, 10], ['Loading', 'load_min', 30, 60], ['Inspection', 'inspection_min', 10, 15], ['Gate checkout', 'checkout_min', 3, 5],
     ];
     return targets.map(([stage, k, lo, hi]) => {
       const vs = visit_metrics.map((v) => v[k]);
@@ -139,7 +139,7 @@ const computeImpact = (baseline_metrics, visit_metrics) => {
       row('kpi', 'trucks', 'Trucks', b.length, a.length, 0),
     ];
     // The manual week has no "Order ready" time, so waiting for the order and for a dock are compared as one.
-    [['gate_in_min', 'Gate check-in'], ['dock_wait_min', 'Waiting for order and dock'], ['preload_min', 'Pre-loading'],
+    [['gate_in_min', 'Gate check-in'], ['dock_wait_min', 'Waiting for order and dock'], ['preload_min', 'Getting ready'],
       ['load_min', 'Loading'], ['inspection_min', 'Inspection'], ['checkout_min', 'Gate checkout']]
       .forEach(([k, label]) => out.push(row('stage', k, label, avg(b, k), avg(a, k), 1)));
     const names = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];

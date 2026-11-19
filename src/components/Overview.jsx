@@ -6,7 +6,7 @@ import { parseManualWeek, visitsInRange } from '../turnaround/visits'
 import { deepDive } from '../turnaround/deepDives'
 import { IMPACT_DIVES, STAFF_MINUTES, impactDive } from '../turnaround/impactDives'
 import { IMPACT_PLAIN, KPI_PLAIN, OVERVIEW_PLAIN } from '../turnaround/plainWords'
-import { dayKey, shiftDate } from '../time'
+import { clock12, dayKey, duration, shiftDate } from '../time'
 
 // The two parts of the wait for a dock (turnaround/targets.js).
 const ORDER_WAIT = STAGE_TARGETS.find((s) => s.key === 'orderWait')
@@ -28,6 +28,8 @@ const dayLabel = (key) => {
 const longDate = (key) => new Date(`${key}T00:00`).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })
 const hourLabel = (h) => `${String(h).padStart(2, '0')}:00`
 const F = () => TT.FMT
+// A truck's arrival against its appointment, in minutes: "25m late", "1h 5m early", "On time".
+const againstAppt = (v) => (v == null ? '—' : Math.round(v) === 0 ? 'On time' : `${duration(Math.abs(v) * 60000)} ${v > 0 ? 'late' : 'early'}`)
 
 // Draws a kit chart into a div, and again when the div's width changes or `deps` change.
 function Chart({ draw, deps, className = 'tt-chart', label }) {
@@ -86,7 +88,7 @@ const KPIS = [
     band: [G2G_TARGET.min, G2G_TARGET.max],
     bad: (v) => v > G2G_TARGET.max,
     target: `Target ${G2G_TARGET.min}–${G2G_TARGET.max} min`,
-    about: `Minutes from gate check-in to gate checkout: check-in, waiting for the order, dock assignment, pre-loading, loading, inspection and checkout. Target ${G2G_TARGET.min}–${G2G_TARGET.max} min.`,
+    about: `Minutes from gate check-in to gate checkout: check-in, waiting for the order, dock assignment, getting ready, loading, inspection and checkout. Target ${G2G_TARGET.min}–${G2G_TARGET.max} min.`,
     table: 'Slowest gate-to-gate first.',
     sort: (a, b) => b.g2g_min - a.g2g_min,
     icon: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>,
@@ -104,7 +106,7 @@ const KPIS = [
     band: [DOCK_TARGET.min, DOCK_TARGET.max],
     bad: (v) => v > DOCK_TARGET.max,
     target: `Target ${DOCK_TARGET.min}–${DOCK_TARGET.max} min`,
-    about: `Minutes the truck spends at the door: pre-loading, loading and inspection. Target ${DOCK_TARGET.min}–${DOCK_TARGET.max} min.`,
+    about: `Minutes the truck spends at the dock: getting ready, loading and inspection. Target ${DOCK_TARGET.min}–${DOCK_TARGET.max} min.`,
     table: 'Longest time at the door first.',
     sort: (a, b) => b.dock_min - a.dock_min,
     icon: <><path d="M3 21V9l9-5 9 5v12" /><path d="M7 21v-8h10v8" /><path d="M7 17h10" /></>,
@@ -117,13 +119,13 @@ const KPIS = [
     group: (s) => s.on_time_rate,
     truck: (v) => v.arrival_delta_min,
     fmt: (v) => F().pct(v),
-    truckFmt: (v) => `${v > 0 ? '+' : ''}${F().min(v)} min`,
+    truckFmt: againstAppt,
     unit: 'of trucks',
     desc: `Trucks that showed up within ${ON_TIME_WINDOW} minutes of their booked time.`,
     bad: () => false,
     target: `On time = within ±${ON_TIME_WINDOW} min of the appointment`,
     about: `Arrival time compared with the appointment time. On time = within ±${ON_TIME_WINDOW} min.`,
-    table: 'Latest arrivals first (minutes after appointment; negative = early).',
+    table: 'Each row is one truck, latest arrival first. The last column says how early or late it came against its appointment.',
     sort: (a, b) => b.arrival_delta_min - a.arrival_delta_min,
     icon: <><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M3 10h18M8 3v4M16 3v4" /><path d="m9 15 2 2 4-4" /></>,
   },
@@ -135,7 +137,7 @@ const KPIS = [
     group: (s) => s.trucks,
     truck: (v) => v.arrival_delta_min,
     fmt: (v) => F().int(v),
-    truckFmt: (v) => `${v > 0 ? '+' : ''}${F().min(v)} min`,
+    truckFmt: againstAppt,
     unit: 'trucks',
     desc: 'Every truck that checked in at the gate. Shows how busy we were.',
     bad: () => false,
@@ -153,7 +155,7 @@ const KPIS = [
     group: (s) => s.within_target_rate,
     truck: (v) => v.g2g_min,
     fmt: (v) => F().pct(v),
-    truckFmt: (v) => `${F().min(v)} min`,
+    truckFmt: (v) => duration(v * 60000),
     unit: 'of trucks',
     desc: `Out of every truck, how many were done in ${G2G_TARGET.max} minutes or less.`,
     bad: () => false,
@@ -329,11 +331,11 @@ function Detail({ id, setId, data, rangeText }) {
                   <th>Trailer</th>
                   <th>Carrier</th>
                   <th className="hide-narrow">Type</th>
-                  <th className="num">Appt</th>
+                  <th className="num">Appointment</th>
                   <th className="num">Arrived</th>
-                  {k.src === 'timed' && <th className="num">Dock min</th>}
+                  {k.src === 'timed' && <th className="num">At the dock</th>}
                   {k.src === 'timed' && <th className="num">Gate to gate</th>}
-                  <th className="num">{k.id === 'detention' ? 'Detention' : k.src === 'timed' ? 'Status' : 'vs appt'}</th>
+                  <th className="num">{k.id === 'detention' ? 'Waiting charges' : k.src === 'timed' ? 'Status' : 'Against appointment'}</th>
                 </tr>
               </thead>
               <tbody>
@@ -343,10 +345,10 @@ function Detail({ id, setId, data, rangeText }) {
                     <td>{t.trailer ?? t.visit_id}</td>
                     <td>{t.carrier}</td>
                     <td className="hide-narrow">{t.visit_type}</td>
-                    <td className="num">{t.appt}</td>
-                    <td className="num">{t.arrived}</td>
-                    {k.src === 'timed' && <td className={'num' + (t.dock_min > DOCK_TARGET.max ? ' bad' : '')}>{F().min(t.dock_min)}</td>}
-                    {k.src === 'timed' && <td className={'num' + (t.g2g_min > G2G_TARGET.max ? ' bad' : '')}>{F().min(t.g2g_min)}</td>}
+                    <td className="num">{clock12(t.appt)}</td>
+                    <td className="num">{clock12(t.arrived)}</td>
+                    {k.src === 'timed' && <td className={'num' + (t.dock_min > DOCK_TARGET.max ? ' bad' : '')}>{duration(t.dock_min * 60000)}</td>}
+                    {k.src === 'timed' && <td className={'num' + (t.g2g_min > G2G_TARGET.max ? ' bad' : '')}>{duration(t.g2g_min * 60000)}</td>}
                     <td className={'num' + ((k.id === 'detention' && t.detention_usd > 0) || (k.src !== 'timed' && t.arrival_status === 'Late') ? ' bad' : '')}>
                       {k.id === 'detention' ? F().usd(t.detention_usd) : k.src === 'timed' ? (t.g2g_min > G2G_TARGET.max ? 'Over' : 'Within') : tfmt(t.arrival_delta_min)}
                     </td>
@@ -848,7 +850,7 @@ export default function Overview({ entries, sampleCount, onLoadSample, onRemoveS
               <Key color="var(--p-navy)">Dock assignment</Key>
               <Key color="var(--p-navy-2)">Gate checkout</Key>
               <span className="grp">At the door</span>
-              <Key color="var(--p-gold-1)">Pre-loading</Key>
+              <Key color="var(--p-gold-1)">Getting ready</Key>
               <Key color="var(--p-yolk)">Loading</Key>
               <Key color="var(--p-amber)">Inspection</Key>
             </>

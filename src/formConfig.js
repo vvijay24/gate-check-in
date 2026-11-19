@@ -71,14 +71,14 @@ export const isRequired = (name, form, mode = 'in') =>
   (!PICKUP_ONLY.includes(name) || (form.visitPurpose ?? []).includes('Pickup')) &&
   isShown(name, form)
 
-// On-screen names of the Gate fields, also used by the error list ('Fix: Carrier, Trailer #').
+// On-screen names of the Gate fields, also used by the error list ('Fix: Carrier, Trailer').
 export const FIELD_NAMES = {
   appointmentTime: 'Appointment Time',
   truckName: 'Carrier',
-  trailerNumber: 'Trailer #',
+  trailerNumber: 'Trailer',
   truckerNameIn: 'Trucker Name Coming In',
   driverPhone: 'Driver Phone # (In)',
-  pickupNumber: 'Order No',
+  pickupNumber: 'Order no.',
   customerPickupFor: 'Customer',
   emptyPallets: 'How Many Empty Pallets',
   incomingSeals: 'Incoming Seals #',

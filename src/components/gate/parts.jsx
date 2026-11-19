@@ -1,3 +1,4 @@
+import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import * as ui from '../../ui'
 import { Icon } from '../../icons'
 import { arrivalMs, clockTime } from '../../time'
@@ -190,14 +191,75 @@ export function More({ label, open, children }) {
   )
 }
 
+// Compact size for the Gate's parts: Check In wraps its panel in <CompactGate> for smaller labels,
+// answer buttons, chips and steppers. Check Out and the Edit entry pop-up keep the full size.
+const Compact = createContext(false)
+export const CompactGate = ({ children }) => <Compact.Provider value={true}>{children}</Compact.Provider>
+export const useCompactGate = () => useContext(Compact)
+
+// The Gate's step panels (Check In and Check Out share them, so both look alike and stand the same
+// height side by side): the body keeps one height on every step and scrolls inside when a step runs
+// longer; the foot holds Back / Next / the main button.
+export const PANEL_BODY = 'grid content-start gap-x-4 gap-y-3.5 overflow-y-auto overscroll-contain px-5 pt-4 pb-5 sm:h-[384px]'
+export const PANEL_FOOT = 'no-print flex min-h-[69px] flex-wrap items-center gap-3 border-t border-hair bg-field/60 px-5 py-2.5'
+// Buttons in the panel's foot: 48px, 16px text.
+export const panelBtn = (cls) => cls.replace('min-h-14 px-6 text-[18px]', 'min-h-12 px-4 text-[16px]')
+export const panelGo = (ready) => panelBtn(goButton(ready).replace(' min-h-[60px] min-w-[220px] text-[19px]', '')) + ' min-w-[170px] px-5'
+
+// The bar of steps on top of a panel. `tones[i]`: error | now | done | started | todo; `bads[i]`: how many
+// answers are missing on that step (said to screen readers). `disabled`: steps can't be opened yet.
+export function StepBar({ label, steps, step, onStep, tones, bads = [], disabled }) {
+  return (
+    <ol className="flex items-center gap-1.5 border-b border-hair bg-signal-tint px-3 py-2.5 sm:gap-2 sm:px-4" aria-label={label}>
+      {steps.map((s, i) => {
+        const tone = tones[i]
+        const bad = bads[i] ?? 0
+        return (
+          <li key={s.label} className="flex min-w-0 flex-1 items-center gap-1.5 sm:gap-2">
+            {i > 0 && <span aria-hidden="true" className={'h-0.5 w-3 shrink-0 rounded-full sm:w-6 ' + (i <= step ? 'bg-signal' : 'bg-line')} />}
+            <button
+              type="button"
+              onClick={() => onStep(i)}
+              disabled={disabled && i !== step}
+              aria-current={i === step ? 'step' : undefined}
+              className={
+                'flex min-h-11 min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-xl px-2 text-left transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-60 sm:px-2.5 ' +
+                (i === step ? 'bg-panel shadow-card' : 'enabled:hover:bg-panel/70') +
+                (bad ? ' ring-[1.5px] ring-danger/40' : '')
+              }
+            >
+              <span
+                key={tone}
+                aria-hidden="true"
+                className={
+                  'grid size-7 shrink-0 animate-pop place-items-center rounded-full font-display text-[14px] font-bold ' +
+                  { error: 'bg-danger text-white', now: 'bg-signal text-signal-ink', done: 'bg-ok text-signal-ink', started: 'bg-warn text-warn-ink', todo: 'border-[1.5px] border-line bg-panel text-muted' }[tone]
+                }
+              >
+                {tone === 'done' ? <Icon name="check" size={15} /> : tone === 'error' ? '!' : i + 1}
+              </span>
+              <span className={'truncate font-display text-[15px] leading-tight font-bold ' + (bad ? 'text-danger' : i === step ? 'text-ink' : 'text-muted')}>
+                {s.label}
+                {tone === 'done' && <span className="sr-only"> (done)</span>}
+                {bad > 0 && <span className="sr-only"> ({bad} missing)</span>}
+              </span>
+            </button>
+          </li>
+        )
+      })}
+    </ol>
+  )
+}
+
 // Label, the control, a hint and the error. `group`: the control is a set of buttons, so the label
 // names the group instead of pointing at one input.
 export function FieldBox({ name, label, required, hint, error, group, after, className = '', children }) {
   const Label = group ? 'span' : 'label'
+  const compact = useCompactGate()
   return (
-    <div className={'flex min-w-0 flex-col gap-1.5 ' + className}>
+    <div className={'flex min-w-0 flex-col ' + (compact ? 'gap-1 ' : 'gap-1.5 ') + className}>
       <span className="flex flex-wrap items-center gap-2">
-        <Label id={`field-${name}-label`} htmlFor={group ? undefined : `field-${name}`} className="text-[16px] font-semibold text-muted">
+        <Label id={`field-${name}-label`} htmlFor={group ? undefined : `field-${name}`} className={(compact ? 'text-[14px]' : 'text-[16px]') + ' font-semibold text-muted'}>
           {label}
           {required && <span className={ui.required}>*</span>}
         </Label>
@@ -221,6 +283,7 @@ export const PRESS =
 // Big buttons for one answer. `options`: [{ value, label, danger, disabled }] — the picked answer is
 // solid slate, or solid red for a problem answer (a broken seal, an empty tank).
 export function Seg({ name, options, value, onChange, error }) {
+  const compact = useCompactGate()
   return (
     <div role="group" aria-labelledby={`field-${name}-label`} aria-describedby={error ? `field-${name}-error` : undefined} className="flex flex-wrap gap-2">
       {options.map((o, i) => {
@@ -235,7 +298,8 @@ export function Seg({ name, options, value, onChange, error }) {
             onClick={() => onChange(o.value)}
             className={
               PRESS +
-              'min-h-[58px] min-w-16 flex-1 rounded-xl px-3 font-display text-[17px] font-bold disabled:cursor-not-allowed disabled:opacity-40 ' +
+              (compact ? 'min-h-12 min-w-16 flex-1 rounded-full px-4 font-display text-[15px] ' : 'min-h-[58px] min-w-16 flex-1 rounded-xl px-3 font-display text-[17px] ') +
+              'font-bold disabled:cursor-not-allowed disabled:opacity-40 ' +
               (on
                 ? o.danger
                   ? 'border-danger bg-danger text-signal-ink shadow-raised'
@@ -251,12 +315,136 @@ export function Seg({ name, options, value, onChange, error }) {
   )
 }
 
+// A text box that suggests names seen before (carriers, customers) once 2 letters are typed: a short
+// list drops down under the box; tap one, or use ↑ ↓ and Enter, to fill it in. Esc closes the list.
+// A new name is simply typed out. The list is placed on the screen (fixed), so a scrolling panel
+// can't cut it off, and opens upward when there's no room below.
+export function Suggest({ name, value, onChange, options, className, onKeyDown, ...rest }) {
+  const ref = useRef(null)
+  const [open, setOpen] = useState(false)
+  const [active, setActive] = useState(-1)
+  const [place, setPlace] = useState(null)
+  const q = String(value ?? '').trim().toLowerCase()
+  const matches =
+    q.length < 2
+      ? []
+      : options
+          .filter((o) => o.toLowerCase().includes(q) && o.toLowerCase() !== q)
+          .sort((a, b) => Number(!a.toLowerCase().startsWith(q)) - Number(!b.toLowerCase().startsWith(q)))
+          .slice(0, 5)
+  const shown = open && matches.length > 0
+  const listId = `field-${name}-list`
+
+  useLayoutEffect(() => {
+    if (!shown) return
+    const measure = () => {
+      const r = ref.current?.getBoundingClientRect()
+      if (!r) return
+      const room = window.innerHeight - r.bottom
+      setPlace({ left: r.left, width: r.width, ...(room < 240 && r.top > room ? { bottom: window.innerHeight - r.top + 4 } : { top: r.bottom + 4 }) })
+    }
+    measure()
+    window.addEventListener('scroll', measure, true)
+    window.addEventListener('resize', measure)
+    return () => {
+      window.removeEventListener('scroll', measure, true)
+      window.removeEventListener('resize', measure)
+    }
+  }, [shown])
+  useEffect(() => setActive(-1), [q])
+
+  const pick = (v) => {
+    onChange(v)
+    setOpen(false)
+  }
+  const keys = (e) => {
+    if (shown && e.key === 'ArrowDown') {
+      e.preventDefault()
+      setActive((a) => (a + 1) % matches.length)
+    } else if (shown && e.key === 'ArrowUp') {
+      e.preventDefault()
+      setActive((a) => (a <= 0 ? matches.length - 1 : a - 1))
+    } else if (shown && e.key === 'Escape') {
+      e.preventDefault()
+      setOpen(false)
+    } else if (shown && e.key === 'Enter' && active >= 0) {
+      e.preventDefault()
+      pick(matches[active])
+    } else onKeyDown?.(e)
+  }
+  // The typed letters in bold inside each suggestion.
+  const mark = (o) => {
+    const i = o.toLowerCase().indexOf(q)
+    return (
+      <>
+        {o.slice(0, i)}
+        <b className="font-bold text-ink">{o.slice(i, i + q.length)}</b>
+        {o.slice(i + q.length)}
+      </>
+    )
+  }
+
+  return (
+    <>
+      <input
+        ref={ref}
+        id={`field-${name}`}
+        name={name}
+        value={value ?? ''}
+        onChange={(e) => {
+          onChange(e.target.value)
+          setOpen(true)
+        }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setOpen(false)}
+        onKeyDown={keys}
+        role="combobox"
+        aria-autocomplete="list"
+        aria-expanded={shown}
+        aria-controls={listId}
+        aria-activedescendant={shown && active >= 0 ? `${listId}-${active}` : undefined}
+        autoComplete="off"
+        className={className}
+        {...rest}
+      />
+      {shown && place && (
+        <ul
+          id={listId}
+          role="listbox"
+          aria-label="Seen before"
+          style={place}
+          className="fixed z-50 animate-fade overflow-hidden rounded-xl border border-hair bg-panel py-1 shadow-overlay"
+        >
+          {matches.map((o, i) => (
+            <li
+              key={o}
+              id={`${listId}-${i}`}
+              role="option"
+              aria-selected={i === active}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => pick(o)}
+              className={
+                'flex min-h-11 cursor-pointer items-center gap-2.5 px-3.5 text-[15px] text-muted transition-colors duration-150 ' +
+                (i === active ? 'bg-signal-tint' : 'hover:bg-signal-tint')
+              }
+            >
+              <Icon name="history" size={15} className="shrink-0 text-signal-bright" />
+              <span className="truncate">{mark(o)}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </>
+  )
+}
+
 // Tap-to-fill buttons (recent carriers, customers, appointment times). The one matching `value` is picked.
 export function Chips({ label, items, value, onPick }) {
   if (!items.length) return null
   const picked = String(value ?? '').trim().toLowerCase()
+  const compact = useCompactGate()
   return (
-    <div role="group" aria-label={label} className="flex flex-wrap gap-2">
+    <div role="group" aria-label={label} className={compact ? 'flex min-w-0 gap-1.5 overflow-x-auto [scrollbar-width:none] *:shrink-0' : 'flex flex-wrap gap-2'}>
       {items.map((it) => {
         const v = typeof it === 'string' ? it : it.value
         const on = picked === String(v).toLowerCase()
@@ -268,7 +456,7 @@ export function Chips({ label, items, value, onPick }) {
             onClick={() => onPick(v)}
             className={
               PRESS +
-              'inline-flex min-h-12 items-center rounded-xl px-4 text-[15px] font-semibold ' +
+              (compact ? 'inline-flex min-h-11 items-center rounded-full px-3.5 text-[14px] font-semibold ' : 'inline-flex min-h-12 items-center rounded-xl px-4 text-[15px] font-semibold ') +
               (on ? 'border-signal bg-signal text-signal-ink shadow-raised' : 'border-line bg-panel text-ink hover:border-signal-bright hover:bg-signal-tint')
             }
           >
@@ -288,7 +476,8 @@ export function Stepper({ name, label, value, onChange, step = 1, min, start, in
     const n = (parseFloat(value) || 0) + d
     onChange(String(min != null ? Math.max(min, n) : n))
   }
-  const btn = 'w-16 shrink-0 cursor-pointer bg-panel text-[22px] font-bold text-ink transition-colors duration-150 hover:bg-signal-tint active:bg-signal-soft'
+  const compact = useCompactGate()
+  const btn = (compact ? 'w-12 text-[20px]' : 'w-16 text-[22px]') + ' shrink-0 cursor-pointer bg-panel font-bold text-ink transition-colors duration-150 hover:bg-signal-tint active:bg-signal-soft'
   return (
     <div className={'flex overflow-hidden rounded-xl border-[1.5px] bg-field ' + (error ? 'border-danger' : 'border-line')}>
       <button type="button" onClick={() => bump(-step)} aria-label={`Lower ${label}`} className={btn}>
@@ -301,7 +490,7 @@ export function Stepper({ name, label, value, onChange, step = 1, min, start, in
         inputMode={inputMode}
         aria-label={label}
         aria-invalid={error ? true : undefined}
-        className="min-h-[58px] min-w-0 flex-1 bg-transparent text-center font-display text-[22px] font-bold focus:outline-none"
+        className={(compact ? 'min-h-12 text-[18px]' : 'min-h-[58px] text-[22px]') + ' min-w-0 flex-1 bg-transparent text-center font-display font-bold focus:outline-none'}
       />
       <button type="button" onClick={() => bump(step)} aria-label={`Raise ${label}`} className={btn}>
         +

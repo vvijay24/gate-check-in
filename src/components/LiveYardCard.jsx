@@ -34,6 +34,9 @@ function YardBars({ points, focus, height: H = 280 }) {
   const y = (v) => M.t + ih - (v / top) * ih
 
   return (
+    <div className="grid min-w-0 gap-1">
+    {/* Axis titles sit outside the measured box, so the tooltip's position stays right. */}
+    <span className="text-[12.5px] font-semibold text-muted">↑ Trucks on site</span>
     <div ref={box} className="relative min-w-0 overflow-x-clip">
       <svg width={w} height={H} viewBox={`0 0 ${w} ${H}`} role="img" aria-label="Trucks on site every half hour for the last six hours, by stage" className="block">
         {[0, 1, 2, 3, 4].map((i) => {
@@ -119,6 +122,8 @@ function YardBars({ points, focus, height: H = 280 }) {
           ))}
         </div>
       )}
+    </div>
+    <span className="text-center text-[12.5px] font-semibold text-muted">Time of day, every half hour →</span>
     </div>
   )
 }
@@ -228,7 +233,7 @@ export default function LiveYardCard({ entries, now, compact, onStage }) {
           <span className="flex gap-1.5">{docks.map((x) => dockChip(x, 'h-7 w-8'))}</span>
         </div>
         {table ? tableView : <YardBars points={points} focus={focus} height={230} />}
-        <button type="button" onClick={() => setTable((v) => !v)} aria-pressed={table} className="w-fit cursor-pointer text-[14px] font-semibold text-signal">
+        <button type="button" onClick={() => setTable((v) => !v)} aria-pressed={table} className="min-h-11 w-fit cursor-pointer text-[14px] font-semibold text-signal">
           {table ? 'Show as chart' : 'Show as table'}
         </button>
       </section>

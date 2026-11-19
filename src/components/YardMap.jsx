@@ -734,7 +734,7 @@ export default function YardMap({
               {more.map((e, i) => (
                 <span key={e.id}>
                   {i > 0 && ', '}
-                  <button type="button" onClick={() => select(e.id)} className="min-h-8 cursor-pointer font-semibold underline">
+                  <button type="button" onClick={() => select(e.id)} className="min-h-11 cursor-pointer font-semibold underline">
                     {e.trailerNumber}
                     {e.dockDoor ? ` (Dock ${e.dockDoor})` : ''}
                   </button>

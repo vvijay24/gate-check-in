@@ -15,7 +15,7 @@ const STAGES = [
   ['avg_gate_in', 'Gate check-in', V('s1')],
   ['avg_order_wait', 'Waiting for order', V('s0')],
   ['avg_assign', 'Dock assignment', V('s2')],
-  ['avg_preload', 'Pre-loading', V('s3')],
+  ['avg_preload', 'Getting ready', V('s3')],
   ['avg_load', 'Loading', V('s4')],
   ['avg_inspection', 'Inspection', V('s5')],
   ['avg_checkout', 'Gate checkout', V('s6')],

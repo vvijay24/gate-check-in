@@ -4,6 +4,7 @@ import { duration } from '../time'
 import { Icon, IconChip } from '../icons'
 import { isDrop } from '../metrics'
 import { inYard } from '../handoff'
+import { loadLine } from '../loadSheet'
 
 // The inspector's sign-off before a truck that passed its inspection may leave: confirm the order and
 // seal and tick the paperwork. Opened from Loading & Inspection only; `inspector` (the inspector on duty)
@@ -97,17 +98,18 @@ export default function ReleaseDialog({ entry, entries = [], inspector, onReleas
                 {entry.customerPickupFor && ` · For ${entry.customerPickupFor}`}
                 {passedAgo && ` · Inspection passed ${passedAgo} ago`}
               </p>
+              {loadLine(entry) && <p className="text-[15px] font-semibold">Loaded: {loadLine(entry)}</p>}
             </div>
           </div>
 
           <div className="space-y-4 p-5">
             <div className="grid gap-3.5 sm:grid-cols-2">
               <label className="flex flex-col gap-1">
-                <span className={ui.label}>Order No</span>
+                <span className={ui.label}>Order no.</span>
                 <input id="release-orderNo" value={form.orderNo} onChange={(e) => set('orderNo', e.target.value)} className={ui.input} />
               </label>
               <label className="flex flex-col gap-1">
-                <span className={ui.label}>Seal # on the trailer</span>
+                <span className={ui.label}>Seal no. on the trailer</span>
                 <input id="release-seal" value={form.seal} onChange={(e) => set('seal', e.target.value)} className={ui.input} />
               </label>
             </div>

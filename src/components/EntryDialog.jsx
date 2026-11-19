@@ -2,10 +2,11 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import * as ui from '../ui'
 import { Icon, IconChip } from '../icons'
 import { VISIT_PURPOSES, isRequired } from '../formConfig'
-import { FIELD_LABELS, cleanForSave, dayLabel, timeLabel, validate } from '../gateForm'
-import { EARLY_GRACE_MIN, LATE_GRACE_MIN, clockTime, minutesLate } from '../time'
+import { FIELD_LABELS, PHONE_PROPS, cleanForSave, dayLabel, phoneInput, timeLabel, validate } from '../gateForm'
+import { EARLY_GRACE_MIN, LATE_GRACE_MIN, clockTime, duration, minutesLate } from '../time'
 import { visitMemory } from '../visitMemory'
 import { Chips, FieldBox, PRESS, Seg, Stepper } from './gate/parts'
+import { tempGap, tempStatus } from '../loadSheet'
 
 // One visit at a glance, opened from the Shipping board's "View entry": what the guard entered at check-in
 // and what has happened at the dock so far, read-only. "Edit entry" turns the check-in details into fields
@@ -59,8 +60,8 @@ function Pill({ tone, icon, children }) {
 function apptPill(e) {
   const late = minutesLate(e)
   if (late == null) return null
-  if (late > LATE_GRACE_MIN) return <Pill tone="bad">{late} min late</Pill>
-  if (late < -EARLY_GRACE_MIN) return <Pill tone="warn">{-late} min early</Pill>
+  if (late > LATE_GRACE_MIN) return <Pill tone="bad">{duration(late * 60000)} late</Pill>
+  if (late < -EARLY_GRACE_MIN) return <Pill tone="warn">{duration(-late * 60000)} early</Pill>
   return <Pill tone="ok">On time</Pill>
 }
 
@@ -82,6 +83,50 @@ function Group({ icon, title, rows }) {
         ))}
       </dl>
     </section>
+  )
+}
+
+// The load sheet (SAMPLE until it's on a form): kind, each product with its cases, pallets, box temperature.
+function LoadGroup({ e }) {
+  const s = e.loadSheet
+  const pallets = e.loadingInspection?.palletsLoaded || s?.pallets
+  if (!s && !pallets) return null
+  const total = s ? s.products.reduce((n, p) => n + p.cases, 0) : 0
+  const box = s && tempStatus(e) !== 'none'
+  return (
+    <Group
+      icon="load"
+      title="What's being loaded"
+      rows={[
+        s && ['Fresh or frozen', s.kind],
+        s && [
+          'Products',
+          <ul key="p" className="grid gap-0.5">
+            {s.products.map((p) => (
+              <li key={p.name}>
+                {p.name} <span className="text-muted">({p.cases.toLocaleString()} cases)</span>
+              </li>
+            ))}
+          </ul>,
+        ],
+        s && ['Cases in all', `${total.toLocaleString()} cases`],
+        pallets && ['Pallets', `${pallets} pallets`],
+        s && [
+          'Box temperature',
+          box ? (
+            <span className="flex flex-wrap items-center gap-2">
+              {s.boxTemp}°F
+              <Pill tone={tempStatus(e) === 'out' ? 'bad' : 'ok'}>{tempStatus(e) === 'out' ? 'Out of range' : 'In range'}</Pill>
+              <span className="text-muted">
+                {Math.abs(tempGap(e))}° {tempGap(e) >= 0 ? 'over' : 'under'} the {s.setPoint}°F set point
+              </span>
+            </span>
+          ) : (
+            `Not checked yet, set to ${s.setPoint}°F`
+          ),
+        ],
+      ]}
+    />
   )
 }
 
@@ -116,11 +161,11 @@ function Details({ e }) {
         icon="truck"
         title="Vehicle"
         rows={[
-          ['Trailer #', <b key="t">{e.trailerNumber || '—'}</b>],
+          ['Trailer', <b key="t">{e.trailerNumber || '—'}</b>],
           ['Carrier', e.truckName],
           ['Driver', e.truckerNameIn],
           ['Driver phone', e.driverPhone],
-          pickup && ['Order No', e.pickupNumber],
+          pickup && ['Order no.', e.pickupNumber],
           pickup && ['Customer', e.customerPickupFor],
         ]}
       />
@@ -198,6 +243,7 @@ function Details({ e }) {
           ['Release', e.release?.releasedAt ? `Released ${clockTime(e.release.releasedAt)} by ${e.release.releasedBy}` : 'Not yet'],
         ]}
       />
+      <LoadGroup e={e} />
     </div>
   )
 }
@@ -242,7 +288,7 @@ function EditForm({ entry, entries, form, set, errors }) {
         <input type="time" {...text('appointmentTime')} className={text('appointmentTime').className + ' max-w-[220px]'} />
       </FieldBox>
 
-      <FieldBox name="trailerNumber" label="Trailer #" required error={err('trailerNumber')}>
+      <FieldBox name="trailerNumber" label="Trailer" required error={err('trailerNumber')}>
         <input {...text('trailerNumber')} autoComplete="off" />
       </FieldBox>
       <FieldBox name="truckName" label="Carrier" required error={err('truckName')}>
@@ -251,7 +297,7 @@ function EditForm({ entry, entries, form, set, errors }) {
       </FieldBox>
       <div className="grid gap-4 sm:grid-cols-2">
         <FieldBox name="driverPhone" label="Driver phone" required error={err('driverPhone')} hint="10 digits">
-          <input type="tel" inputMode="tel" autoComplete="off" {...text('driverPhone')} />
+          <input {...text('driverPhone')} {...PHONE_PROPS} onChange={(e) => set({ driverPhone: phoneInput(e.target.value) })} />
         </FieldBox>
         <FieldBox name="truckerNameIn" label="Driver name" required error={err('truckerNameIn')}>
           <input {...text('truckerNameIn')} />
@@ -259,7 +305,7 @@ function EditForm({ entry, entries, form, set, errors }) {
       </div>
       {hasPickup && (
         <div className="grid gap-4 sm:grid-cols-2">
-          <FieldBox name="pickupNumber" label="Order No" required error={err('pickupNumber')}>
+          <FieldBox name="pickupNumber" label="Order no." required error={err('pickupNumber')}>
             <input {...text('pickupNumber')} />
           </FieldBox>
           <FieldBox name="customerPickupFor" label="Customer" required error={err('customerPickupFor')}>

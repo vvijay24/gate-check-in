@@ -1,6 +1,7 @@
 import * as ui from '../../ui'
 import { Icon } from '../../icons'
 import CardHead from '../CardHead'
+import { clockTime } from '../../time'
 
 // Building blocks shared by the Shipping sections: the section title row, number tiles, cards, simple
 // bar charts (always with their numbers written beside them, so no chart needs colour or hover alone),
@@ -11,13 +12,72 @@ export function SectionHead({ title, sub, children }) {
   return (
     <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
       <div className="min-w-0">
-        <h2 className="font-display text-[26px] leading-tight font-bold">{title}</h2>
-        {sub && <p className="mt-1 max-w-[760px] text-[15px] text-muted">{sub}</p>}
+        {title && <h2 className="font-display text-[26px] leading-tight font-bold">{title}</h2>}
+        {sub && <p className={(title ? 'mt-1 ' : '') + 'max-w-[760px] text-[15px] text-muted'}>{sub}</p>}
       </div>
       {children && <div className="flex flex-wrap items-center gap-2">{children}</div>}
     </div>
   )
 }
+
+// A Shipping section's title: its sidebar name, one status line under it, and "Live, 2:30 PM" on the
+// right, with any controls beside that.
+export function PageTitle({ title, line, now, children }) {
+  return (
+    <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
+      <div className="min-w-0">
+        <h2 className="font-display text-[26px] leading-tight font-bold">{title}</h2>
+        {line && <p className="mt-1 max-w-[820px] text-[15px] text-muted">{line}</p>}
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        {children}
+        {now != null && (
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-ok-soft px-2.5 py-1 text-[13px] font-bold text-ok">
+            <i className="inline-block size-1.5 rounded-full bg-ok" aria-hidden="true" />
+            Live, {clockTime(now)}
+          </span>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// "Show as table" under a chart: the same numbers as a plain table. `head`: column names (an object
+// { label, right } for a number column); `rows`: arrays of cells.
+export function ShowTable({ head, rows, className = '' }) {
+  return (
+    <details className={'text-[14px] ' + className}>
+      <summary className="flex min-h-11 w-fit cursor-pointer items-center font-semibold text-signal">Show as table</summary>
+      <div className="overflow-x-auto rounded-xl border border-hair">
+        <table className={ui.table}>
+          <thead>
+            <tr>
+              {head.map((h, i) => (
+                <th key={i} className={ui.th + (h?.right ? ui.num : '')}>
+                  {h?.label ?? h}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r, i) => (
+              <tr key={i} className={ui.tr}>
+                {r.map((c, j) => (
+                  <td key={j} className={ui.tdTight + (head[j]?.right ? ui.num : '')}>
+                    {c}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </details>
+  )
+}
+
+// "1,750 cases", "1 case".
+export const cases = (n) => `${Math.round(n ?? 0).toLocaleString()} case${Math.round(n ?? 0) === 1 ? '' : 's'}`
 
 export function LivePill() {
   return (
@@ -28,17 +88,21 @@ export function LivePill() {
   )
 }
 
-// A number tile. `tone`: bad | warn | good colours the icon (and the note for bad); otherwise quiet.
-export function Tile({ icon, label, value, note, tone }) {
-  const ic = { bad: 'bg-danger-soft text-danger', warn: 'bg-warn text-warn-ink', good: 'bg-ok-soft text-ok' }[tone] ?? 'bg-signal-tint text-signal'
+// A number tile, calm by default: a white card with a navy icon. `tone` bad | warn colours only the
+// number when it needs attention. `change`: a short line on the change against the previous period.
+export function Tile({ icon, label, value, note, tone, change }) {
+  const num = { bad: 'text-danger', warn: 'text-warn-ink' }[tone] ?? ''
   return (
-    <div className="grid grid-cols-[44px_minmax(0,1fr)] items-center gap-x-3 gap-y-1 rounded-[18px] bg-panel px-4 py-3.5 shadow-card">
-      <span className={'row-span-2 grid size-11 place-items-center rounded-[14px] ' + ic}>
+    <div className="grid grid-cols-[44px_minmax(0,1fr)] items-center gap-x-3 gap-y-1 rounded-2xl border border-hair bg-panel px-4 py-3.5 shadow-card">
+      <span className="row-span-2 grid size-11 place-items-center rounded-[14px] bg-signal-tint text-signal">
         <Icon name={icon} size={22} />
       </span>
       <span className="text-[13px] leading-tight font-semibold text-muted">{label}</span>
-      <span className="font-display text-[30px] leading-none font-bold tabular-nums">{value}</span>
-      <span className={'col-span-2 mt-1.5 border-t border-hair pt-2 text-[13px] ' + (tone === 'bad' ? 'font-semibold text-danger' : 'text-muted')}>{note}</span>
+      <span className={'font-display text-[28px] leading-none font-bold tabular-nums ' + num}>{value}</span>
+      <span className="col-span-2 mt-1.5 border-t border-hair pt-2 text-[13px] text-muted">
+        {note}
+        {change && <span className="block font-semibold text-ink">{change}</span>}
+      </span>
     </div>
   )
 }
@@ -159,7 +223,7 @@ export function RangeSwitch({ value, onChange }) {
           aria-pressed={value === r.id}
           onClick={() => onChange(r.id)}
           className={
-            'min-h-9 cursor-pointer rounded-lg px-3 text-[14px] font-semibold transition-colors duration-150 ' +
+            'min-h-11 cursor-pointer rounded-lg px-3 text-[14px] font-semibold transition-colors duration-150 ' +
             (value === r.id ? 'bg-signal text-signal-ink shadow-card' : 'text-ink hover:bg-signal-tint')
           }
         >
