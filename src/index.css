@@ -300,3 +300,13 @@ dialog[open]::backdrop { animation: var(--animate-fade); }
 .tt .tt-tablebox tbody tr:last-child td { border-bottom: 0; }
 /* The kit's pill buttons (range, detail tabs, Back) are 44px tall like every other tap target. */
 .tt-back, .tt-tab { min-height: 44px; }
+
+/* The management Overview (MgmtOverview.jsx): the kit's look with the app's type scale. Hero h1 28px,
+   hero figure 48px, section h2 20px, card numbers 30px, panel titles 16.5px; numbers in the body font. */
+.tt.tt-mgmt { gap: 24px; font-family: var(--font-body); }
+.tt-mgmt svg text { font-family: var(--font-body); font-size: 12px; }
+.tt-mgmt svg text.v { font-variant-numeric: tabular-nums; }
+.tt-mgmt .tt-chart { min-height: 0; }
+@media print {
+  .tt-mgmt section, .tt-mgmt article { break-inside: avoid; }
+}
